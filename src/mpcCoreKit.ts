@@ -699,13 +699,13 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         parties,
         clientIndex
       );
-      // setup mock shares, sockets and tss wasm files.
-      const [sockets] = await Promise.all([tssUtils.setupSockets(tssWSEndpoints), tss.default(this.options.tssImportUrl)]);
-
-      const randomSessionNonce = keccak256(generatePrivate().toString("hex") + Date.now());
+      const randomSessionNonce = keccak256(generatePrivate().toString("hex") + Date.now()).toString("hex");
 
       // session is needed for authentication to the web3auth infrastructure holding the factor 1
-      const currentSession = `${sessionId}${randomSessionNonce.toString("hex")}`;
+      const currentSession = `${sessionId}${randomSessionNonce}`;
+
+      // setup mock shares, sockets and tss wasm files.
+      const [sockets] = await Promise.all([tssUtils.setupSockets(tssWSEndpoints, randomSessionNonce), tss.default(this.options.tssImportUrl)]);
 
       const participatingServerDKGIndexes = [1, 2, 3];
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShare2Index as number);
