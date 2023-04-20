@@ -15,7 +15,7 @@
   "jsdelivr": "dist/mpcCoreKit.umd.min.js",
   "types": "dist/types/index.d.ts",
   "author": "Torus Labs",
-  "homepage": "https://github.com/Web3Auth/mpc-core-kit/tree/main#readme",
+  "homepage": "https://github.com/Web3Auth/mpc-core-kit/tree/master#readme",
   "license": "ISC",
   "scripts": {
     "test": "mocha --config ../../.mocharc.json test/**.ts",
