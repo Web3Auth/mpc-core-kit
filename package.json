@@ -34,32 +34,35 @@
     "@babel/runtime": "^7.x"
   },
   "dependencies": {
+    "@tkey/chrome-storage": "8.0.0-alpha.0",
+    "@tkey/common-types": "8.0.0-alpha.0",
+    "@tkey/core": "8.0.0-alpha.0",
+    "@tkey/security-questions": "8.0.7-alpha.0",
+    "@tkey/service-provider-torus": "8.0.0-alpha.0",
+    "@tkey/share-serialization": "8.0.0-alpha.0",
+    "@tkey/storage-layer-torus": "8.0.0-alpha.0",
+    "@toruslabs/constants": "^9.0.0",
     "@toruslabs/customauth": "11.4.2-alpha.3",
     "@toruslabs/eccrypto": "2.1.1",
-    "@toruslabs/openlogin-session-manager": "^0.0.1",
+    "@toruslabs/fetch-node-details": "^9.0.0",
+    "@toruslabs/fnd-base": "^9.0.0",
     "@toruslabs/metadata-helpers": "^3.1.0",
+    "@toruslabs/openlogin-session-manager": "^0.0.1",
     "@toruslabs/tss-client": "^1.6.1-alpha.0",
-		"@toruslabs/tss-lib": "^1.6.0-alpha.0",
+    "@toruslabs/tss-lib": "^1.6.0-alpha.0",
+    "@web3auth-mpc/ethereum-provider": "^2.1.22",
     "@web3auth/base": "^5.1.0",
     "@web3auth/base-provider": "^5.1.1",
-    "@web3auth-mpc/ethereum-provider": "^2.1.22",
-    "@tkey/chrome-storage": "8.0.0-alpha.0",
-		"@tkey/common-types": "8.0.0-alpha.0",
-		"@tkey/core": "8.0.0-alpha.0",
-    "@tkey/security-questions": "8.0.7-alpha.0",
-		"@tkey/service-provider-torus": "8.0.0-alpha.0",
-		"@tkey/storage-layer-torus": "8.0.0-alpha.0",
-		"@tkey/share-serialization": "8.0.0-alpha.0",
-    "elliptic": "^6.5.4",
     "bn.js": "^5.2.1",
-    "bowser": "^2.11.0"
+    "bowser": "^2.11.0",
+    "elliptic": "^6.5.4"
   },
   "devDependencies": {
-    "@types/elliptic": "^6.4.14",
     "@babel/register": "^7.21.0",
     "@toruslabs/eslint-config-typescript": "^1.4.1",
     "@toruslabs/torus-scripts": "^3.0.4",
     "@types/chai": "^4.3.4",
+    "@types/elliptic": "^6.4.14",
     "@types/node": "^16",
     "@typescript-eslint/eslint-plugin": "^5.56.0",
     "chai": "^4.3.7",
@@ -102,4 +105,3 @@
     "url": "https://github.com/Web3Auth/mpc-core-kit/issues"
   }
 }
-  

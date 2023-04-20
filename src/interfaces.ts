@@ -59,8 +59,6 @@ export interface Web3AuthOptions {
 
   web3AuthNetwork?: WEB3AUTH_NETWORK_TYPE;
 
-  tssImportUrl?: string;
-
   storageKey?: "session" | "local";
 
   // default 86400.
@@ -76,6 +74,7 @@ export interface Web3AuthState {
   tssShare2Index?: number;
   tssPubKey?: Buffer;
   factorKey?: BN;
+  tssNodeEndpoints?: string[];
 }
 
 export type FactorKeyCloudMetadata = {

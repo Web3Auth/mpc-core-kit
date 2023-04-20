@@ -4,7 +4,7 @@
 /* eslint-disable @typescript-eslint/no-shadow */
 import BN from "bn.js";
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit } from "@web3auth/mpc-core-kit"
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK } from "@web3auth/mpc-core-kit"
 import Web3 from 'web3';
 import type { provider } from "web3-core";
 // import swal from "sweetalert";
@@ -49,7 +49,7 @@ function App() {
 
   useEffect(() => {
     const init = async () => {
-      const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: 'testnet'  })
+      const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.TESTNET  })
       await coreKitInstance.init();
       setCoreKitInstance(coreKitInstance);
       if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
