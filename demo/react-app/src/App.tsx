@@ -49,7 +49,7 @@ function App() {
 
   useEffect(() => {
     const init = async () => {
-      const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.TESTNET  })
+      const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET  })
       await coreKitInstance.init();
       setCoreKitInstance(coreKitInstance);
       if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
