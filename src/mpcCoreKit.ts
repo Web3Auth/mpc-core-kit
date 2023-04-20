@@ -250,6 +250,14 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (password.length < 10) {
       throw new Error("password must be at least 10 characters long");
     }
+
+    const tKeyShareDescriptions = this.tkey.getMetadata().getShareDescription();
+    for (const [key, value] of Object.entries(tKeyShareDescriptions)) {
+      if (key === question && value[0]) {
+        throw new Error("question already present");
+      }
+    }
+
     try {
       const backupFactorKey = new BN(generatePrivate());
       const backupFactorPub = getPubKeyPoint(backupFactorKey);
