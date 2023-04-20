@@ -118,7 +118,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       storageLayer: this.storageLayer,
       manualSync: this.options.manualSync,
       modules: {
-        shareSerializationModule,
+        shareSerialization: shareSerializationModule,
       },
     });
 
@@ -215,10 +215,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     await this.copyFactorPub(2, backupFactorPub);
     const share = await this.getShare();
     await this.addShareDescriptionSeedPhrase(share, backupFactorKey);
-    const mnemonic = (await (this.tkey.modules[FactorKeyTypeShareDescription.SeedPhrase] as ShareSerializationModule).serialize(
-      backupFactorKey,
-      "mnemonic"
-    )) as string;
+    const mnemonic = (await (this.tkey.modules.shareSerialization as ShareSerializationModule).serialize(backupFactorKey, "mnemonic")) as string;
     if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
     return mnemonic;
   }
@@ -228,10 +225,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       throw new Error("tkey not initialized, call init first");
     }
 
-    const factorKey = await (this.tkey.modules[FactorKeyTypeShareDescription.SeedPhrase] as ShareSerializationModule).deserialize(
-      shareMnemonic,
-      "mnemonic"
-    );
+    const factorKey = await (this.tkey.modules.shareSerialization as ShareSerializationModule).deserialize(shareMnemonic, "mnemonic");
     if (!factorKey) {
       throw new Error(ERRORS.INVALID_BACKUP_SHARE);
     }
