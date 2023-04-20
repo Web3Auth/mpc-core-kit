@@ -7,13 +7,13 @@ import { AGGREGATE_VERIFIER, AGGREGATE_VERIFIER_TYPE } from "@toruslabs/customau
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
-import { BrowserStorage } from "@toruslabs/openlogin-utils";
 import { Client, utils as tssUtils } from "@toruslabs/tss-client";
 import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
 import EC from "elliptic";
 
+import { BrowserStorage } from "./browserStorage";
 import { DEFAULT_CHAIN_CONFIG, DELIMITERS, ERRORS, FactorKeyTypeShareDescription, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 import {
   FactorKeyCloudMetadata,

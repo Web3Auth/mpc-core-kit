@@ -5,6 +5,11 @@ import BN from "bn.js";
 
 import { USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
+export interface IStorage {
+  getItem(key: string): string;
+  setItem(key: string, value: string): void;
+}
+
 export interface BaseLoginParams {
   // offset in seconds
   serverTimeOffset?: number;
