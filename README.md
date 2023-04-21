@@ -36,7 +36,7 @@ import { Web3AuthMPCCoreKit } from "@web3auth/mpc-core-kit";
 
 //Initialize within your constructor
 const web3auth = new Web3AuthMPCCoreKit({
-    web3AuthClientId: 'torus-key-test',
+    web3AuthClientId: 'YOUR_CLIENT_ID',
     web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET
 });
 
