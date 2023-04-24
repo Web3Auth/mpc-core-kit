@@ -3,7 +3,14 @@ import ThresholdKey from "@tkey/core";
 import { TorusServiceProvider } from "@tkey/service-provider-torus";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import { AGGREGATE_VERIFIER, AGGREGATE_VERIFIER_TYPE } from "@toruslabs/customauth";
+import {
+  AGGREGATE_VERIFIER,
+  AGGREGATE_VERIFIER_TYPE,
+  TORUS_METHOD,
+  TorusAggregateLoginResponse,
+  TorusLoginResponse,
+  UX_MODE,
+} from "@toruslabs/customauth";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { keccak256 } from "@toruslabs/metadata-helpers";
@@ -52,14 +59,17 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
+    if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
+      throw new Error("You must specify a eip155 chain config.");
+    }
+    if (!options.web3AuthClientId) {
+      throw new Error("You must specify a web3auth clientId.");
+    }
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     if (!options.storageKey) options.storageKey = "local";
     if (!options.sessionTime) options.sessionTime = 86400;
-    if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
-      throw new Error("You must specify a eip155 chain config.");
-    }
-
+    if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     this.options = options;
   }
 
@@ -77,6 +87,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   private get signatures(): string[] {
     return this.state?.signatures ? this.state.signatures : [];
+  }
+
+  private get isRedirectMode(): boolean {
+    return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
   // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
@@ -107,6 +121,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       useTSS: true,
       customAuthArgs: {
         baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
+        uxMode: this.options.uxMode,
       },
       nodeEndpoints: nodeDetails.torusNodeEndpoints,
       nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
@@ -143,12 +158,11 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
 
     try {
-      let path: USER_PATH_TYPE | null = null;
-
       // oAuth login.
       if (params.subVerifierDetails) {
         // single verifier login.
         const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerLogin(params.subVerifierDetails);
+        if (this.isRedirectMode) return null;
         this.updateState({
           oAuthKey: loginResponse.privateKey,
           userInfo: loginResponse.userInfo,
@@ -163,6 +177,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           verifierIdentifier: params.aggregateVerifierIdentifier as string,
           subVerifierDetailsArray: params.subVerifierDetailsArray,
         });
+        if (this.isRedirectMode) return null;
         this.updateState({
           oAuthKey: loginResponse.privateKey,
           userInfo: loginResponse.userInfo[0],
@@ -170,42 +185,51 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         });
       }
 
-      let factorKey: BN | null = null;
-
-      const existingUser = await this.isMetadataPresent(this.state.oAuthKey as string);
-
-      if (!existingUser) {
-        // save the device share.
-        factorKey = new BN(generatePrivate());
-        const deviceTSSShare = new BN(generatePrivate());
-        const deviceTSSIndex = 2;
-        const factorPub = getPubKeyPoint(factorKey);
-        await this.tkey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
-        path = USER_PATH.NEW;
-      } else {
-        await this.tkey.initialize({ neverInitializeNewKey: true });
-        const metadata = this.tkey.getMetadata();
-        const tkeyPubX = metadata.pubKey.x.toString(16, 64);
-        const tKeyLocalStoreString = this.currentStorage.get<string>(tkeyPubX);
-        const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
-
-        if (tKeyLocalStore.factorKey) {
-          factorKey = new BN(tKeyLocalStore.factorKey, "hex");
-          const deviceShare = await this.checkIfFactorKeyValid(factorKey);
-          await this.tkey.inputShareStoreSafe(deviceShare, true);
-          path = USER_PATH.EXISTING;
-        } else {
-          throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
-        }
-      }
-
-      await this.tkey.reconstructKey();
-      await this.finalizeTkey(path, factorKey);
-
+      await this.setupTkey();
       return this.provider;
     } catch (err: unknown) {
       log.error("login error", err);
       throw new Error((err as Error).message);
+    }
+  }
+
+  public async handleRedirectResult(): Promise<SafeEventEmitterProvider | null> {
+    if (!this.tkey || !this.torusSp) {
+      throw new Error("tkey is not initialized, call initi first");
+    }
+
+    try {
+      const result = await (this.torusSp as TorusServiceProvider).directWeb.getRedirectResult();
+      if (result.method === TORUS_METHOD.TRIGGER_LOGIN) {
+        const data = result.result as TorusLoginResponse;
+        if (!data) throw new Error("Invalid login params passed");
+        this.updateState({
+          oAuthKey: data.privateKey,
+          userInfo: data.userInfo,
+          signatures: data.signatures.filter((i) => Boolean(i)),
+        });
+        this.torusSp.verifierType = "normal";
+      } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
+        const data = result.result as TorusAggregateLoginResponse;
+        if (!data) throw new Error("Invalid login params passed");
+        this.updateState({
+          oAuthKey: data.privateKey,
+          userInfo: data.userInfo[0],
+          signatures: data.signatures.filter((i) => Boolean(i)),
+        });
+        this.torusSp.verifierType = "aggregate";
+      } else {
+        throw new Error("Unsupported method type");
+      }
+
+      this.torusSp.postboxKey = new BN(this.state.oAuthKey, "hex");
+      this.torusSp.verifierName = this.state.userInfo.verifier;
+      this.torusSp.verifierId = this.state.userInfo.verifierId;
+      await this.setupTkey();
+      return this.provider;
+    } catch (error: unknown) {
+      log.error("error while handling redirect result", error);
+      throw new Error((error as Error).message);
     }
   }
 
@@ -424,6 +448,40 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     await this.sessionManager.invalidateSession();
     this.currentStorage.set("sessionId", "");
     this.resetState();
+  }
+
+  private async setupTkey(): Promise<void> {
+    let factorKey: BN | null = null;
+    let path: USER_PATH_TYPE | null = null;
+    const existingUser = await this.isMetadataPresent(this.state.oAuthKey as string);
+
+    if (!existingUser) {
+      // save the device share.
+      factorKey = new BN(generatePrivate());
+      const deviceTSSShare = new BN(generatePrivate());
+      const deviceTSSIndex = 2;
+      const factorPub = getPubKeyPoint(factorKey);
+      await this.tkey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
+      path = USER_PATH.NEW;
+    } else {
+      await this.tkey.initialize({ neverInitializeNewKey: true });
+      const metadata = this.tkey.getMetadata();
+      const tkeyPubX = metadata.pubKey.x.toString(16, 64);
+      const tKeyLocalStoreString = this.currentStorage.get<string>(tkeyPubX);
+      const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
+
+      if (tKeyLocalStore.factorKey) {
+        factorKey = new BN(tKeyLocalStore.factorKey, "hex");
+        const deviceShare = await this.checkIfFactorKeyValid(factorKey);
+        await this.tkey.inputShareStoreSafe(deviceShare, true);
+        path = USER_PATH.EXISTING;
+      } else {
+        throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+      }
+    }
+
+    await this.tkey.reconstructKey();
+    await this.finalizeTkey(path, factorKey);
   }
 
   private async finalizeTkey(path: USER_PATH_TYPE, factorKey: BN) {

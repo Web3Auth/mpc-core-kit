@@ -1,5 +1,5 @@
 import { KeyDetails, ShareStore } from "@tkey/common-types";
-import type { AGGREGATE_VERIFIER_TYPE, LoginWindowResponse, SubVerifierDetails, TorusVerifierResponse } from "@toruslabs/customauth";
+import type { AGGREGATE_VERIFIER_TYPE, LoginWindowResponse, SubVerifierDetails, TorusVerifierResponse, UX_MODE_TYPE } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
@@ -32,6 +32,7 @@ export interface IWeb3Auth {
   provider: SafeEventEmitterProvider | null;
   init(): void;
   connect(loginParams: LoginParams): Promise<SafeEventEmitterProvider | null>;
+  handleRedirectResult(): Promise<SafeEventEmitterProvider | null>;
   getUserInfo(): UserInfo;
   inputBackupShare(shareMnemonic: string): Promise<void>;
   exportBackupShare(): Promise<string>;
@@ -53,16 +54,37 @@ export interface Web3AuthOptions {
 
   chainConfig?: CustomChainConfig;
 
+  /**
+   * @defaultValue `false`
+   */
   manualSync?: boolean;
 
+  /**
+   * @defaultValue `${window.location.origin}/serviceworker`
+   */
   baseUrl?: string;
 
+  /**
+   *
+   * @defaultValue `'sapphire_mainner'`
+   */
   web3AuthNetwork?: WEB3AUTH_NETWORK_TYPE;
 
+  /**
+   *
+   * @defaultValue `'local'`
+   */
   storageKey?: "session" | "local";
 
-  // default 86400.
+  /**
+   * @defaultValue 86400
+   */
   sessionTime?: number;
+
+  /**
+   * @defaultValue `'POPUP'`
+   */
+  uxMode?: UX_MODE_TYPE;
 }
 
 export interface Web3AuthState {
