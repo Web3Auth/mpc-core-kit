@@ -1,6 +1,6 @@
 {
   "name": "@web3auth/mpc-core-kit",
-  "version": "0.0.1",
+  "version": "0.0.0",
   "description": "MPC CoreKit SDK for web3Auth",
   "keywords": [
     "web3Auth/mpc-core-kit",
@@ -22,6 +22,7 @@
     "test-debugger": "mocha --config ../../.mocharc.json --inspect-brk test/**.ts",
     "dev": "torus-scripts start",
     "build": "torus-scripts build",
+    "release": "torus-scripts release",
     "lint": "eslint --fix 'src/**/*.ts'",
     "prepack": "npm run build",
     "pre-commit": "lint-staged --cwd ."
