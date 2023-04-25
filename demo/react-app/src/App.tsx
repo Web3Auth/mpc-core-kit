@@ -2,9 +2,8 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable require-atomic-updates */
 /* eslint-disable @typescript-eslint/no-shadow */
-import BN from "bn.js";
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit } from "@web3auth/mpc-core-kit"
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, LoginParams } from "@web3auth/mpc-core-kit"
 import Web3 from 'web3';
 import type { provider } from "web3-core";
 // import swal from "sweetalert";
@@ -49,10 +48,20 @@ function App() {
 
   useEffect(() => {
     const init = async () => {
-      const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: 'testnet'  })
+      const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: 'redirect'  })
       await coreKitInstance.init();
       setCoreKitInstance(coreKitInstance);
       if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
+      if (window.location.hash.includes('#state')) {
+        try {
+          const provider = await coreKitInstance.handleRedirectResult();
+          if (provider) setProvider(provider);
+        } catch (error) {
+          if ((error as Error).message === "required more shares") {
+            setShowBackupPhraseScreen(true);
+          }
+        }
+      }
     }
     init()
   }, [])
@@ -77,7 +86,7 @@ function App() {
         throw new Error('initiated to login');
       }
       const token = generateIdToken(mockVerifierId as string, "ES256");
-      const provider = await coreKitInstance.connect({ subVerifierDetails: { 
+      const verifierConfig = mockLogin ? {
         verifier: "torus-test-health",
         typeOfLogin: 'jwt',
         clientId: "torus-key-test",
@@ -85,7 +94,14 @@ function App() {
           verifierIdField: "email",
           id_token: token
         }
-      }})
+      } : {
+        typeOfLogin: 'google',
+				verifier: 'google-tkey-w3a',
+        clientId:
+					'774338308167-q463s7kpvja16l4l0kko3nb925ikds2p.apps.googleusercontent.com',
+      }
+  
+      const provider = await coreKitInstance.connect({ subVerifierDetails: verifierConfig as LoginParams['subVerifierDetails'] })
 
       if (provider) setProvider(provider)
     } catch (error: unknown) {

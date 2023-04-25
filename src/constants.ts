@@ -1,3 +1,4 @@
+import { TORUS_NETWORK } from "@toruslabs/constants";
 import { CHAIN_NAMESPACES, CustomChainConfig } from "@web3auth/base";
 
 export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
@@ -12,8 +13,8 @@ export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
 };
 
 export const WEB3AUTH_NETWORK = {
-  MAINNET: "mainnet",
-  TESTNET: "testnet",
+  MAINNET: TORUS_NETWORK.SAPPHIRE_MAINNET,
+  DEVNET: TORUS_NETWORK.SAPPHIRE_DEVNET,
 } as const;
 
 export const USER_PATH = {
