@@ -1,29 +1,10 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
+const path = require("path");
 
-const TsconfigPathsPlugin = require("tsconfig-paths-webpack-plugin");
-function generateWebpackConfig({ alias, module = {}, ssrModule = null, pkgBaseConfig = {} }) {
-  const baseConfig = {
-    ...pkgBaseConfig,
-    resolve: {
-      plugins: [new TsconfigPathsPlugin()],
-      alias: {
-        "bn.js": require.resolve("bn.js"),
-        lodash: require.resolve("lodash-es"),
-        ...alias,
-      },
+exports.baseConfig = {
+  resolve: {
+    alias: {
+      "bn.js": path.resolve(__dirname, "node_modules/bn.js"),
+      "js-sha3": path.resolve(__dirname, "node_modules/js-sha3"),
     },
-  };
-
-  const config = { baseConfig };
-  config.umdConfig = {
-    module,
-  };
-
-  config.cjsConfig = {
-    module: ssrModule || module,
-  };
-
-  return config;
-}
-
-module.exports = generateWebpackConfig;
+  },
+};

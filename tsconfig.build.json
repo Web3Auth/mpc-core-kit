@@ -1,7 +1,0 @@
-{
-  "include": ["src"],
-  "compilerOptions": {
-    "module": "esnext"
-  }
-}
-    

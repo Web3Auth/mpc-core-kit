@@ -7,20 +7,8 @@
     "ecmaVersion": 11,
     "project": "./tsconfig.json"
   },
-  "rules": {
-    "@typescript-eslint/no-throw-literal": 0,
-    "no-case-declarations": 0,
-    "import/extensions": [
-      "error",
-      "ignorePackages",
-      {
-        "js": "never",
-        "jsx": "never",
-        "ts": "never",
-        "tsx": "never"
-      }
-    ]
-  },
+  "ignorePatterns": ["*.config.js"],
+  "rules": {},
   "env": {
     "es2020": true,
     "browser": true,
