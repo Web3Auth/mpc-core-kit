@@ -458,7 +458,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (!this.state.oAuthKey) {
       throw new Error("user not logged in");
     }
-    console.log(this.state.oAuthKey);
     await this.tkey.storageLayer.setMetadata({
       privKey: new BN(this.state.oAuthKey, "hex"),
       input: { message: "KEY_NOT_FOUND" },
