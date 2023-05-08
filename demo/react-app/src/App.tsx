@@ -356,21 +356,6 @@ function App() {
           Delete Password Share
         </button>
 
-
-        {/* <button onClick={createNewTSSShareIntoManualBackupFactorkey} className="card">
-          Create New TSSShare Into Manual Backup Factor
-        </button>
-
-
-        <button onClick={deleteTkeyLocalStore} className="card">
-          Delete tKey Local Store (enables Recovery Flow)
-        </button>
-
-
-        <button onClick={resetAccount} className='card'>
-          Reset Account (CAUTION)
-        </button> */}
-
       </div>
       <h2 className="subtitle">Blockchain Calls</h2>
       <div className="flex-container">
@@ -438,7 +423,11 @@ function App() {
             <hr/>
             <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
             <button onClick={resetViaPassword} className="card">
-              Reset using password Share
+              Recover using password Share
+            </button>
+
+            <button onClick={resetAccount} className="card">
+              Reset Account
             </button>
           </>
         )
