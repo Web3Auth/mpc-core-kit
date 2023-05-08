@@ -275,6 +275,15 @@ function App() {
     uiConsole(signedMessage);
   };
 
+  const resetAccount = async (): Promise<void> => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    await coreKitInstance.CRITICAL_resetAccount();
+    uiConsole('reset');
+    setProvider(null);
+  }
+
   const sendTransaction = async () => {
     if (!web3) {
       console.log("web3 not initialized yet");
@@ -315,9 +324,9 @@ function App() {
         </button>
 
 
-        {/* <button onClick={getMetadataKey} className="card">
-          Metadata Key
-        </button> */}
+        <button onClick={resetAccount} className="card">
+          Reset Account
+        </button>
 
 
         <button onClick={logout} className="card">
