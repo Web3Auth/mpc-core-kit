@@ -185,7 +185,7 @@ function App() {
     }
   }
 
-  const resetViaPassword = async () => {
+  const recoverViaPassword = async () => {
     if (!coreKitInstance) { 
       throw new Error("coreKitInstance is not set");
     }
@@ -194,25 +194,6 @@ function App() {
     if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
   }
   
-
-  // const getMetadataKey = (): void => {
-  //   uiConsole(metadataKey);
-  //   return metadataKey;
-  // };
-
-  // const resetAccount = async () => {
-  //   try {
-  //     localStorage.removeItem(`tKeyLocalStore\u001c${loginResponse.userInfo.verifier}\u001c${loginResponse.userInfo.verifierId}`);
-  //     await tKey.storageLayer.setMetadata({
-  //       privKey: oAuthShare,
-  //       input: { message: "KEY_NOT_FOUND" },
-  //     });
-  //     uiConsole("Reset Account Successful.");
-  //   } catch (e) {
-  //     uiConsole(e);
-  //   }
-  // };
-
   const getChainID = async () => {
     if (!web3) {
       console.log("web3 not initialized yet");
@@ -281,7 +262,9 @@ function App() {
     }
     await coreKitInstance.CRITICAL_resetAccount();
     uiConsole('reset');
+    setLoginResponse(null);
     setProvider(null);
+    setShowBackupPhraseScreen(false);
   }
 
   const sendTransaction = async () => {
@@ -422,13 +405,16 @@ function App() {
             OR
             <hr/>
             <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
-            <button onClick={resetViaPassword} className="card">
+            <button onClick={recoverViaPassword} className="card">
               Recover using password Share
             </button>
 
             <button onClick={resetAccount} className="card">
               Reset Account
             </button>
+            <div id="console" style={{ whiteSpace: "pre-line" }}>
+              <p style={{ whiteSpace: "pre-line" }}></p>
+            </div>
           </>
         )
       }
