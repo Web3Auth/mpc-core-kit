@@ -43,6 +43,7 @@ export interface IWeb3Auth {
   getKeyDetails(): KeyDetails;
   commitChanges(): Promise<void>;
   logout(): Promise<void>;
+  CRITICAL_resetAccount(): Promise<void>;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];

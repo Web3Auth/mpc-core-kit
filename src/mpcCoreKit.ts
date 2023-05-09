@@ -450,6 +450,22 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     this.resetState();
   }
 
+  public async CRITICAL_resetAccount(): Promise<void> {
+    if (!this.tkey) {
+      throw new Error("tkey not initialized, call init first");
+    }
+
+    if (!this.state.oAuthKey) {
+      throw new Error("user not logged in");
+    }
+    await this.tkey.storageLayer.setMetadata({
+      privKey: new BN(this.state.oAuthKey, "hex"),
+      input: { message: "KEY_NOT_FOUND" },
+    });
+    this.currentStorage.resetStore();
+    this.resetState();
+  }
+
   private async setupTkey(): Promise<void> {
     let factorKey: BN | null = null;
     let path: USER_PATH_TYPE | null = null;
@@ -548,6 +564,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
       this.updateState({
         factorKey: new BN(result.factorKey, "hex"),
+        oAuthKey: result.oAuthKey,
         tssNonce: result.tssNonce,
         tssShare2: new BN(result.tssShare, "hex"),
         tssShare2Index: result.tssShareIndex,
@@ -770,7 +787,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       // 1. setup
       // generate endpoints for servers
       const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(tssNodeEndpoints, parties, clientIndex);
-      const randomSessionNonce = keccak256(generatePrivate().toString("hex") + Date.now()).toString("hex");
+      const randomSessionNonce = keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
       const tssImportUrl = `${tssNodeEndpoints[0]}/v1/clientWasm`;
       // session is needed for authentication to the web3auth infrastructure holding the factor 1
       const currentSession = `${sessionId}${randomSessionNonce}`;
