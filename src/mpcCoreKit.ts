@@ -24,10 +24,12 @@ import EC from "elliptic";
 import { BrowserStorage } from "./browserStorage";
 import { DEFAULT_CHAIN_CONFIG, DELIMITERS, ERRORS, FactorKeyTypeShareDescription, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 import {
+  AggregateVerifierLoginParams,
   FactorKeyCloudMetadata,
   IWeb3Auth,
   LoginParams,
   SessionData,
+  SubVerifierDetailsParams,
   TkeyLocalStoreData,
   USER_PATH_TYPE,
   UserInfo,
@@ -120,6 +122,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     this.torusSp = new TorusServiceProvider({
       useTSS: true,
       customAuthArgs: {
+        web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
         uxMode: this.options.uxMode,
       },
@@ -128,7 +131,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     });
 
     this.storageLayer = new TorusStorageLayer({
-      hostUrl: `${nodeDetails.torusNodeEndpoints[0]}/metadata`,
+      hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
       enableLogging: true,
     });
 
@@ -159,23 +162,28 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
     try {
       // oAuth login.
-      if (params.subVerifierDetails) {
+      if ((params as SubVerifierDetailsParams).subVerifierDetails) {
         // single verifier login.
-        const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerLogin(params.subVerifierDetails);
+        const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerLogin(
+          (params as SubVerifierDetailsParams).subVerifierDetails
+        );
         if (this.isRedirectMode) return null;
         this.updateState({
           oAuthKey: loginResponse.privateKey,
           userInfo: loginResponse.userInfo,
           signatures: loginResponse.signatures.filter((i) => Boolean(i)),
         });
-      } else if (params.subVerifierDetailsArray) {
-        if (params.aggregateVerifierType === AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID && params.subVerifierDetailsArray.length !== 1) {
+      } else if ((params as AggregateVerifierLoginParams).subVerifierDetailsArray) {
+        if (
+          (params as AggregateVerifierLoginParams).aggregateVerifierType === AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID &&
+          (params as AggregateVerifierLoginParams).subVerifierDetailsArray.length !== 1
+        ) {
           throw new Error("Single id verifier must have exactly one sub verifier");
         }
         const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerAggregateLogin({
-          aggregateVerifierType: params.aggregateVerifierType as AGGREGATE_VERIFIER_TYPE,
-          verifierIdentifier: params.aggregateVerifierIdentifier as string,
-          subVerifierDetailsArray: params.subVerifierDetailsArray,
+          aggregateVerifierType: (params as AggregateVerifierLoginParams).aggregateVerifierType as AGGREGATE_VERIFIER_TYPE,
+          verifierIdentifier: (params as AggregateVerifierLoginParams).aggregateVerifierIdentifier as string,
+          subVerifierDetailsArray: (params as AggregateVerifierLoginParams).subVerifierDetailsArray,
         });
         if (this.isRedirectMode) return null;
         this.updateState({
