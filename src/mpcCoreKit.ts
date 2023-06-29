@@ -125,6 +125,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
         uxMode: this.options.uxMode,
+        network: this.options.web3AuthNetwork,
       },
       nodeEndpoints: nodeDetails.torusNodeEndpoints,
       nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
