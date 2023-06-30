@@ -24,10 +24,12 @@ import EC from "elliptic";
 import { BrowserStorage } from "./browserStorage";
 import { DEFAULT_CHAIN_CONFIG, DELIMITERS, ERRORS, FactorKeyTypeShareDescription, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 import {
+  AggregateVerifierLoginParams,
   FactorKeyCloudMetadata,
   IWeb3Auth,
   LoginParams,
   SessionData,
+  SubVerifierDetailsParams,
   TkeyLocalStoreData,
   USER_PATH_TYPE,
   UserInfo,
@@ -120,15 +122,17 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     this.torusSp = new TorusServiceProvider({
       useTSS: true,
       customAuthArgs: {
+        web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
         uxMode: this.options.uxMode,
+        network: this.options.web3AuthNetwork,
       },
       nodeEndpoints: nodeDetails.torusNodeEndpoints,
       nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
     });
 
     this.storageLayer = new TorusStorageLayer({
-      hostUrl: `${nodeDetails.torusNodeEndpoints[0]}/metadata`,
+      hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
       enableLogging: true,
     });
 
@@ -159,23 +163,28 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
     try {
       // oAuth login.
-      if (params.subVerifierDetails) {
+      if ((params as SubVerifierDetailsParams).subVerifierDetails) {
         // single verifier login.
-        const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerLogin(params.subVerifierDetails);
+        const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerLogin(
+          (params as SubVerifierDetailsParams).subVerifierDetails
+        );
         if (this.isRedirectMode) return null;
         this.updateState({
           oAuthKey: loginResponse.privateKey,
           userInfo: loginResponse.userInfo,
           signatures: loginResponse.signatures.filter((i) => Boolean(i)),
         });
-      } else if (params.subVerifierDetailsArray) {
-        if (params.aggregateVerifierType === AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID && params.subVerifierDetailsArray.length !== 1) {
+      } else if ((params as AggregateVerifierLoginParams).subVerifierDetailsArray) {
+        if (
+          (params as AggregateVerifierLoginParams).aggregateVerifierType === AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID &&
+          (params as AggregateVerifierLoginParams).subVerifierDetailsArray.length !== 1
+        ) {
           throw new Error("Single id verifier must have exactly one sub verifier");
         }
         const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerAggregateLogin({
-          aggregateVerifierType: params.aggregateVerifierType as AGGREGATE_VERIFIER_TYPE,
-          verifierIdentifier: params.aggregateVerifierIdentifier as string,
-          subVerifierDetailsArray: params.subVerifierDetailsArray,
+          aggregateVerifierType: (params as AggregateVerifierLoginParams).aggregateVerifierType as AGGREGATE_VERIFIER_TYPE,
+          verifierIdentifier: (params as AggregateVerifierLoginParams).aggregateVerifierIdentifier as string,
+          subVerifierDetailsArray: (params as AggregateVerifierLoginParams).subVerifierDetailsArray,
         });
         if (this.isRedirectMode) return null;
         this.updateState({
@@ -209,6 +218,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           signatures: data.signatures.filter((i) => Boolean(i)),
         });
         this.torusSp.verifierType = "normal";
+        this.torusSp.verifierName = this.state.userInfo.verifier;
       } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
         const data = result.result as TorusAggregateLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
@@ -218,12 +228,12 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           signatures: data.signatures.filter((i) => Boolean(i)),
         });
         this.torusSp.verifierType = "aggregate";
+        this.torusSp.verifierName = this.state.userInfo.aggregateVerifier;
       } else {
         throw new Error("Unsupported method type");
       }
 
       this.torusSp.postboxKey = new BN(this.state.oAuthKey, "hex");
-      this.torusSp.verifierName = this.state.userInfo.verifier;
       this.torusSp.verifierId = this.state.userInfo.verifierId;
       await this.setupTkey();
       return this.provider;
