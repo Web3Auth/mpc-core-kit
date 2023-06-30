@@ -52,7 +52,7 @@ function App() {
       await coreKitInstance.init();
       setCoreKitInstance(coreKitInstance);
       if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
-      if (window.location.hash.includes('#access_token')) {
+      if (window.location.hash.includes('#state')) {
         try {
           const provider = await coreKitInstance.handleRedirectResult();
           if (provider) setProvider(provider);
@@ -86,25 +86,22 @@ function App() {
         throw new Error('initiated to login');
       }
       const token = generateIdToken(mockVerifierId as string, "ES256");
-      const verifierConfig: LoginParams =  {
-        aggregateVerifierIdentifier: "aggregate-sapphire",
-        aggregateVerifierType: "single_id_verifier",
-        subVerifierDetailsArray: [
-          {
-            typeOfLogin: "jwt",
-            verifier: "w3a-a0-github",
-            clientId: "hiLqaop0amgzCC0AXo4w0rrG9abuJTdu",
-            jwtParams: {
-              verifierIdField: "email",
-              domain: "https://web3auth.au.auth0.com",
-              isVerifierIdCaseSensitive: false,
-              connection: "github",
-            }
-          },
-        ],
+      const verifierConfig = mockLogin ? {
+        verifier: "torus-test-health",
+        typeOfLogin: 'jwt' as const,
+        clientId: "torus-key-test",
+        jwtParams: {
+          verifierIdField: "email",
+          id_token: token
+        }
+      } : {
+        typeOfLogin: 'google' as const,
+				verifier: 'google-tkey-w3a',
+        clientId:
+					'774338308167-q463s7kpvja16l4l0kko3nb925ikds2p.apps.googleusercontent.com',
       }
   
-      const provider = await coreKitInstance.connect(verifierConfig)
+      const provider = await coreKitInstance.connect({ subVerifierDetails: verifierConfig })
 
       if (provider) setProvider(provider)
     } catch (error: unknown) {
