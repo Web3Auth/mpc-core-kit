@@ -218,6 +218,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           signatures: data.signatures.filter((i) => Boolean(i)),
         });
         this.torusSp.verifierType = "normal";
+        this.torusSp.verifierName = this.state.userInfo.verifier;
       } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
         const data = result.result as TorusAggregateLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
@@ -227,12 +228,12 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           signatures: data.signatures.filter((i) => Boolean(i)),
         });
         this.torusSp.verifierType = "aggregate";
+        this.torusSp.verifierName = this.state.userInfo.aggregateVerifier;
       } else {
         throw new Error("Unsupported method type");
       }
 
       this.torusSp.postboxKey = new BN(this.state.oAuthKey, "hex");
-      this.torusSp.verifierName = this.state.userInfo.verifier;
       this.torusSp.verifierId = this.state.userInfo.verifierId;
       await this.setupTkey();
       return this.provider;
