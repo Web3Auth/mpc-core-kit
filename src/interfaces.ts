@@ -40,6 +40,8 @@ export interface IWeb3Auth {
   changeSecurityQuestionShare(question: string, password: string): Promise<void>;
   recoverSecurityQuestionShare(question: string, password: string): Promise<void>;
   deleteSecurityQuestionShare(question: string): Promise<void>;
+  addCustomShare(factorKey: BN, metadata: Record<string, string>): Promise<void>;
+  recoverCustomShare(factorKey: BN): Promise<void>;
   getKeyDetails(): KeyDetails;
   commitChanges(): Promise<void>;
   logout(): Promise<void>;

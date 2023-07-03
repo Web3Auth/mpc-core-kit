@@ -420,6 +420,48 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
   }
 
+  public async addCustomShare(factorKey: BN, metadata: Record<string, string> = {}): Promise<void> {
+    if (!this.tkey) {
+      throw new Error("tkey not initialized, call init first");
+    }
+    if (!factorKey) {
+      throw new Error("factorKey is required");
+    }
+
+    try {
+      const backupFactorPub = getPubKeyPoint(factorKey);
+      await this.copyFactorPub(2, backupFactorPub);
+      const share = await this.getShare();
+      await this.addCustomShareDesriptions(share, factorKey, metadata);
+
+      if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
+    } catch (error) {
+      log.error("error creating password share", error);
+      throw error;
+    }
+  }
+
+  public async recoverCustomShare(factorKey: BN): Promise<void> {
+    if (!this.tkey) {
+      throw new Error("tkey not initialized, call init first");
+    }
+    if (!factorKey) {
+      throw new Error("factorKey is required");
+    }
+
+    try {
+      const share = await this.checkIfFactorKeyValid(factorKey);
+
+      await this.tkey?.inputShareStoreSafe(share, true);
+      await this.tkey?.reconstructKey();
+
+      await this.finalizeTkey(USER_PATH.RECOVER, factorKey);
+    } catch (error) {
+      log.error("error recovering via factor key", error);
+      throw error;
+    }
+  }
+
   public getUserInfo(): UserInfo {
     if (!this.state.factorKey || !this.state.userInfo) {
       throw new Error("user is not logged in.");
@@ -753,6 +795,26 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       dateAdded: Date.now(),
       device: navigator.userAgent,
       tssShareIndex: this.state.tssShare2Index as number,
+    };
+    await this.tkey?.addShareDescription(factorIndex, JSON.stringify(params), true);
+  }
+
+  private async addCustomShareDesriptions(deviceShare: ShareStore, factorKey: BN, metadata: Record<string, string> = {}) {
+    const factorIndex = getPubKeyECC(factorKey).toString("hex");
+    const metadataToSet: FactorKeyCloudMetadata = {
+      share: deviceShare,
+      tssShare: this.state.tssShare2 as BN,
+      tssIndex: this.state.tssShare2Index as number,
+    };
+
+    // Set metadata for factor key backup
+    await this.tkey?.addLocalMetadataTransitions({
+      input: [{ message: JSON.stringify(metadataToSet) }],
+      privKey: [factorKey],
+    });
+    const params = {
+      dateAdded: Date.now(),
+      ...metadata,
     };
     await this.tkey?.addShareDescription(factorIndex, JSON.stringify(params), true);
   }
