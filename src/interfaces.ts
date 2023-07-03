@@ -30,6 +30,7 @@ export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface IWeb3Auth {
   provider: SafeEventEmitterProvider | null;
+  tkeyPrivKey: BN | null;
   init(): void;
   connect(loginParams: LoginParams): Promise<SafeEventEmitterProvider | null>;
   handleRedirectResult(): Promise<SafeEventEmitterProvider | null>;

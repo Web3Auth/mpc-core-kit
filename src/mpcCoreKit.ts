@@ -79,6 +79,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     return this.privKeyProvider?.provider ? this.privKeyProvider.provider : null;
   }
 
+  get tkeyPrivKey(): BN {
+    return this.tkey.privKey;
+  }
+
   private get verifier(): string {
     return this.state?.userInfo?.verifier ? this.state.userInfo.verifier : "";
   }
