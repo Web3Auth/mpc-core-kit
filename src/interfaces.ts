@@ -25,7 +25,7 @@ export interface AggregateVerifierLoginParams extends BaseLoginParams {
   subVerifierDetailsArray?: SubVerifierDetails[];
 }
 
-export type LoginParams = SubVerifierDetailsParams & AggregateVerifierLoginParams;
+export type LoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface IWeb3Auth {

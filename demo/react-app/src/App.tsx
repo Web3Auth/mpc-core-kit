@@ -88,20 +88,20 @@ function App() {
       const token = generateIdToken(mockVerifierId as string, "ES256");
       const verifierConfig = mockLogin ? {
         verifier: "torus-test-health",
-        typeOfLogin: 'jwt',
+        typeOfLogin: 'jwt' as const,
         clientId: "torus-key-test",
         jwtParams: {
           verifierIdField: "email",
           id_token: token
         }
       } : {
-        typeOfLogin: 'google',
+        typeOfLogin: 'google' as const,
 				verifier: 'google-tkey-w3a',
         clientId:
 					'774338308167-q463s7kpvja16l4l0kko3nb925ikds2p.apps.googleusercontent.com',
       }
   
-      const provider = await coreKitInstance.connect({ subVerifierDetails: verifierConfig as LoginParams['subVerifierDetails'] })
+      const provider = await coreKitInstance.connect({ subVerifierDetails: verifierConfig })
 
       if (provider) setProvider(provider)
     } catch (error: unknown) {
