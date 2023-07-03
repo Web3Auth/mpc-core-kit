@@ -291,6 +291,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       throw new Error("password must be at least 10 characters long");
     }
 
+    // Better ways to check for SQ ?
+    // Sanity checks ??
     const tKeyShareDescriptions = this.tkey.getMetadata().getShareDescription();
     for (const [key, value] of Object.entries(tKeyShareDescriptions)) {
       if (key === question && value[0]) {
@@ -305,6 +307,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       const newShareResult = await this.tkey.generateNewShare();
       await this.addSecurityShareDescription(newShareResult.newShareStores[newShareResult.newShareIndex.toString(16, 64)], backupFactorKey);
 
+      // domain of keccak256 isn't same as priv keys. add umod
       const passwordBN = new BN(keccak256(Buffer.from(password, "utf8")));
       const encryptedFactorKey = await encrypt(getPubKeyECC(passwordBN), Buffer.from(backupFactorKey.toString("hex"), "hex"));
       const params = {
@@ -313,7 +316,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         associatedFactor: encryptedFactorKey,
         dateAdded: Date.now(),
       };
+
       // how is question a shareIndex ???
+      // How will you get the question back if you hash it ?? Who will store the question ?
+      // What's the advantage of hashing the question ?
       const questionBN = new BN(keccak256(Buffer.from(question, "utf8")));
       await this.tkey?.addShareDescription(questionBN.toString(16, 64), JSON.stringify(params), true);
 
@@ -347,6 +353,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       throw new Error("question not found");
     }
     const passwordBN = new BN(keccak256(Buffer.from(password, "utf8")));
+    // add umod
     const factorKeyHex = await decrypt(toPrivKeyECC(passwordBN), share);
     const factorKey = new BN(Buffer.from(factorKeyHex).toString("hex"), "hex");
     if (!factorKey) {
@@ -473,6 +480,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (!this.state.oAuthKey) {
       throw new Error("user not logged in");
     }
+    // dont' need to set metadata if you have critical delete.
     await this.tkey.storageLayer.setMetadata({
       privKey: new BN(this.state.oAuthKey, "hex"),
       input: { message: "KEY_NOT_FOUND" },
@@ -544,6 +552,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       await this.addShareDescriptionDeviceShare(factorKey);
     } else if (path === USER_PATH.RECOVER) {
       const newFactorKey = new BN(generatePrivate());
+      // don't create new share, use existing shares
       const newShareResult = await this.tkey.generateNewShare();
       tkeyLocalState.share = newShareResult.newShareStores[newShareResult.newShareIndex.toString(16, 64)].toJSON();
       await this.addShareDescriptionDeviceShare(newFactorKey);
