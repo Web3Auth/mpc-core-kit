@@ -1,4 +1,4 @@
-import { KeyDetails, ShareStore } from "@tkey/common-types";
+import { KeyDetails, ShareStore, StringifiedType } from "@tkey/common-types";
 import type { AGGREGATE_VERIFIER_TYPE, LoginWindowResponse, SubVerifierDetails, TorusVerifierResponse, UX_MODE_TYPE } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
@@ -102,21 +102,15 @@ export interface Web3AuthState {
 
 export type FactorKeyCloudMetadata = {
   share: ShareStore;
-  tssShare: BN;
-  tssIndex: number;
 };
 
 export interface SessionData {
   oAuthKey: string;
-  factorKey: string;
-  tssNonce: number;
-  tssShare: string;
-  tssShareIndex: number;
-  tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
 }
 
 export interface TkeyLocalStoreData {
   factorKey: string;
+  share?: StringifiedType;
 }
