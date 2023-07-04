@@ -30,6 +30,7 @@ export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface IWeb3Auth {
   provider: SafeEventEmitterProvider | null;
+  tkeyPrivKey: BN | null;
   init(): void;
   connect(loginParams: LoginParams): Promise<SafeEventEmitterProvider | null>;
   handleRedirectResult(): Promise<SafeEventEmitterProvider | null>;
@@ -40,6 +41,8 @@ export interface IWeb3Auth {
   changeSecurityQuestionShare(question: string, password: string): Promise<void>;
   recoverSecurityQuestionShare(question: string, password: string): Promise<void>;
   deleteSecurityQuestionShare(question: string): Promise<void>;
+  addCustomShare(factorKey: BN, metadata: Record<string, string>): Promise<void>;
+  recoverCustomShare(factorKey: BN): Promise<void>;
   getKeyDetails(): KeyDetails;
   commitChanges(): Promise<void>;
   logout(): Promise<void>;
