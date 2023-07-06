@@ -84,6 +84,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
   }
 
   private get verifier(): string {
+    if (this.state.userInfo.aggregateVerifier) {
+      return this.state.userInfo.aggregateVerifier;
+    }
     return this.state?.userInfo?.verifier ? this.state.userInfo.verifier : "";
   }
 
