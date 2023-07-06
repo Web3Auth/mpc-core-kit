@@ -3,8 +3,8 @@
 /* eslint-disable require-atomic-updates */
 /* eslint-disable @typescript-eslint/no-shadow */
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, LoginParams } from "@web3auth/mpc-core-kit"
-import Web3 from 'web3';
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK } from "@web3auth/mpc-core-kit";
+import Web3 from "web3";
 import type { provider } from "web3-core";
 // import swal from "sweetalert";
 
@@ -20,12 +20,11 @@ const uiConsole = (...args: any[]): void => {
   console.log(...args);
 };
 
-
 function App() {
   const [loginResponse, setLoginResponse] = useState<any>(null);
   const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit | null>(null);
   const [provider, setProvider] = useState<SafeEventEmitterProvider | null>(null);
-  const [web3, setWeb3] = useState<any>(null)
+  const [web3, setWeb3] = useState<any>(null);
   const [mockVerifierId, setMockVerifierId] = useState<string | null>(null);
   const [showBackupPhraseScreen, setShowBackupPhraseScreen] = useState<boolean>(false);
   const [seedPhrase, setSeedPhrase] = useState<string>("");
@@ -43,16 +42,19 @@ function App() {
     if (localMockVerifierId) verifierId = localMockVerifierId;
     else verifierId = Math.round(Math.random() * 100000) + "@example.com";
     setMockVerifierId(verifierId);
-
   }, []);
 
   useEffect(() => {
     const init = async () => {
-      const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: 'redirect'  })
+      const coreKitInstance = new Web3AuthMPCCoreKit({
+        web3AuthClientId: "torus-key-test",
+        web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
+        uxMode: "redirect",
+      });
       await coreKitInstance.init();
       setCoreKitInstance(coreKitInstance);
       if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
-      if (window.location.hash.includes('#state')) {
+      if (window.location.hash.includes("#state")) {
         try {
           const provider = await coreKitInstance.handleRedirectResult();
           if (provider) setProvider(provider);
@@ -62,55 +64,118 @@ function App() {
           }
         }
       }
-    }
-    init()
-  }, [])
+    };
+    init();
+  }, []);
 
   useEffect(() => {
-    if(provider) {
+    if (provider) {
       const web3 = new Web3(provider as provider);
       setWeb3(web3);
     }
-  }, [provider])
+  }, [provider]);
 
   const keyDetails = async () => {
     if (!coreKitInstance) {
-      throw new Error('coreKitInstance not found');
+      throw new Error("coreKitInstance not found");
     }
-    uiConsole(coreKitInstance.getKeyDetails())
+    uiConsole(coreKitInstance.getKeyDetails());
   };
 
   const login = async (mockLogin: boolean) => {
     try {
       if (!coreKitInstance) {
-        throw new Error('initiated to login');
+        throw new Error("initiated to login");
       }
       const token = generateIdToken(mockVerifierId as string, "ES256");
-      const verifierConfig = mockLogin ? {
-        verifier: "torus-test-health",
-        typeOfLogin: 'jwt' as const,
-        clientId: "torus-key-test",
-        jwtParams: {
-          verifierIdField: "email",
-          id_token: token
-        }
-      } : {
-        typeOfLogin: 'google' as const,
-				verifier: 'google-tkey-w3a',
-        clientId:
-					'774338308167-q463s7kpvja16l4l0kko3nb925ikds2p.apps.googleusercontent.com',
-      }
-  
-      const provider = await coreKitInstance.connect({ subVerifierDetails: verifierConfig })
+      const verifierConfig = mockLogin
+        ? {
+            verifier: "torus-test-health",
+            typeOfLogin: "jwt" as const,
+            clientId: "torus-key-test",
+            jwtParams: {
+              verifierIdField: "email",
+              id_token: token,
+            },
+          }
+        : {
+            typeOfLogin: "google" as const,
+            verifier: "google-tkey-w3a",
+            clientId: "774338308167-q463s7kpvja16l4l0kko3nb925ikds2p.apps.googleusercontent.com",
+          };
 
-      if (provider) setProvider(provider)
+      const provider = await coreKitInstance.connect({ subVerifierDetails: verifierConfig });
+
+      if (provider) setProvider(provider);
     } catch (error: unknown) {
       console.log(error);
       if ((error as Error).message === "required more shares") {
         setShowBackupPhraseScreen(true);
       }
     }
-  }
+  };
+
+  const loginWithGoogle = async () => {
+    if (!coreKitInstance) {
+      uiConsole("coreKitInstance not initialized yet");
+      return;
+    }
+    try {
+      // Triggering Login using Service Provider ==> opens the popup
+      const provider = await coreKitInstance.connect({
+        aggregateVerifierIdentifier: "aggregate-sapphire",
+        aggregateVerifierType: "single_id_verifier",
+        subVerifierDetailsArray: [
+          {
+            typeOfLogin: "google",
+            verifier: "w3a-google",
+            clientId: "774338308167-q463s7kpvja16l4l0kko3nb925ikds2p.apps.googleusercontent.com",
+          },
+        ],
+      });
+
+      if (provider) setProvider(provider);
+    } catch (error) {
+      if ((error as Error).message === "required more shares") {
+        recoverViaPassword();
+      }
+      uiConsole(error);
+    }
+  };
+
+  const loginWithGitHub = async () => {
+    if (!coreKitInstance) {
+      uiConsole("coreKitInstance not initialized yet");
+      return;
+    }
+    try {
+      // Triggering Login using Service Provider ==> opens the popup
+      const provider = await coreKitInstance.connect({
+        aggregateVerifierIdentifier: "aggregate-sapphire",
+        aggregateVerifierType: "single_id_verifier",
+        subVerifierDetailsArray: [
+          {
+            typeOfLogin: "jwt",
+            verifier: "w3a-a0-github",
+            clientId: "hiLqaop0amgzCC0AXo4w0rrG9abuJTdu",
+            jwtParams: {
+              verifierIdField: "email",
+              domain: "https://web3auth.au.auth0.com",
+              isVerifierIdCaseSensitive: false,
+              connection: "github",
+            },
+          },
+        ],
+      });
+
+      if (provider) setProvider(provider);
+    } catch (error) {
+      if ((error as Error).message === "required more shares") {
+        recoverViaPassword();
+      }
+      uiConsole(error);
+    }
+  };
 
   const logout = async () => {
     if (!coreKitInstance) {
@@ -131,69 +196,69 @@ function App() {
     uiConsole(loginResponse);
   };
 
-  const exportShare = async (): Promise<void> => { 
+  const exportShare = async (): Promise<void> => {
     if (!provider) {
-      throw new Error('provider is not set.');
+      throw new Error("provider is not set.");
     }
     const share = await coreKitInstance?.exportBackupShare();
     console.log(share);
     uiConsole(share);
-  }
+  };
 
-  const submitBackupShare = async (): Promise<void> => { 
+  const submitBackupShare = async (): Promise<void> => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
     await coreKitInstance.inputBackupShare(seedPhrase);
-    uiConsole('submitted');
+    uiConsole("submitted");
     if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
-  }
+  };
 
   const savePasswordShare = async () => {
     try {
-      if (!coreKitInstance) { 
+      if (!coreKitInstance) {
         throw new Error("coreKitInstance is not set");
       }
       await coreKitInstance.addSecurityQuestionShare("What is your password?", password);
-      uiConsole('saved');
+      uiConsole("saved");
     } catch (err) {
       uiConsole(err);
     }
-  }
+  };
 
   const updatePasswordShare = async () => {
     try {
-      if (!coreKitInstance) { 
+      if (!coreKitInstance) {
         throw new Error("coreKitInstance is not set");
       }
       await coreKitInstance.changeSecurityQuestionShare("What is your password?", password);
-      uiConsole('updated');
+      uiConsole("updated");
     } catch (err) {
       uiConsole(err);
     }
-  }
+  };
 
   const deletePasswordShare = async () => {
     try {
-      if (!coreKitInstance) { 
+      if (!coreKitInstance) {
         throw new Error("coreKitInstance is not set");
       }
       await coreKitInstance.deleteSecurityQuestionShare("What is your password?");
-      uiConsole('deleted');
+      uiConsole("deleted");
     } catch (err) {
       uiConsole(err);
     }
-  }
+  };
 
   const recoverViaPassword = async () => {
-    if (!coreKitInstance) { 
+    if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
     await coreKitInstance.recoverSecurityQuestionShare("What is your password?", password);
-    uiConsole('submitted');
+    uiConsole("submitted");
     if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
-  }
-  
+  };
+
   const getChainID = async () => {
     if (!web3) {
       console.log("web3 not initialized yet");
@@ -261,11 +326,11 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     await coreKitInstance.CRITICAL_resetAccount();
-    uiConsole('reset');
+    uiConsole("reset");
     setLoginResponse(null);
     setProvider(null);
     setShowBackupPhraseScreen(false);
-  }
+  };
 
   const sendTransaction = async () => {
     if (!web3) {
@@ -291,35 +356,28 @@ function App() {
     <>
       <h2 className="subtitle">Account Details</h2>
       <div className="flex-container">
-
         <button onClick={getUserInfo} className="card">
           Get User Info
         </button>
-
 
         <button onClick={getLoginResponse} className="card">
           See Login Response
         </button>
 
-
         <button onClick={keyDetails} className="card">
           Key Details
         </button>
-
 
         <button onClick={resetAccount} className="card">
           Reset Account
         </button>
 
-
         <button onClick={logout} className="card">
           Log Out
         </button>
-
       </div>
       <h2 className="subtitle">Recovery/ Key Manipulation</h2>
       <div className="flex-container">
-
         <button onClick={exportShare} className="card">
           Export backup share
         </button>
@@ -329,7 +387,6 @@ function App() {
           Save Password Share
         </button>
 
-
         <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
         <button onClick={updatePasswordShare} className="card">
           Update Password Share
@@ -338,36 +395,28 @@ function App() {
         <button onClick={deletePasswordShare} className="card">
           Delete Password Share
         </button>
-
       </div>
       <h2 className="subtitle">Blockchain Calls</h2>
       <div className="flex-container">
-
         <button onClick={getChainID} className="card">
           Get Chain ID
         </button>
-
 
         <button onClick={getAccounts} className="card">
           Get Accounts
         </button>
 
-
         <button onClick={getBalance} className="card">
           Get Balance
         </button>
-
-
 
         <button onClick={signMessage} className="card">
           Sign Message
         </button>
 
-
         <button onClick={sendTransaction} className="card">
           Send Transaction
         </button>
-
       </div>
 
       <div id="console" style={{ whiteSpace: "pre-line" }}>
@@ -378,46 +427,52 @@ function App() {
 
   const unloggedInView = (
     <>
-    {
-      !showBackupPhraseScreen && (
+      {!showBackupPhraseScreen && (
         <>
           <button onClick={() => login(false)} className="card">
             Login
           </button>
+          <p className="subtitle">Mock Login Seed Email</p>
+          <input value={mockVerifierId as string} onChange={(e) => setMockVerifierId(e.target.value)}></input>
           <button onClick={() => login(true)} className="card">
             MockLogin
           </button>
         </>
-      )
-    }
+      )}
+      
+      {!showBackupPhraseScreen && (
+        <>
+          <p className="title">Aggregate Verifier Logins</p>
+          <button onClick={() => loginWithGoogle()} className="card">
+            Login with Google (Aggregate)
+          </button>
+          <button onClick={() => loginWithGitHub()} className="card">
+            Login with GitHub (Aggregate)
+          </button>
+        </>
+      )}
 
-      <p>Mock Login Seed Email</p>
-      <input value={mockVerifierId as string} onChange={(e) => setMockVerifierId(e.target.value)}></input>
-
-      {
-        showBackupPhraseScreen && ( 
-          <>
-            <textarea value={seedPhrase as string} onChange={(e) => setSeedPhrase(e.target.value)}></textarea>
-            <button onClick={submitBackupShare} className="card">
-              Submit backup share
-            </button>
-            <hr />
-            OR
-            <hr/>
-            <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
-            <button onClick={recoverViaPassword} className="card">
-              Recover using password Share
-            </button>
-
-            <button onClick={resetAccount} className="card">
-              Reset Account
-            </button>
-            <div id="console" style={{ whiteSpace: "pre-line" }}>
-              <p style={{ whiteSpace: "pre-line" }}></p>
-            </div>
-          </>
-        )
-      }
+      {showBackupPhraseScreen && (
+        <>
+          <textarea value={seedPhrase as string} onChange={(e) => setSeedPhrase(e.target.value)}></textarea>
+          <button onClick={submitBackupShare} className="card">
+            Submit backup share
+          </button>
+          <hr />
+          OR
+          <hr />
+          <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
+          <button onClick={recoverViaPassword} className="card">
+            Recover using password Share
+          </button>
+          <button onClick={resetAccount} className="card">
+            Reset Account
+          </button>
+          <div id="console" style={{ whiteSpace: "pre-line" }}>
+            <p style={{ whiteSpace: "pre-line" }}></p>
+          </div>
+        </>
+      )}
     </>
   );
 
@@ -426,14 +481,18 @@ function App() {
       <h1 className="title">
         <a target="_blank" href="https://web3auth.io/docs/guides/mpc" rel="noreferrer">
           Web3Auth Core Kit tKey MPC Beta
-        </a> {" "}
+        </a>{" "}
         & ReactJS Ethereum Example
       </h1>
 
       <div className="grid">{provider ? loggedInView : unloggedInView}</div>
 
       <footer className="footer">
-        <a href="https://github.com/Web3Auth/web3auth-core-kit-examples/tree/main/tkey/tkey-mpc-beta-react-popup-example" target="_blank" rel="noopener noreferrer">
+        <a
+          href="https://github.com/Web3Auth/web3auth-core-kit-examples/tree/main/tkey/tkey-mpc-beta-react-popup-example"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Source code
         </a>
       </footer>
