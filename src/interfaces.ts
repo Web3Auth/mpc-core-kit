@@ -1,4 +1,4 @@
-import { KeyDetails, ShareStore } from "@tkey/common-types";
+import { KeyDetails, ShareStore } from "@tkey-mpc/common-types";
 import type { AGGREGATE_VERIFIER_TYPE, LoginWindowResponse, SubVerifierDetails, TorusVerifierResponse, UX_MODE_TYPE } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
