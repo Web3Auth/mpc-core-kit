@@ -165,7 +165,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       },
     });
 
-    await (this.tkey.serviceProvider as TorusServiceProvider).init({});
+    await (this.tkey.serviceProvider as TorusServiceProvider).init({ skipSw: false });
     this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
     if (this.sessionManager.sessionKey) {
       await this.rehydrateSession();
