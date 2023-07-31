@@ -1,8 +1,18 @@
-import { decrypt, encrypt, EncryptedMessage, getPubKeyECC, getPubKeyPoint, KeyDetails, Point, ShareStore, toPrivKeyECC } from "@tkey/common-types";
-import ThresholdKey from "@tkey/core";
-import { TorusServiceProvider } from "@tkey/service-provider-torus";
-import { ShareSerializationModule } from "@tkey/share-serialization";
-import { TorusStorageLayer } from "@tkey/storage-layer-torus";
+import {
+  decrypt,
+  encrypt,
+  EncryptedMessage,
+  getPubKeyECC,
+  getPubKeyPoint,
+  KeyDetails,
+  Point,
+  ShareStore,
+  toPrivKeyECC,
+} from "@tkey-mpc/common-types";
+import ThresholdKey from "@tkey-mpc/core";
+import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
+import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
+import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
 import {
   AGGREGATE_VERIFIER,
   AGGREGATE_VERIFIER_TYPE,
@@ -177,9 +187,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         );
         if (this.isRedirectMode) return null;
         this.updateState({
-          oAuthKey: loginResponse.privateKey,
+          oAuthKey: loginResponse.finalKeyData.privKey,
           userInfo: loginResponse.userInfo,
-          signatures: loginResponse.signatures.filter((i) => Boolean(i)),
+          signatures: loginResponse.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
         });
       } else if ((params as AggregateVerifierLoginParams).subVerifierDetailsArray) {
         if (
@@ -195,9 +205,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         });
         if (this.isRedirectMode) return null;
         this.updateState({
-          oAuthKey: loginResponse.privateKey,
+          oAuthKey: loginResponse.finalKeyData.privKey,
           userInfo: loginResponse.userInfo[0],
-          signatures: loginResponse.signatures.filter((i) => Boolean(i)),
+          signatures: loginResponse.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
         });
       }
 
@@ -220,9 +230,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         const data = result.result as TorusLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
         this.updateState({
-          oAuthKey: data.privateKey,
+          oAuthKey: data.finalKeyData.privKey,
           userInfo: data.userInfo,
-          signatures: data.signatures.filter((i) => Boolean(i)),
+          signatures: data.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
         });
         this.torusSp.verifierType = "normal";
         this.torusSp.verifierName = this.state.userInfo.verifier;
@@ -230,9 +240,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         const data = result.result as TorusAggregateLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
         this.updateState({
-          oAuthKey: data.privateKey,
+          oAuthKey: data.finalKeyData.privKey,
           userInfo: data.userInfo[0],
-          signatures: data.signatures.filter((i) => Boolean(i)),
+          signatures: data.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
         });
         this.torusSp.verifierType = "aggregate";
         this.torusSp.verifierName = this.state.userInfo.aggregateVerifier;
@@ -927,7 +937,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
   }
 
   private resetState(): void {
-    this.state = {};
+    this.state = {
+      tssNodeEndpoints: this.state.tssNodeEndpoints,
+    };
   }
 
   private getEc(): EC.ec {
