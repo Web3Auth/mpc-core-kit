@@ -190,7 +190,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         );
         if (this.isRedirectMode) return null;
         this.updateState({
-          oAuthKey: (this.tkey?.serviceProvider as TorusServiceProvider).postboxKey.toString(16, 64),
+          oAuthKey: this._getOAuthKey(loginResponse),
           userInfo: loginResponse.userInfo,
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
@@ -208,7 +208,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         });
         if (this.isRedirectMode) return null;
         this.updateState({
-          oAuthKey: (this.tkey?.serviceProvider as TorusServiceProvider).postboxKey.toString(16, 64),
+          oAuthKey: this._getOAuthKey(loginResponse),
           userInfo: loginResponse.userInfo[0],
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
@@ -235,9 +235,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       if (result.method === TORUS_METHOD.TRIGGER_LOGIN) {
         const data = result.result as TorusLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
-        const oAuthKey = TorusUtils.getPostboxKey(data);
         this.updateState({
-          oAuthKey,
+          oAuthKey: this._getOAuthKey(data),
           userInfo: data.userInfo,
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
@@ -246,9 +245,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
         const data = result.result as TorusAggregateLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
-        const oAuthKey = TorusUtils.getPostboxKey(data);
         this.updateState({
-          oAuthKey,
+          oAuthKey: this._getOAuthKey(data),
           userInfo: data.userInfo[0],
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
@@ -946,6 +944,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     this.state = {
       tssNodeEndpoints: this.state.tssNodeEndpoints,
     };
+  }
+
+  private _getOAuthKey(result: TorusKey): string {
+    return TorusUtils.getPostboxKey(result);
   }
 
   private _getSignatures(sessionData: TorusKey["sessionData"]["sessionTokenData"]): string[] {
