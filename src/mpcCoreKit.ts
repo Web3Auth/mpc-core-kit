@@ -9,7 +9,7 @@ import {
   ShareStore,
   toPrivKeyECC,
 } from "@tkey-mpc/common-types";
-import ThresholdKey from "@tkey-mpc/core";
+import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
@@ -25,6 +25,7 @@ import { generatePrivate } from "@toruslabs/eccrypto";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
+import TorusUtils from "@toruslabs/torus.js";
 import { Client, utils as tssUtils } from "@toruslabs/tss-client";
 import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
@@ -165,7 +166,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       },
     });
 
-    await (this.tkey.serviceProvider as TorusServiceProvider).init({});
+    await (this.tkey.serviceProvider as TorusServiceProvider).init({ skipSw: true, skipPrefetch: true });
     this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
     if (this.sessionManager.sessionKey) {
       await this.rehydrateSession();
@@ -215,6 +216,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       return this.provider;
     } catch (err: unknown) {
       log.error("login error", err);
+      if (err instanceof CoreError) {
+        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+      }
       throw new Error((err as Error).message);
     }
   }
@@ -229,8 +233,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       if (result.method === TORUS_METHOD.TRIGGER_LOGIN) {
         const data = result.result as TorusLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
+        const oAuthKey = TorusUtils.getPostboxKey(data);
         this.updateState({
-          oAuthKey: data.finalKeyData.privKey,
+          oAuthKey,
           userInfo: data.userInfo,
           signatures: data.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
         });
@@ -239,8 +244,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
         const data = result.result as TorusAggregateLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
+        const oAuthKey = TorusUtils.getPostboxKey(data);
         this.updateState({
-          oAuthKey: data.finalKeyData.privKey,
+          oAuthKey,
           userInfo: data.userInfo[0],
           signatures: data.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
         });
@@ -560,8 +566,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         const deviceShare = await this.checkIfFactorKeyValid(factorKey);
         await this.tkey.inputShareStoreSafe(deviceShare, true);
         path = USER_PATH.EXISTING;
-      } else {
-        throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
       }
     }
 
