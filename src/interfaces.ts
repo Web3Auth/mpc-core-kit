@@ -89,6 +89,12 @@ export interface Web3AuthOptions {
    * @defaultValue `'POPUP'`
    */
   uxMode?: UX_MODE_TYPE;
+
+  /**
+   * @defaultValue `false`
+   * enables logging of the internal packages.
+   */
+  enableLogging?: boolean;
 }
 
 export interface Web3AuthState {

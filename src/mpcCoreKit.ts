@@ -25,7 +25,7 @@ import { generatePrivate } from "@toruslabs/eccrypto";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
-import TorusUtils from "@toruslabs/torus.js";
+import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, utils as tssUtils } from "@toruslabs/tss-client";
 import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
@@ -78,6 +78,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
+    if (options.enableLogging) log.enableAll();
+    else log.setLevel("error");
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     if (!options.storageKey) options.storageKey = "local";
@@ -188,9 +190,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         );
         if (this.isRedirectMode) return null;
         this.updateState({
-          oAuthKey: loginResponse.finalKeyData.privKey,
+          oAuthKey: (this.tkey?.serviceProvider as TorusServiceProvider).postboxKey.toString(16, 64),
           userInfo: loginResponse.userInfo,
-          signatures: loginResponse.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
+          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       } else if ((params as AggregateVerifierLoginParams).subVerifierDetailsArray) {
         if (
@@ -206,9 +208,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         });
         if (this.isRedirectMode) return null;
         this.updateState({
-          oAuthKey: loginResponse.finalKeyData.privKey,
+          oAuthKey: (this.tkey?.serviceProvider as TorusServiceProvider).postboxKey.toString(16, 64),
           userInfo: loginResponse.userInfo[0],
-          signatures: loginResponse.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
+          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       }
 
@@ -237,7 +239,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         this.updateState({
           oAuthKey,
           userInfo: data.userInfo,
-          signatures: data.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
+          signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
         this.torusSp.verifierType = "normal";
         this.torusSp.verifierName = this.state.userInfo.verifier;
@@ -248,7 +250,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         this.updateState({
           oAuthKey,
           userInfo: data.userInfo[0],
-          signatures: data.sessionData.sessionTokenData.filter((i) => Boolean(i.signature)).map((i) => i.signature),
+          signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
         this.torusSp.verifierType = "aggregate";
         this.torusSp.verifierName = this.state.userInfo.aggregateVerifier;
@@ -944,6 +946,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     this.state = {
       tssNodeEndpoints: this.state.tssNodeEndpoints,
     };
+  }
+
+  private _getSignatures(sessionData: TorusKey["sessionData"]["sessionTokenData"]): string[] {
+    return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
   }
 
   private getEc(): EC.ec {
