@@ -1,8 +1,18 @@
-import { decrypt, encrypt, EncryptedMessage, getPubKeyECC, getPubKeyPoint, KeyDetails, Point, ShareStore, toPrivKeyECC } from "@tkey/common-types";
-import ThresholdKey from "@tkey/core";
-import { TorusServiceProvider } from "@tkey/service-provider-torus";
-import { ShareSerializationModule } from "@tkey/share-serialization";
-import { TorusStorageLayer } from "@tkey/storage-layer-torus";
+import {
+  decrypt,
+  encrypt,
+  EncryptedMessage,
+  getPubKeyECC,
+  getPubKeyPoint,
+  KeyDetails,
+  Point,
+  ShareStore,
+  toPrivKeyECC,
+} from "@tkey-mpc/common-types";
+import ThresholdKey, { CoreError } from "@tkey-mpc/core";
+import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
+import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
+import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
 import {
   AGGREGATE_VERIFIER,
   AGGREGATE_VERIFIER_TYPE,
@@ -12,9 +22,10 @@ import {
   UX_MODE,
 } from "@toruslabs/customauth";
 import { generatePrivate } from "@toruslabs/eccrypto";
-import { NodeDetailManager } from "@toruslabs/fetch-node-details";
+import { SAPPHIRE_NETWORK_URLS } from "@toruslabs/fnd-base";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
+import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, utils as tssUtils } from "@toruslabs/tss-client";
 import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
@@ -55,8 +66,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   private currentStorage!: BrowserStorage;
 
-  private nodeDetailManager!: NodeDetailManager;
-
   private _storageBaseKey = "corekit_store";
 
   constructor(options: Web3AuthOptions) {
@@ -67,6 +76,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
+    if (options.enableLogging) log.enableAll();
+    else log.setLevel("error");
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     if (!options.storageKey) options.storageKey = "local";
@@ -115,17 +126,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       sessionId,
     });
 
-    this.nodeDetailManager = new NodeDetailManager({
-      network: this.options.web3AuthNetwork,
-      enableLogging: true,
-    });
-
-    const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
-
-    if (!nodeDetails) {
-      throw new Error("error getting node details, please try again!");
-    }
-
     this.torusSp = new TorusServiceProvider({
       useTSS: true,
       customAuthArgs: {
@@ -134,12 +134,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         uxMode: this.options.uxMode,
         network: this.options.web3AuthNetwork,
       },
-      nodeEndpoints: nodeDetails.torusNodeEndpoints,
-      nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
     });
 
     this.storageLayer = new TorusStorageLayer({
-      hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
+      hostUrl: `${SAPPHIRE_NETWORK_URLS[this.options.web3AuthNetwork][0]}/metadata`,
       enableLogging: true,
     });
 
@@ -155,11 +153,17 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       },
     });
 
-    await (this.tkey.serviceProvider as TorusServiceProvider).init({});
-    this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
+    const serviceProvider = this.tkey.serviceProvider as TorusServiceProvider;
+    await serviceProvider.init({ skipSw: true, skipPrefetch: true });
+
     if (this.sessionManager.sessionKey) {
       await this.rehydrateSession();
-      if (this.state.factorKey) await this.setupProvider();
+      if (this.state.factorKey) {
+        if (this.verifier && this.verifierId) {
+          serviceProvider._setVerifierNameVerifierId(this.verifier, this.verifierId);
+        }
+        await this.setupProvider();
+      }
     }
   }
 
@@ -177,9 +181,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         );
         if (this.isRedirectMode) return null;
         this.updateState({
-          oAuthKey: loginResponse.privateKey,
+          oAuthKey: this._getOAuthKey(loginResponse),
           userInfo: loginResponse.userInfo,
-          signatures: loginResponse.signatures.filter((i) => Boolean(i)),
+          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       } else if ((params as AggregateVerifierLoginParams).subVerifierDetailsArray) {
         if (
@@ -195,9 +199,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         });
         if (this.isRedirectMode) return null;
         this.updateState({
-          oAuthKey: loginResponse.privateKey,
+          oAuthKey: this._getOAuthKey(loginResponse),
           userInfo: loginResponse.userInfo[0],
-          signatures: loginResponse.signatures.filter((i) => Boolean(i)),
+          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       }
 
@@ -205,6 +209,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       return this.provider;
     } catch (err: unknown) {
       log.error("login error", err);
+      if (err instanceof CoreError) {
+        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+      }
       throw new Error((err as Error).message);
     }
   }
@@ -220,9 +227,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         const data = result.result as TorusLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
         this.updateState({
-          oAuthKey: data.privateKey,
+          oAuthKey: this._getOAuthKey(data),
           userInfo: data.userInfo,
-          signatures: data.signatures.filter((i) => Boolean(i)),
+          signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
         this.torusSp.verifierType = "normal";
         this.torusSp.verifierName = this.state.userInfo.verifier;
@@ -230,9 +237,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         const data = result.result as TorusAggregateLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
         this.updateState({
-          oAuthKey: data.privateKey,
+          oAuthKey: this._getOAuthKey(data),
           userInfo: data.userInfo[0],
-          signatures: data.signatures.filter((i) => Boolean(i)),
+          signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
         this.torusSp.verifierType = "aggregate";
         this.torusSp.verifierName = this.state.userInfo.aggregateVerifier;
@@ -550,8 +557,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         const deviceShare = await this.checkIfFactorKeyValid(factorKey);
         await this.tkey.inputShareStoreSafe(deviceShare, true);
         path = USER_PATH.EXISTING;
-      } else {
-        throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
       }
     }
 
@@ -850,10 +855,13 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   private async setupProvider() {
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig as CustomChainConfig } });
-    const { tssNonce, tssShare2, tssShare2Index, tssPubKey, tssNodeEndpoints } = this.state;
+    const { tssNonce, tssShare2, tssShare2Index, tssPubKey } = this.state;
 
-    if (!tssPubKey || !tssNodeEndpoints) {
-      throw new Error("tssPubKey or tssNodeEndpoints not available");
+    const nodeDetails = await this.tkey.serviceProvider.getTSSNodeDetails();
+    const tssNodeEndpoints = nodeDetails.serverEndpoints;
+
+    if (!tssPubKey) {
+      throw new Error("tssPubKey not available");
     }
 
     const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
@@ -928,6 +936,14 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   private resetState(): void {
     this.state = {};
+  }
+
+  private _getOAuthKey(result: TorusKey): string {
+    return TorusUtils.getPostboxKey(result);
+  }
+
+  private _getSignatures(sessionData: TorusKey["sessionData"]["sessionTokenData"]): string[] {
+    return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
   }
 
   private getEc(): EC.ec {
