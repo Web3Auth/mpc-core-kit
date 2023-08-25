@@ -1,14 +1,4 @@
-import {
-  decrypt,
-  encrypt,
-  EncryptedMessage,
-  getPubKeyECC,
-  getPubKeyPoint,
-  KeyDetails,
-  Point,
-  ShareStore,
-  toPrivKeyECC,
-} from "@tkey-mpc/common-types";
+import { encrypt, getPubKeyECC, getPubKeyPoint, KeyDetails, Point, ShareStore } from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
@@ -33,7 +23,7 @@ import BN from "bn.js";
 import EC from "elliptic";
 
 import { BrowserStorage } from "./browserStorage";
-import { DEFAULT_CHAIN_CONFIG, DELIMITERS, ERRORS, FactorKeyTypeShareDescription, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { DEFAULT_CHAIN_CONFIG, DELIMITERS, ERRORS, FactorKeyTypeShareDescription, ShareType, WEB3AUTH_NETWORK } from "./constants";
 import {
   AggregateVerifierLoginParams,
   FactorKeyCloudMetadata,
@@ -42,7 +32,6 @@ import {
   SessionData,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
-  USER_PATH_TYPE,
   UserInfo,
   Web3AuthOptions,
   Web3AuthState,
@@ -92,8 +81,12 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     return this.privKeyProvider?.provider ? this.privKeyProvider.provider : null;
   }
 
-  get tkeyPrivKey(): BN {
+  get tkeyMetadataKey(): BN {
     return this.tkey.privKey;
+  }
+
+  get tKey(): ThresholdKey {
+    return this.tkey;
   }
 
   private get verifier(): string {
@@ -176,7 +169,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
   }
 
-  public async connect(params: LoginParams): Promise<SafeEventEmitterProvider | null> {
+  public async connect(params: LoginParams, factorKey: BN | null = null): Promise<SafeEventEmitterProvider | null> {
     if (!this.tkey) {
       throw new Error("tkey not initialized, call init first");
     }
@@ -214,7 +207,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         });
       }
 
-      await this.setupTkey();
+      await this.setupTkey(factorKey);
       return this.provider;
     } catch (err: unknown) {
       log.error("login error", err);
@@ -266,211 +259,35 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
   }
 
-  public async exportBackupShare(): Promise<string> {
-    if (!this.tkey) {
-      throw new Error("Tkey not initialized, call init first.");
-    }
-    if (!this.state.factorKey) {
-      throw new Error("local factor not available.");
-    }
-    const backupFactorKey = new BN(generatePrivate());
-    const backupFactorPub = getPubKeyPoint(backupFactorKey);
-
-    await this.copyFactorPub(2, backupFactorPub);
-    const share = await this.getShare();
-    await this.addShareDescriptionSeedPhrase(share, backupFactorKey);
-    const mnemonic = (await (this.tkey.modules.shareSerialization as ShareSerializationModule).serialize(backupFactorKey, "mnemonic")) as string;
-    if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
-    return mnemonic;
-  }
-
-  public async inputBackupShare(shareMnemonic: string) {
-    if (!this.tkey) {
-      throw new Error("tkey not initialized, call init first");
-    }
-
-    const factorKey = await (this.tkey.modules.shareSerialization as ShareSerializationModule).deserialize(shareMnemonic, "mnemonic");
+  public async generateFactor(
+    shareCategory: ShareType,
+    shareDescription: FactorKeyTypeShareDescription = FactorKeyTypeShareDescription.Other,
+    additionalMetadata: Record<string, string> = {},
+    factorKey: BN | null = null
+  ): Promise<BN> {
     if (!factorKey) {
-      throw new Error(ERRORS.INVALID_BACKUP_SHARE);
+      factorKey = new BN(generatePrivate());
     }
-
-    const deviceShare = await this.checkIfFactorKeyValid(factorKey);
-    await this.tkey?.inputShareStoreSafe(deviceShare, true);
-    await this.tkey?.reconstructKey();
-
-    await this.finalizeTkey(USER_PATH.RECOVER, factorKey);
-  }
-
-  public async addSecurityQuestionShare(question: string, password: string) {
-    if (!this.tkey) {
-      throw new Error("Tkey not initialized, call init first.");
-    }
-    if (!this.state.factorKey) {
-      throw new Error("local factor not available.");
-    }
-    if (!question || !password) {
-      throw new Error("question and password are required");
-    }
-    if (password.length < 10) {
-      throw new Error("password must be at least 10 characters long");
-    }
-
-    const tKeyShareDescriptions = this.tkey.getMetadata().getShareDescription();
-    for (const [key, value] of Object.entries(tKeyShareDescriptions)) {
-      if (key === question && value[0]) {
-        throw new Error("question already present");
-      }
-    }
+    this.checkTkeyRequirements();
 
     try {
-      const backupFactorKey = new BN(generatePrivate());
-      const backupFactorPub = getPubKeyPoint(backupFactorKey);
-      await this.copyFactorPub(2, backupFactorPub);
+      const factorPub = getPubKeyPoint(factorKey);
+      await this.copyFactorPub(shareCategory || ShareType.RECOVERY, factorPub);
       const share = await this.getShare();
-      await this.addSecurityShareDescription(share, backupFactorKey);
-      const passwordBN = new BN(Buffer.from(password, "utf8"));
-      const encryptedFactorKey = await encrypt(getPubKeyECC(passwordBN), Buffer.from(backupFactorKey.toString("hex"), "hex"));
-      const params = {
-        module: FactorKeyTypeShareDescription.SecurityQuestions,
-        associatedFactor: encryptedFactorKey,
-        dateAdded: Date.now(),
-      };
-      await this.tkey?.addShareDescription(question, JSON.stringify(params), true);
-
+      await this.addFactorDescription(share, factorKey, shareDescription, additionalMetadata);
       if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
+      return factorKey;
     } catch (error) {
       log.error("error creating password share", error);
       throw error;
     }
   }
 
-  public async recoverSecurityQuestionShare(question: string, password: string) {
-    if (!this.tkey) {
-      throw new Error("tkey not initialized, call init first");
-    }
-    if (!question || !password) {
-      throw new Error("question and password are required");
-    }
-    if (password.length < 10) {
-      throw new Error("password must be at least 10 characters long");
-    }
-    let share: EncryptedMessage | null = null;
-
-    const tKeyShareDescriptions = this.tkey.getMetadata().getShareDescription();
-    for (const [key, value] of Object.entries(tKeyShareDescriptions)) {
-      if (key === question) {
-        share = value[0] ? JSON.parse(value[0]).associatedFactor : null;
-      }
-    }
-
-    if (share === null) {
-      throw new Error("question not found");
-    }
-    const passwordBN = new BN(Buffer.from(password, "utf8"));
-    const factorKeyHex = await decrypt(toPrivKeyECC(passwordBN), share);
-    const factorKey = new BN(Buffer.from(factorKeyHex).toString("hex"), "hex");
-    if (!factorKey) {
-      throw new Error(ERRORS.INVALID_BACKUP_SHARE);
-    }
-
-    const deviceShare = await this.checkIfFactorKeyValid(factorKey);
-    await this.tkey?.inputShareStoreSafe(deviceShare, true);
-    await this.tkey?.reconstructKey();
-
-    await this.finalizeTkey(USER_PATH.RECOVER, factorKey);
-  }
-
-  public async changeSecurityQuestionShare(question: string, password: string): Promise<void> {
-    if (!this.tkey) {
-      throw new Error("tkey not initialized, call init first");
-    }
-    if (!question || !password) {
-      throw new Error("question and password are required");
-    }
-    if (password.length < 10) {
-      throw new Error("password must be at least 10 characters long");
-    }
-
-    // check if we have an existing question available or not.
-    const tKeyShareDescriptions = this.tkey.getMetadata().getShareDescription();
-    let oldShareDescription = null;
-    for (const [key, value] of Object.entries(tKeyShareDescriptions)) {
-      if (key === question) {
-        oldShareDescription = value[0];
-      }
-    }
-    if (!oldShareDescription) {
-      throw new Error("No share present for this question");
-    }
-
-    const backupFactorKey = new BN(generatePrivate());
-    const backupFactorPub = getPubKeyPoint(backupFactorKey);
-
-    await this.copyFactorPub(2, backupFactorPub);
-    const share = await this.getShare();
-    await this.addSecurityShareDescription(share, backupFactorKey);
-    const passwordBN = new BN(Buffer.from(password, "utf8"));
-    const encryptedFactorKey = await encrypt(getPubKeyECC(passwordBN), Buffer.from(backupFactorKey.toString("hex"), "hex"));
-    const params = {
-      module: FactorKeyTypeShareDescription.SecurityQuestions,
-      associatedFactor: encryptedFactorKey,
-      dateAdded: Date.now(),
-    };
-    await this.tkey.updateShareDescription(question, oldShareDescription, JSON.stringify(params), true);
-    if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
-  }
-
-  public async deleteSecurityQuestionShare(question: string): Promise<void> {
-    if (!this.tkey) {
-      throw new Error("tkey not initialized, call init first");
-    }
-    if (!question) {
-      throw new Error("question is required");
-    }
-
-    const tKeyShareDescriptions = this.tkey.getMetadata().getShareDescription();
-    let oldShareDescription = null;
-    for (const [key, value] of Object.entries(tKeyShareDescriptions)) {
-      if (key === question) {
-        oldShareDescription = value[0];
-      }
-    }
-    if (!oldShareDescription) {
-      throw new Error("no share description found for this question");
-    }
-    await this.tkey?.deleteShareDescription(question, oldShareDescription as string, true);
-
-    if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
-  }
-
-  public async addCustomShare(factorKey: BN, metadata: Record<string, string> = {}): Promise<void> {
-    if (!this.tkey) {
-      throw new Error("tkey not initialized, call init first");
-    }
+  public async importFactor(factorKey: BN): Promise<void> {
     if (!factorKey) {
       throw new Error("factorKey is required");
     }
-
-    try {
-      const backupFactorPub = getPubKeyPoint(factorKey);
-      await this.copyFactorPub(2, backupFactorPub);
-      const share = await this.getShare();
-      await this.addCustomShareDesriptions(share, factorKey, metadata);
-
-      if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
-    } catch (error) {
-      log.error("error creating password share", error);
-      throw error;
-    }
-  }
-
-  public async recoverCustomShare(factorKey: BN): Promise<void> {
-    if (!this.tkey) {
-      throw new Error("tkey not initialized, call init first");
-    }
-    if (!factorKey) {
-      throw new Error("factorKey is required");
-    }
+    this.checkTkeyRequirements();
 
     try {
       const share = await this.checkIfFactorKeyValid(factorKey);
@@ -478,11 +295,15 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       await this.tkey?.inputShareStoreSafe(share, true);
       await this.tkey?.reconstructKey();
 
-      await this.finalizeTkey(USER_PATH.RECOVER, factorKey);
+      await this.finalizeTkey(factorKey);
     } catch (error) {
       log.error("error recovering via factor key", error);
       throw error;
     }
+  }
+
+  deleteFactor(factorPub: string): Promise<void> {
+    throw new Error("Method not implemented.");
   }
 
   public getUserInfo(): UserInfo {
@@ -541,19 +362,19 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     this.resetState();
   }
 
-  private async setupTkey(): Promise<void> {
-    let factorKey: BN | null = null;
-    let path: USER_PATH_TYPE | null = null;
+  private async setupTkey(factorKey: BN | null = null): Promise<void> {
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey as string);
 
     if (!existingUser) {
       // save the device share.
       factorKey = new BN(generatePrivate());
       const deviceTSSShare = new BN(generatePrivate());
-      const deviceTSSIndex = 2;
+      const deviceTSSIndex = ShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
       await this.tkey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
-      path = USER_PATH.NEW;
+      await this.tkey.reconstructKey();
+      const deviceShare = await this.getShare();
+      await this.addFactorDescription(deviceShare, factorKey, FactorKeyTypeShareDescription.DeviceShare);
     } else {
       await this.tkey.initialize({ neverInitializeNewKey: true });
       const metadata = this.tkey.getMetadata();
@@ -565,22 +386,15 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         factorKey = new BN(tKeyLocalStore.factorKey, "hex");
         const deviceShare = await this.checkIfFactorKeyValid(factorKey);
         await this.tkey.inputShareStoreSafe(deviceShare, true);
-        path = USER_PATH.EXISTING;
       }
+      await this.tkey.reconstructKey();
     }
 
-    await this.tkey.reconstructKey();
-    await this.finalizeTkey(path, factorKey);
+    await this.finalizeTkey(factorKey);
   }
 
-  private async finalizeTkey(path: USER_PATH_TYPE, factorKey: BN) {
-    if (!this.tkey) {
-      throw new Error("tkey not initialized.");
-    }
-
-    if (!path || !Object.values(USER_PATH).includes(path)) {
-      throw new Error("Invalid path specified");
-    }
+  private async finalizeTkey(factorKey: BN) {
+    this.checkTkeyRequirements();
 
     const { requiredShares } = this.tkey.getKeyDetails();
     if (requiredShares > 0) {
@@ -595,10 +409,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     const tssPubKey = Buffer.from(`${tssPubKeyPoint.x.toString(16, 64)}${tssPubKeyPoint.y.toString(16, 64)}`, "hex");
     this.updateState({ tssNonce, tssShare2, tssShare2Index, tssPubKey, factorKey });
 
-    if (path === USER_PATH.NEW) {
-      const deviceShare = await this.getShare();
-      await this.addShareDescriptionDeviceShare(deviceShare, factorKey);
-    }
     const metadata = this.tkey.getMetadata();
     const tkeyPubX = metadata.pubKey.x.toString(16, 64);
     this.currentStorage.set(
@@ -679,6 +489,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     // TODO define metadata type.
     const privateKeyBN = new BN(privateKey, "hex");
     const metadata = await this.tkey?.storageLayer.getMetadata({ privKey: privateKeyBN });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (metadata && Object.keys(metadata).length > 0 && (metadata as any).message !== "KEY_NOT_FOUND") {
       return true;
     }
@@ -732,8 +543,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       throw new Error("input factor tssIndex must be 2 or 3");
     }
 
-    const existingFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].slice();
-    const updatedFactorPubs = existingFactorPubs.concat([newFactorPub]);
+    const updatedFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].concat([newFactorPub]);
     if (this.state.tssShare2Index !== newFactorTSSIndex) {
       throw new Error("retrieved tssIndex does not match input factor tssIndex");
     }
@@ -777,8 +587,13 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
   }
 
-  private async addShareDescriptionSeedPhrase(share: ShareStore, factorKey: BN) {
-    const factorIndex = getPubKeyECC(factorKey).toString("hex");
+  private async addFactorDescription(
+    share: ShareStore,
+    factorKey: BN,
+    shareDescription: FactorKeyTypeShareDescription,
+    additionalMetadata: Record<string, string> | null = null
+  ) {
+    const factorPub = getPubKeyECC(factorKey).toString("hex");
     const metadataToSet: FactorKeyCloudMetadata = {
       share,
       tssShare: this.state.tssShare2 as BN,
@@ -791,75 +606,12 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       privKey: [factorKey],
     });
     const params = {
-      module: FactorKeyTypeShareDescription.SeedPhrase,
+      module: shareDescription,
       dateAdded: Date.now(),
+      ...additionalMetadata,
       tssShareIndex: this.state.tssShare2Index as number,
     };
-    await this.tkey?.addShareDescription(factorIndex, JSON.stringify(params), true);
-  }
-
-  private async addShareDescriptionDeviceShare(deviceShare: ShareStore, factorKey: BN) {
-    const factorIndex = getPubKeyECC(factorKey).toString("hex");
-    const metadataToSet: FactorKeyCloudMetadata = {
-      share: deviceShare,
-      tssShare: this.state.tssShare2 as BN,
-      tssIndex: this.state.tssShare2Index as number,
-    };
-
-    // Set metadata for factor key backup
-    await this.tkey?.addLocalMetadataTransitions({
-      input: [{ message: JSON.stringify(metadataToSet) }],
-      privKey: [factorKey],
-    });
-    const params = {
-      module: FactorKeyTypeShareDescription.DeviceShare,
-      dateAdded: Date.now(),
-      device: navigator.userAgent,
-      tssShareIndex: this.state.tssShare2Index as number,
-    };
-    await this.tkey?.addShareDescription(factorIndex, JSON.stringify(params), true);
-  }
-
-  private async addCustomShareDesriptions(deviceShare: ShareStore, factorKey: BN, metadata: Record<string, string> = {}) {
-    const factorIndex = getPubKeyECC(factorKey).toString("hex");
-    const metadataToSet: FactorKeyCloudMetadata = {
-      share: deviceShare,
-      tssShare: this.state.tssShare2 as BN,
-      tssIndex: this.state.tssShare2Index as number,
-    };
-
-    // Set metadata for factor key backup
-    await this.tkey?.addLocalMetadataTransitions({
-      input: [{ message: JSON.stringify(metadataToSet) }],
-      privKey: [factorKey],
-    });
-    const params = {
-      dateAdded: Date.now(),
-      ...metadata,
-    };
-    await this.tkey?.addShareDescription(factorIndex, JSON.stringify(params), true);
-  }
-
-  private async addSecurityShareDescription(deviceShare: ShareStore, factorKey: BN) {
-    const factorIndex = getPubKeyECC(factorKey).toString("hex");
-    const metadataToSet: FactorKeyCloudMetadata = {
-      share: deviceShare,
-      tssShare: this.state.tssShare2 as BN,
-      tssIndex: this.state.tssShare2Index as number,
-    };
-
-    // Set metadata for factor key backup
-    await this.tkey?.addLocalMetadataTransitions({
-      input: [{ message: JSON.stringify(metadataToSet) }],
-      privKey: [factorKey],
-    });
-    const params = {
-      module: FactorKeyTypeShareDescription.SecurityQuestions,
-      dateAdded: Date.now(),
-      device: navigator.userAgent,
-      tssShareIndex: this.state.tssShare2Index as number,
-    };
-    await this.tkey?.addShareDescription(factorIndex, JSON.stringify(params), true);
+    await this.tkey?.addShareDescription(factorPub, JSON.stringify(params), true);
   }
 
   private async setupProvider() {
@@ -921,6 +673,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       }
       client.precompute(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
       await client.ready();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { r, s, recoveryParam } = await client.sign(tss as any, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
         signatures: this.signatures,
       });

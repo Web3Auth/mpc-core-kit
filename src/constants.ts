@@ -29,6 +29,8 @@ export enum FactorKeyTypeShareDescription {
   DeviceShare = "deviceShare",
   SeedPhrase = "seedPhrase",
   PasswordShare = "passwordShare",
+  SocialShare = "socialShare",
+  Other = "Other",
 }
 
 export const DELIMITERS = {
@@ -42,3 +44,8 @@ export const ERRORS = {
   TKEY_SHARES_REQUIRED: "required more shares",
   INVALID_BACKUP_SHARE: "invalid backup share",
 };
+
+export enum ShareType {
+  DEVICE = 2,
+  RECOVERY = 3,
+}

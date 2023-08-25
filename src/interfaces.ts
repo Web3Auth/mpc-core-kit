@@ -1,9 +1,10 @@
 import { KeyDetails, ShareStore } from "@tkey-mpc/common-types";
+import ThresholdKey from "@tkey-mpc/core";
 import type { AGGREGATE_VERIFIER_TYPE, LoginWindowResponse, SubVerifierDetails, TorusVerifierResponse, UX_MODE_TYPE } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
-import { USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { FactorKeyTypeShareDescription, ShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
 export interface IStorage {
   getItem(key: string): string;
@@ -30,19 +31,20 @@ export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface IWeb3Auth {
   provider: SafeEventEmitterProvider | null;
-  tkeyPrivKey: BN | null;
+  tkeyMetadataKey: BN | null;
+  tKey: ThresholdKey;
   init(): void;
-  connect(loginParams: LoginParams): Promise<SafeEventEmitterProvider | null>;
+  connect(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
   handleRedirectResult(): Promise<SafeEventEmitterProvider | null>;
   getUserInfo(): UserInfo;
-  inputBackupShare(shareMnemonic: string): Promise<void>;
-  exportBackupShare(): Promise<string>;
-  addSecurityQuestionShare(question: string, password: string): Promise<void>;
-  changeSecurityQuestionShare(question: string, password: string): Promise<void>;
-  recoverSecurityQuestionShare(question: string, password: string): Promise<void>;
-  deleteSecurityQuestionShare(question: string): Promise<void>;
-  addCustomShare(factorKey: BN, metadata: Record<string, string>): Promise<void>;
-  recoverCustomShare(factorKey: BN): Promise<void>;
+  generateFactor(
+    shareCategory: ShareType,
+    shareDescription?: FactorKeyTypeShareDescription,
+    additionalMetadata?: Record<string, string>,
+    factorKey?: BN
+  ): Promise<BN>;
+  importFactor(factorKey: BN): Promise<void>;
+  deleteFactor(factorPub: string): Promise<void>; // TODO: implement delete share
   getKeyDetails(): KeyDetails;
   commitChanges(): Promise<void>;
   logout(): Promise<void>;

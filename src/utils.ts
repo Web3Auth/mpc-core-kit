@@ -1,3 +1,7 @@
+import ThresholdKey from "@tkey-mpc/core";
+import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
+import BN from "bn.js";
+
 export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number) => {
   const endpoints: string[] = [];
   const tssWSEndpoints: string[] = [];
@@ -5,7 +9,9 @@ export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number
   for (let i = 0; i < parties; i++) {
     partyIndexes.push(i);
     if (i === clientIndex) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       endpoints.push(null as any);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tssWSEndpoints.push(null as any);
     } else {
       endpoints.push(tssNodeEndpoints[i]);
@@ -44,4 +50,14 @@ export function storageAvailable(type: string): boolean {
       storageLength !== 0
     );
   }
+}
+
+export async function MnemonicToBN(tKey: ThresholdKey, shareMnemonic: string): Promise<BN> {
+  const factorKey = await (tKey.modules.shareSerialization as ShareSerializationModule).deserialize(shareMnemonic, "mnemonic");
+  return factorKey;
+}
+
+export async function BNtoMnemonic(tKey: ThresholdKey, factorKey: BN): Promise<string> {
+  const mnemonic = (await (tKey.modules.shareSerialization as ShareSerializationModule).serialize(factorKey, "mnemonic")) as string;
+  return mnemonic;
 }
