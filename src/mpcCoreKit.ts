@@ -38,6 +38,9 @@ import {
 } from "./interfaces";
 import { generateTSSEndpoints } from "./utils";
 
+const SCALAR_HEX_LEN = 32 * 2; // Length of secp256k1 scalar in hex form.
+const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
+
 export class Web3AuthMPCCoreKit implements IWeb3Auth {
   private options: Web3AuthOptions;
 
@@ -541,7 +544,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     } else {
       await this.tkey.initialize({ neverInitializeNewKey: true });
       const metadata = this.tkey.getMetadata();
-      const tkeyPubX = metadata.pubKey.x.toString(16, 64);
+      const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
       const tKeyLocalStoreString = this.currentStorage.get<string>(tkeyPubX);
       const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
 
@@ -578,7 +581,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     const { tssShare: tssShare2, tssIndex: tssShare2Index } = await this.tkey.getTSSShare(factorKey);
 
     const tssPubKeyPoint = this.tkey.getTSSPub();
-    const tssPubKey = Buffer.from(`${tssPubKeyPoint.x.toString(16, 64)}${tssPubKeyPoint.y.toString(16, 64)}`, "hex");
+    const tssPubKey = Buffer.from(
+      `${tssPubKeyPoint.x.toString(16, FIELD_ELEMENT_HEX_LEN)}${tssPubKeyPoint.y.toString(16, FIELD_ELEMENT_HEX_LEN)}`,
+      "hex"
+    );
     this.updateState({ tssNonce, tssShare2, tssShare2Index, tssPubKey, factorKey });
 
     if (path === USER_PATH.NEW) {
@@ -586,7 +592,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       await this.addShareDescriptionDeviceShare(deviceShare, factorKey);
     }
     const metadata = this.tkey.getMetadata();
-    const tkeyPubX = metadata.pubKey.x.toString(16, 64);
+    const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     this.currentStorage.set(
       tkeyPubX,
       JSON.stringify({
@@ -627,7 +633,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         tssNonce: result.tssNonce,
         tssShare2: new BN(result.tssShare, "hex"),
         tssShare2Index: result.tssShareIndex,
-        tssPubKey: Buffer.from(result.tssPubKey.padStart(64, "0"), "hex"),
+        tssPubKey: Buffer.from(result.tssPubKey.padStart(FIELD_ELEMENT_HEX_LEN, "0"), "hex"),
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
@@ -724,17 +730,17 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       throw new Error("retrieved tssIndex does not match input factor tssIndex");
     }
     const factorEncs = JSON.parse(JSON.stringify(this.tkey.metadata.factorEncs[this.tkey.tssTag]));
-    const factorPubID = newFactorPub.x.toString(16, 64);
+    const factorPubID = newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     factorEncs[factorPubID] = {
       tssIndex: this.state.tssShare2Index,
       type: "direct",
       userEnc: await encrypt(
         Buffer.concat([
           Buffer.from("04", "hex"),
-          Buffer.from(newFactorPub.x.toString(16, 64), "hex"),
-          Buffer.from(newFactorPub.y.toString(16, 64), "hex"),
+          Buffer.from(newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
+          Buffer.from(newFactorPub.y.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
         ]),
-        Buffer.from(this.state.tssShare2.toString(16, 64), "hex")
+        Buffer.from(this.state.tssShare2.toString(16, SCALAR_HEX_LEN), "hex")
       ),
       serverEncs: [],
     };
@@ -877,7 +883,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       const participatingServerDKGIndexes = [1, 2, 3];
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShare2Index as number);
       const denormalisedShare = dklsCoeff.mul(tssShare2 as BN).umod(this.getEc().curve.n);
-      const share = Buffer.from(denormalisedShare.toString(16, 64), "hex").toString("base64");
+      const share = Buffer.from(denormalisedShare.toString(16, SCALAR_HEX_LEN), "hex").toString("base64");
 
       if (!currentSession) {
         throw new Error(`sessionAuth does not exist ${currentSession}`);
