@@ -917,7 +917,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         signatures: this.signatures,
       });
       await client.cleanup(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
-      return { v: recoveryParam, r: Buffer.from(r.toString("hex"), "hex"), s: Buffer.from(s.toString("hex"), "hex") };
+      return { v: recoveryParam, r: Buffer.from(r.toString("hex", SCALAR_HEX_LEN), "hex"), s: Buffer.from(s.toString("hex", SCALAR_HEX_LEN), "hex") };
     };
 
     const getPublic: () => Promise<Buffer> = async () => {
