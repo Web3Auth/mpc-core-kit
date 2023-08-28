@@ -80,10 +80,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     this.options = options;
   }
 
-  generateFactorKey(): Promise<{ factorKey: BN; factorPub: string }> {
-    throw new Error("Method not implemented.");
-  }
-
   get provider(): SafeEventEmitterProvider | null {
     return this.privKeyProvider?.provider ? this.privKeyProvider.provider : null;
   }
@@ -289,6 +285,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   // TODO implement
   deleteFactor(factorPub: string): Promise<void> {
+    throw new Error("Method not implemented.");
+  }
+
+  generateFactorKey(): Promise<{ factorKey: BN; factorPub: string }> {
     throw new Error("Method not implemented.");
   }
 
