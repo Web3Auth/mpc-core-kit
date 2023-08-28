@@ -30,24 +30,84 @@ export type LoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParam
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface IWeb3Auth {
+  /** The signing provider, if initialized. */
   provider: SafeEventEmitterProvider | null;
+
+  /** The metadata key, if initialized. */
   tkeyMetadataKey: BN | null;
+
+  /** The tKey instance, if initialized. */
   tKey: ThresholdKey;
+
+  // TODO Merge `init` into `connect`?
+  /**
+   * Initialize component. Does not setup tKey yet.
+   */
   init(): void;
-  connect(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+
+  /**
+   * Connect to tKey.
+   * @param loginParams - TKey login parameters.
+   */
+  connect(loginParams: LoginParams, factorKey: BN | null): Promise<SafeEventEmitterProvider | null>;
+
+  /**
+   * Handle redirect result after login.
+   */
   handleRedirectResult(): Promise<SafeEventEmitterProvider | null>;
-  getUserInfo(): UserInfo;
-  generateFactor(
-    shareCategory: ShareType,
-    shareDescription?: FactorKeyTypeShareDescription,
-    additionalMetadata?: Record<string, string>,
-    factorKey?: BN
-  ): Promise<BN>;
-  importFactor(factorKey: BN): Promise<void>;
-  deleteFactor(factorPub: string): Promise<void>; // TODO: implement delete share
-  getKeyDetails(): KeyDetails;
-  commitChanges(): Promise<void>;
+
+  /**
+   * User logout.
+   */
   logout(): Promise<void>;
+
+  /**
+   * Creates a new factor for authentication.
+   * @param factorKey - The factor key.
+   * @param shareType - The share type.
+   * @param shareDescription - The share description.
+   * @param additionalMetadata - Additional metadata.
+   * @returns A promise that resolves to the factor key.
+   */
+  createFactor(
+    factorKey: BN,
+    shareType: ShareType,
+    shareDescription?: FactorKeyTypeShareDescription,
+    additionalMetadata?: Record<string, string>
+  ): Promise<void>;
+
+  /**
+   * Deletes the factor that is identified by the given public key.
+   * @param factorPub - The public key of the factor to delete.
+   */
+  deleteFactor(factorPub: string): Promise<void>;
+
+  /**
+   * Generates a new factor key.
+   * @returns The freshly generated factor key and the corresponding public key.
+   */
+  generateFactorKey(): Promise<{ factorKey: BN; factorPub: string }>;
+
+  /**
+   * Get user information.
+   */
+  getUserInfo(): UserInfo;
+
+  /**
+   * Get key information.
+   */
+  getKeyDetails(): KeyDetails;
+
+  /**
+   * Commit the changes made to the user's account when in manual sync mode.
+   */
+  commitChanges(): Promise<void>;
+
+  /**
+   * WARNING: Use with utter caution.
+   *
+   * Resets the user's account. All funds will be lost.
+   */
   CRITICAL_resetAccount(): Promise<void>;
 }
 
