@@ -610,11 +610,13 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     shareDescription: FactorKeyTypeShareDescription,
     additionalMetadata: Record<string, string> | null = null
   ) {
+    const { tssShare, tssIndex } = await this.tkey.getTSSShare(factorKey);
+
     const factorPub = getPubKeyECC(factorKey).toString("hex");
     const metadataToSet: FactorKeyCloudMetadata = {
       share,
-      tssShare: this.state.tssShare2, // TODO change this
-      tssIndex: this.state.tssShare2Index, // TODO change this
+      tssShare,
+      tssIndex,
     };
 
     // Set metadata for factor key backup
@@ -626,7 +628,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       module: shareDescription,
       dateAdded: Date.now(),
       ...additionalMetadata,
-      tssShareIndex: this.state.tssShare2Index, // TODO Update?
+      tssShareIndex: tssIndex,
     };
     await this.tkey?.addShareDescription(factorPub, JSON.stringify(params), true);
   }
