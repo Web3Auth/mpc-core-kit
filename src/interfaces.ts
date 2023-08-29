@@ -49,12 +49,12 @@ export interface IWeb3Auth {
    * Connect to tKey.
    * @param loginParams - TKey login parameters.
    */
-  connect(loginParams: LoginParams, factorKey: BN | null): Promise<SafeEventEmitterProvider | null>;
+  connect(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
 
   /**
    * Handle redirect result after login.
    */
-  handleRedirectResult(): Promise<SafeEventEmitterProvider | null>;
+  handleRedirectResult(): Promise<SafeEventEmitterProvider | null>; // TODO add factor key optional
 
   /**
    * User logout.
@@ -71,22 +71,22 @@ export interface IWeb3Auth {
    */
   createFactor(
     factorKey: BN,
-    shareType: ShareType,
+    shareType?: ShareType,
     shareDescription?: FactorKeyTypeShareDescription,
     additionalMetadata?: Record<string, string>
   ): Promise<void>;
 
   /**
    * Deletes the factor that is identified by the given public key.
-   * @param factorPub - The public key of the factor to delete.
+   * @param factorKey - The factor key of the factor to delete.
    */
-  deleteFactor(factorPub: string): Promise<void>;
+  deleteFactor(factorKey: BN): Promise<void>;
 
   /**
    * Generates a new factor key.
-   * @returns The freshly generated factor key and the corresponding public key.
+   * @returns The freshly generated factor key.
    */
-  generateFactorKey(): Promise<{ factorKey: BN; factorPub: string }>;
+  generateFactorKey(): BN;
 
   /**
    * Get user information.

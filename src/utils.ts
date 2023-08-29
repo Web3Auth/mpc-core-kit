@@ -1,6 +1,7 @@
 import ThresholdKey from "@tkey-mpc/core";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import BN from "bn.js";
+import EC from "elliptic";
 
 export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number) => {
   const endpoints: string[] = [];
@@ -52,12 +53,25 @@ export function storageAvailable(type: string): boolean {
   }
 }
 
-export async function MnemonicToBN(tKey: ThresholdKey, shareMnemonic: string): Promise<BN> {
+/**
+ * Converts a mnemonic to a factor key.
+ * @param tKey - An initialized tKey instance.
+ * @param shareMnemonic - The mnemonic to convert.
+ * @returns The factor key.
+ */
+export async function mnemonicToKey(tKey: ThresholdKey, shareMnemonic: string): Promise<BN> {
   const factorKey = await (tKey.modules.shareSerialization as ShareSerializationModule).deserialize(shareMnemonic, "mnemonic");
   return factorKey;
 }
 
-export async function BNtoMnemonic(tKey: ThresholdKey, factorKey: BN): Promise<string> {
-  const mnemonic = (await (tKey.modules.shareSerialization as ShareSerializationModule).serialize(factorKey, "mnemonic")) as string;
-  return mnemonic;
+/**
+ * Converts an arbitrary string to a factor key over an elliptic curve.
+ * @param ec - The elliptic curve.
+ * @param shareMnemonic - The mnemonic to convert.
+ * @returns The factor key.
+ */
+export async function stringToKey(ec: EC.curve.base, s: string): Promise<BN> {
+  const buf = Buffer.from(s);
+  const bn = new BN(buf);
+  return bn.mod(ec.n);
 }

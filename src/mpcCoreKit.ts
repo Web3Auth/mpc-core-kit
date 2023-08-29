@@ -23,7 +23,17 @@ import BN from "bn.js";
 import EC from "elliptic";
 
 import { BrowserStorage } from "./browserStorage";
-import { DEFAULT_CHAIN_CONFIG, DELIMITERS, ERRORS, FactorKeyTypeShareDescription, ShareType, WEB3AUTH_NETWORK } from "./constants";
+import {
+  DEFAULT_CHAIN_CONFIG,
+  DELIMITERS,
+  ERRORS,
+  FactorKeyTypeShareDescription,
+  FIELD_ELEMENT_HEX_LEN,
+  SCALAR_HEX_LEN,
+  ShareType,
+  VALID_SHARE_INDICES,
+  WEB3AUTH_NETWORK,
+} from "./constants";
 import {
   AggregateVerifierLoginParams,
   FactorKeyCloudMetadata,
@@ -37,9 +47,6 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { generateTSSEndpoints } from "./utils";
-
-const SCALAR_HEX_LEN = 32 * 2; // Length of secp256k1 scalar in hex form.
-const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
 
 export class Web3AuthMPCCoreKit implements IWeb3Auth {
   private options: Web3AuthOptions;
@@ -172,7 +179,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
   }
 
-  public async connect(params: LoginParams, factorKey: BN | null = null): Promise<SafeEventEmitterProvider | null> {
+  public async connect(params: LoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
     if (!this.tkey) {
       throw new Error("tkey not initialized, call init first");
     }
@@ -265,15 +272,22 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   public async createFactor(
     factorKey: BN,
-    shareType: ShareType = ShareType.DEVICE,
+    shareType: ShareType | undefined = undefined,
     shareDescription: FactorKeyTypeShareDescription = FactorKeyTypeShareDescription.Other,
     additionalMetadata: Record<string, string> = {}
   ): Promise<void> {
     this.checkTkey();
 
+    if (!shareType) {
+      if (!this.state.tssShare2Index) {
+        throw new Error("tssShare2Index not present");
+      }
+      shareType = this.state.tssShare2Index;
+    }
+
     try {
       const factorPub = getPubKeyPoint(factorKey);
-      await this.copyFactorPub(shareType, factorPub);
+      await this.copyOrCreateShare(shareType, factorPub);
       const share = await this.getShare();
       await this.addFactorDescription(share, factorKey, shareDescription, additionalMetadata);
       if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
@@ -284,12 +298,13 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
   }
 
   // TODO implement
-  deleteFactor(factorPub: string): Promise<void> {
+  deleteFactor(_factorKey: BN): Promise<void> {
     throw new Error("Method not implemented.");
   }
 
-  generateFactorKey(): Promise<{ factorKey: BN; factorPub: string }> {
-    throw new Error("Method not implemented.");
+  generateFactorKey(): BN {
+    const factorKey = new BN(generatePrivate());
+    return factorKey;
   }
 
   public getUserInfo(): UserInfo {
@@ -342,16 +357,16 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     this.resetState();
   }
 
-  private async setupTkey(factorKey: BN | null = null): Promise<void> {
+  private async setupTkey(factorKey: BN | undefined = undefined): Promise<void> {
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey as string);
 
     if (!existingUser) {
-      if (factorKey !== null) {
-        throw new Error("factor key should be null for new user");
+      // Generate new factor key if not provided.
+      if (!factorKey) {
+        factorKey = new BN(generatePrivate());
       }
 
-      // Generate new factor key and device share and initialize tkey with it.
-      factorKey = new BN(generatePrivate());
+      // Generate and device share and initialize tkey with it.
       const deviceTSSShare = new BN(generatePrivate());
       const deviceTSSIndex = ShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
@@ -368,14 +383,14 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       // Initialize tkey with existing share.
       await this.tkey.initialize({ neverInitializeNewKey: true });
 
-      if (factorKey === null) {
+      if (!factorKey) {
         // Read factor key from local storage.
         const metadata = this.tkey.getMetadata();
         const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
         const tKeyLocalStoreString = this.currentStorage.get<string>(tkeyPubX);
         const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
 
-        if (tKeyLocalStore.factorKey) {
+        if (!tKeyLocalStore.factorKey) {
           throw new Error("factor key not present in local storage");
         }
 
@@ -383,8 +398,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       }
 
       // Provide factor key to tkey.
-      const deviceShare = await this.checkIfFactorKeyValid(factorKey);
-      await this.tkey.inputShareStoreSafe(deviceShare, true);
+      const metadataShare = await this.checkIfFactorKeyValid(factorKey);
+      await this.tkey.inputShareStoreSafe(metadataShare, true);
 
       // Finalize initialization.
       await this.tkey.reconstructKey();
@@ -489,18 +504,15 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
   }
 
   private async isMetadataPresent(privateKey: string) {
-    // TODO define metadata type.
     const privateKeyBN = new BN(privateKey, "hex");
-    const metadata = await this.tkey?.storageLayer.getMetadata({ privKey: privateKeyBN });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (metadata && Object.keys(metadata).length > 0 && (metadata as any).message !== "KEY_NOT_FOUND") {
+    const metadata = await this.tkey?.storageLayer.getMetadata<{ message: string }>({ privKey: privateKeyBN });
+    if (metadata && Object.keys(metadata).length > 0 && metadata.message !== "KEY_NOT_FOUND") {
       return true;
     }
     return false;
   }
 
   private async checkIfFactorKeyValid(factorKey: BN): Promise<ShareStore> {
-    if (factorKey === null) throw new Error("Invalid factor key");
     this.checkTkey();
     const factorKeyMetadata = await this.tkey?.storageLayer.getMetadata<{ message: string }>({ privKey: factorKey });
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
@@ -511,7 +523,13 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     return metadataShare.share;
   }
 
-  private async copyFactorPub(newFactorTSSIndex: number, newFactorPub: Point) {
+  /**
+   * Copies a share and makes it available under a new factor key. If no share
+   * exists at the specified share index, a new share is created.
+   * @param newFactorTSSIndex - The index of the share to copy.
+   * @param newFactorPub - The public key of the new share.
+   */
+  private async copyOrCreateShare(newFactorTSSIndex: number, newFactorPub: Point) {
     this.checkTkey();
     if (!this.tkey.metadata.factorPubs || !Array.isArray(this.tkey.metadata.factorPubs[this.tkey.tssTag])) {
       throw new Error("factorPubs does not exist, failed in copy factor pub");
@@ -522,21 +540,23 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (!this.state.tssShare2Index || !this.state.tssShare2) {
       throw new Error("factor key does not exist");
     }
-    if (newFactorTSSIndex !== 2 && newFactorTSSIndex !== 3) {
-      throw new Error("input factor tssIndex must be 2 or 3");
+    if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
+      throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
     }
 
     const updatedFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].concat([newFactorPub]);
     if (this.state.tssShare2Index !== newFactorTSSIndex) {
       // TODO check if there already exists share at index. What happens if this
-      // is the case and we still call the function?
+      // is the case and we still call the function? Maybe also good to have a
+      // limit on the number of copies per share?
 
       // Generate new share.
-      await this.tKey.generateNewShare(true, {
+      await this.tkey.generateNewShare(true, {
         inputTSSIndex: this.state.tssShare2Index,
         inputTSSShare: this.state.tssShare2,
         newFactorPub,
         newTSSIndex: newFactorTSSIndex,
+        authSignatures: this.signatures, // TODO needed?
       });
       return;
     }
@@ -590,8 +610,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     const factorPub = getPubKeyECC(factorKey).toString("hex");
     const metadataToSet: FactorKeyCloudMetadata = {
       share,
-      tssShare: this.state.tssShare2,
-      tssIndex: this.state.tssShare2Index,
+      tssShare: this.state.tssShare2, // TODO change this
+      tssIndex: this.state.tssShare2Index, // TODO change this
     };
 
     // Set metadata for factor key backup
@@ -603,7 +623,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       module: shareDescription,
       dateAdded: Date.now(),
       ...additionalMetadata,
-      tssShareIndex: this.state.tssShare2Index,
+      tssShareIndex: this.state.tssShare2Index, // TODO Update?
     };
     await this.tkey?.addShareDescription(factorPub, JSON.stringify(params), true);
   }

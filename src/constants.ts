@@ -49,3 +49,8 @@ export enum ShareType {
   DEVICE = 2,
   RECOVERY = 3,
 }
+
+export const VALID_SHARE_INDICES = [2, 3];
+
+export const SCALAR_HEX_LEN = 32 * 2; // Length of secp256k1 scalar in hex form.
+export const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
