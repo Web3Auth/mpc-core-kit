@@ -391,7 +391,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
 
         if (!tKeyLocalStore.factorKey) {
-          throw new Error("factor key not present in local storage");
+          throw new Error("required more shares");
         }
 
         factorKey = new BN(tKeyLocalStore.factorKey, "hex");
