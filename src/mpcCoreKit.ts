@@ -235,7 +235,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
 
     try {
-      const result = await (this.torusSp as TorusServiceProvider).directWeb.getRedirectResult();
+      const result = await this.torusSp.directWeb.getRedirectResult();
       if (result.method === TORUS_METHOD.TRIGGER_LOGIN) {
         const data = result.result as TorusLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
@@ -308,7 +308,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
   }
 
   public getUserInfo(): UserInfo {
-    if (!this.state.factorKey || !this.state.userInfo) {
+    if (!this.state.userInfo) {
       throw new Error("user is not logged in.");
     }
     return this.state.userInfo;
@@ -458,6 +458,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         throw new Error("Invalid factor key");
       }
       this.torusSp.postboxKey = new BN(result.oAuthKey, "hex");
+      this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
+      this.torusSp.verifierId = result.userInfo.verifierId;
+      // TODO need to set verifierType?
       const deviceShare = await this.checkIfFactorKeyValid(factorKey);
       await this.tkey.initialize({ neverInitializeNewKey: true });
       await this.tkey.inputShareStoreSafe(deviceShare, true);
