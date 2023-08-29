@@ -547,11 +547,13 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
     }
 
+    // TODO Maybe set a limit on the number of copies per share?
     const updatedFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].concat([newFactorPub]);
     if (this.state.tssShare2Index !== newFactorTSSIndex) {
-      // TODO check if there already exists share at index. What happens if this
-      // is the case and we still call the function? Maybe also good to have a
-      // limit on the number of copies per share?
+      // TODO The following function call currently fails if there already
+      // exists a share at the specified index (at least in case of index 3).
+      // It's unclear if this is intended or a bug. Check if there already
+      // exists share at index?
 
       // Generate new share.
       await this.tkey.generateNewShare(true, {
@@ -559,7 +561,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         inputTSSShare: this.state.tssShare2,
         newFactorPub,
         newTSSIndex: newFactorTSSIndex,
-        authSignatures: this.signatures, // TODO needed?
+        // authSignatures: this.signatures, // TODO Is this needed? Doesn't seem like it...
       });
       return;
     }
