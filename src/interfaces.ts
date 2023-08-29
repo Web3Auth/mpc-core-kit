@@ -53,8 +53,9 @@ export interface IWeb3Auth {
 
   /**
    * Handle redirect result after login.
+   * @param factorKey - An optional factor key to use at initialization.
    */
-  handleRedirectResult(): Promise<SafeEventEmitterProvider | null>; // TODO add factor key optional
+  handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
 
   /**
    * User logout.

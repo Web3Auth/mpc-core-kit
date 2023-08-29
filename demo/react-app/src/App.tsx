@@ -58,7 +58,8 @@ function App() {
       if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
       if (window.location.hash.includes('#state')) {
         try {
-          const provider = await coreKitInstance.handleRedirectResult();
+          const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
+          const provider = await coreKitInstance.handleRedirectResult(factorKey);
           if (provider) setProvider(provider);
         } catch (error) {
           if ((error as Error).message === "required more shares") {

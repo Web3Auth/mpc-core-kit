@@ -228,8 +228,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
   }
 
-  // TODO check redirect flow
-  public async handleRedirectResult(): Promise<SafeEventEmitterProvider | null> {
+  // TODO check redirect flow, google login isn't working currently
+  public async handleRedirectResult(factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
     if (!this.tkey || !this.torusSp) {
       throw new Error("tkey is not initialized, call initi first");
     }
@@ -262,7 +262,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
       this.torusSp.postboxKey = new BN(this.state.oAuthKey, "hex");
       this.torusSp.verifierId = this.state.userInfo.verifierId;
-      await this.setupTkey();
+      await this.setupTkey(factorKey);
       return this.provider;
     } catch (error: unknown) {
       log.error("error while handling redirect result", error);
