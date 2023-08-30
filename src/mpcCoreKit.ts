@@ -279,10 +279,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     this.checkTkey();
 
     if (!shareType) {
-      if (!this.state.tssShare2Index) {
+      if (!this.state.tssShareIndex) {
         throw new Error("tss share index not present");
       }
-      shareType = this.state.tssShare2Index;
+      shareType = this.state.tssShareIndex;
     }
 
     try {
@@ -416,13 +416,13 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
     // Read tss meta data.
     const tssNonce: number = (this.tkey.metadata.tssNonces || {})[this.tkey.tssTag];
-    const { tssShare: tssShare2, tssIndex: tssShare2Index } = await this.tkey.getTSSShare(factorKey);
+    const { tssShare, tssIndex: tssShareIndex } = await this.tkey.getTSSShare(factorKey);
     const tssPubKeyPoint = this.tkey.getTSSPub();
     const tssPubKey = Buffer.from(
       `${tssPubKeyPoint.x.toString(16, FIELD_ELEMENT_HEX_LEN)}${tssPubKeyPoint.y.toString(16, FIELD_ELEMENT_HEX_LEN)}`,
       "hex"
     );
-    this.updateState({ tssNonce, tssShare2, tssShare2Index, tssPubKey, factorKey });
+    this.updateState({ tssNonce, tssShare, tssShareIndex, tssPubKey, factorKey });
 
     // Store factor key in local storage.
     const metadata = this.tkey.getMetadata();
@@ -470,8 +470,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         factorKey: new BN(result.factorKey, "hex"),
         oAuthKey: result.oAuthKey,
         tssNonce: result.tssNonce,
-        tssShare2: new BN(result.tssShare, "hex"),
-        tssShare2Index: result.tssShareIndex,
+        tssShare: new BN(result.tssShare, "hex"),
+        tssShareIndex: result.tssShareIndex,
         tssPubKey: Buffer.from(result.tssPubKey.padStart(FIELD_ELEMENT_HEX_LEN, "0"), "hex"),
         signatures: result.signatures,
         userInfo: result.userInfo,
@@ -485,16 +485,16 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     try {
       const sessionId = OpenloginSessionManager.generateRandomSessionKey();
       this.sessionManager.sessionKey = sessionId;
-      const { oAuthKey, factorKey, userInfo, tssNonce, tssShare2, tssShare2Index, tssPubKey } = this.state;
-      if (!oAuthKey || !factorKey || !tssShare2 || !tssPubKey || !userInfo) {
+      const { oAuthKey, factorKey, userInfo, tssNonce, tssShare, tssShareIndex, tssPubKey } = this.state;
+      if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw new Error("User not logged in");
       }
       const payload: SessionData = {
         oAuthKey,
         factorKey: factorKey?.toString("hex"),
         tssNonce: tssNonce as number,
-        tssShareIndex: tssShare2Index as number,
-        tssShare: tssShare2.toString("hex"),
+        tssShareIndex: tssShareIndex as number,
+        tssShare: tssShare.toString("hex"),
         tssPubKey: Buffer.from(tssPubKey).toString("hex"),
         signatures: this.signatures,
         userInfo,
@@ -540,7 +540,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (!this.tkey.metadata.factorEncs || typeof this.tkey.metadata.factorEncs[this.tkey.tssTag] !== "object") {
       throw new Error("factorEncs does not exist, failed in copy factor pub");
     }
-    if (!this.state.tssShare2Index || !this.state.tssShare2) {
+    if (!this.state.tssShareIndex || !this.state.tssShare) {
       throw new Error("factor key does not exist");
     }
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
@@ -549,7 +549,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
     // TODO Maybe set a limit on the number of copies per share?
     const updatedFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].concat([newFactorPub]);
-    if (this.state.tssShare2Index !== newFactorTSSIndex) {
+    if (this.state.tssShareIndex !== newFactorTSSIndex) {
       // TODO The following function call currently fails if there already
       // exists a share at the specified index (at least in case of index 3).
       // // Generate new share.
@@ -569,7 +569,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     const factorEncs = JSON.parse(JSON.stringify(this.tkey.metadata.factorEncs[this.tkey.tssTag]));
     const factorPubID = newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     factorEncs[factorPubID] = {
-      tssIndex: this.state.tssShare2Index,
+      tssIndex: this.state.tssShareIndex,
       type: "direct",
       userEnc: await encrypt(
         Buffer.concat([
@@ -577,7 +577,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           Buffer.from(newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
           Buffer.from(newFactorPub.y.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
         ]),
-        Buffer.from(this.state.tssShare2.toString(16, SCALAR_HEX_LEN), "hex")
+        Buffer.from(this.state.tssShare.toString(16, SCALAR_HEX_LEN), "hex")
       ),
       serverEncs: [],
     };
@@ -640,7 +640,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   private async setupProvider() {
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
-    const { tssNonce, tssShare2, tssShare2Index, tssPubKey, tssNodeEndpoints } = this.state;
+    const { tssNonce, tssShare, tssShareIndex, tssPubKey, tssNodeEndpoints } = this.state;
 
     if (!tssPubKey || !tssNodeEndpoints) {
       throw new Error("tssPubKey or tssNodeEndpoints not available");
@@ -665,8 +665,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       const [sockets] = await Promise.all([tssUtils.setupSockets(tssWSEndpoints, randomSessionNonce), tss.default(tssImportUrl)]);
 
       const participatingServerDKGIndexes = [1, 2, 3];
-      const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShare2Index as number);
-      const denormalisedShare = dklsCoeff.mul(tssShare2 as BN).umod(this.getEc().curve.n);
+      const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
+      const denormalisedShare = dklsCoeff.mul(tssShare as BN).umod(this.getEc().curve.n);
       const share = Buffer.from(denormalisedShare.toString(16, SCALAR_HEX_LEN), "hex").toString("base64");
 
       if (!currentSession) {
@@ -691,9 +691,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       const serverCoeffs: Record<number, string> = {};
       for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
         const serverIndex = participatingServerDKGIndexes[i];
-        serverCoeffs[serverIndex] = tssUtils
-          .getDKLSCoeff(false, participatingServerDKGIndexes, tssShare2Index as number, serverIndex)
-          .toString("hex");
+        serverCoeffs[serverIndex] = tssUtils.getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
       }
       client.precompute(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
       await client.ready();

@@ -165,8 +165,8 @@ export interface Web3AuthState {
   signatures?: string[];
   userInfo?: UserInfo;
   tssNonce?: number;
-  tssShare2?: BN;
-  tssShare2Index?: number;
+  tssShare?: BN;
+  tssShareIndex?: number;
   tssPubKey?: Buffer;
   factorKey?: BN;
   tssNodeEndpoints?: string[];
