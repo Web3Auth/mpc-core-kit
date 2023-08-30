@@ -564,11 +564,17 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       return;
     }
 
+    const { tssShare, tssIndex } = await this.tkey.getTSSShare(this.state.factorKey);
+    this.updateState({
+      tssShare,
+      tssShareIndex: tssIndex,
+    });
+
     const updatedFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].concat([newFactorPub]);
     const factorEncs = JSON.parse(JSON.stringify(this.tkey.metadata.factorEncs[this.tkey.tssTag]));
     const factorPubID = newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     factorEncs[factorPubID] = {
-      tssIndex: this.state.tssShareIndex,
+      tssIndex,
       type: "direct",
       userEnc: await encrypt(
         Buffer.concat([
@@ -576,7 +582,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           Buffer.from(newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
           Buffer.from(newFactorPub.y.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
         ]),
-        Buffer.from(this.state.tssShare.toString(16, SCALAR_HEX_LEN), "hex")
+        Buffer.from(tssShare.toString(16, SCALAR_HEX_LEN), "hex")
       ),
       serverEncs: [],
     };
