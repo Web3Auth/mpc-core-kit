@@ -1,3 +1,4 @@
+import { Point, randomSelection } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import BN from "bn.js";
@@ -74,4 +75,54 @@ export async function stringToKey(ec: EC.curve.base, s: string): Promise<BN> {
   const buf = Buffer.from(s);
   const bn = new BN(buf);
   return bn.mod(ec.n);
+}
+
+export async function addNewTSSShareAndFactor(
+  tKey: ThresholdKey,
+  newFactorPub: Point,
+  newFactorTSSIndex: number,
+  factorKeyForExistingTSSShare: BN,
+  signatures: string[]
+) {
+  // if (!tKey) {
+  //   throw new Error("tkey does not exist, cannot add factor pub");
+  // }
+  // if (!(newFactorTSSIndex === 2 || newFactorTSSIndex === 3)) {
+  //   newFactorTSSIndex = 3;
+  //   // throw new Error("tssIndex must be 2 or 3");
+  // }
+  // if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
+  //   throw new Error("factorPubs does not exist");
+  // }
+
+  const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
+  const updatedFactorPubs = existingFactorPubs.concat([newFactorPub]);
+  const existingTSSIndexes = existingFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
+  const updatedTSSIndexes = existingTSSIndexes.concat([newFactorTSSIndex]);
+  const { tssShare, tssIndex } = await tKey.getTSSShare(factorKeyForExistingTSSShare);
+
+  // TODO the only difference to the current version of tKey's
+  // `generateNewShare` is that here we only update factorPubs, while in tkey
+  // they also update tssNonce, tssPolyCommits, and factorEncs, and this seems
+  // to cause issues.
+  tKey.metadata.addTSSData({
+    tssTag: tKey.tssTag,
+    factorPubs: updatedFactorPubs,
+  });
+
+  const rssNodeDetails = await tKey._getRssNodeDetails();
+  const { serverEndpoints, serverPubKeys, serverThreshold } = rssNodeDetails;
+  const randomSelectedServers = randomSelection(
+    new Array(rssNodeDetails.serverEndpoints.length).fill(null).map((_, i) => i + 1),
+    Math.ceil(rssNodeDetails.serverEndpoints.length / 2)
+  );
+
+  const verifierNameVerifierId = tKey.serviceProvider.getVerifierNameVerifierId();
+  await tKey._refreshTSSShares(true, tssShare, tssIndex, updatedFactorPubs, updatedTSSIndexes, verifierNameVerifierId, {
+    selectedServers: randomSelectedServers,
+    serverEndpoints,
+    serverPubKeys,
+    serverThreshold,
+    authSignatures: signatures,
+  });
 }

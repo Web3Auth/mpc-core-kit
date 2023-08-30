@@ -46,7 +46,7 @@ import {
   Web3AuthOptions,
   Web3AuthState,
 } from "./interfaces";
-import { generateTSSEndpoints } from "./utils";
+import { addNewTSSShareAndFactor, generateTSSEndpoints } from "./utils";
 
 export class Web3AuthMPCCoreKit implements IWeb3Auth {
   private options: Web3AuthOptions;
@@ -280,7 +280,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
     if (!shareType) {
       if (!this.state.tssShare2Index) {
-        throw new Error("tssShare2Index not present");
+        throw new Error("tss share index not present");
       }
       shareType = this.state.tssShare2Index;
     }
@@ -288,8 +288,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     try {
       const factorPub = getPubKeyPoint(factorKey);
       await this.copyOrCreateShare(shareType, factorPub);
-      const share = await this.getShare();
-      await this.addFactorDescription(share, factorKey, shareDescription, additionalMetadata);
+      const metadataShare = await this.getMetadataShare();
+      await this.addFactorDescription(metadataShare, factorKey, shareDescription, additionalMetadata);
       if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
     } catch (error) {
       log.error("error creating factor", error);
@@ -377,7 +377,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       await this.finalizeTkey(factorKey);
 
       // Store factor description.
-      const deviceShare = await this.getShare();
+      const deviceShare = await this.getMetadataShare();
       await this.addFactorDescription(deviceShare, factorKey, FactorKeyTypeShareDescription.DeviceShare);
     } else {
       // Initialize tkey with existing share.
@@ -552,17 +552,18 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (this.state.tssShare2Index !== newFactorTSSIndex) {
       // TODO The following function call currently fails if there already
       // exists a share at the specified index (at least in case of index 3).
-      // It's unclear if this is intended or a bug. Check if there already
-      // exists share at index?
+      // // Generate new share.
+      // await this.tkey.generateNewShare(true, {
+      //   inputTSSIndex: this.state.tssShare2Index,
+      //   inputTSSShare: this.state.tssShare2,
+      //   newFactorPub,
+      //   newTSSIndex: newFactorTSSIndex,
+      //   authSignatures: this.signatures,
+      // });
 
+      // TODO remove once tkey function is fixed.
       // Generate new share.
-      await this.tkey.generateNewShare(true, {
-        inputTSSIndex: this.state.tssShare2Index,
-        inputTSSShare: this.state.tssShare2,
-        newFactorPub,
-        newTSSIndex: newFactorTSSIndex,
-        // authSignatures: this.signatures, // TODO Is this needed? Doesn't seem like it...
-      });
+      await addNewTSSShareAndFactor(this.tkey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
       return;
     }
     const factorEncs = JSON.parse(JSON.stringify(this.tkey.metadata.factorEncs[this.tkey.tssTag]));
@@ -587,7 +588,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     });
   }
 
-  private async getShare(): Promise<ShareStore> {
+  // TODO same function exists in tkey, should be exported and used from there.
+  private async getMetadataShare(): Promise<ShareStore> {
     try {
       const polyId = this.tkey?.metadata.getLatestPublicPolynomial().getPolynomialID();
       const shares = this.tkey?.shares[polyId];
@@ -599,13 +601,14 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           share = shares[shareIndex];
         }
       }
-      return share as ShareStore;
+      return share;
     } catch (err: unknown) {
       log.error("create device share error", err);
       throw new Error((err as Error).message);
     }
   }
 
+  // TODO use addFactorKeyMetadata from tkey instead?
   private async addFactorDescription(
     share: ShareStore,
     factorKey: BN,
