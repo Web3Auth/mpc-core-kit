@@ -288,8 +288,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     try {
       const factorPub = getPubKeyPoint(factorKey);
       await this.copyOrCreateShare(shareType, factorPub);
-      const metadataShare = await this.getMetadataShare();
-      await this.addFactorDescription(metadataShare, factorKey, shareDescription, additionalMetadata);
+      await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
       if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
     } catch (error) {
       log.error("error creating factor", error);
@@ -377,8 +376,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       await this.finalizeTkey(factorKey);
 
       // Store factor description.
-      const deviceShare = await this.getMetadataShare();
-      await this.addFactorDescription(deviceShare, factorKey, FactorKeyTypeShareDescription.DeviceShare);
+      await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.DeviceShare);
     } else {
       // Initialize tkey with existing share.
       await this.tkey.initialize({ neverInitializeNewKey: true });
@@ -548,7 +546,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
 
     // TODO Maybe set a limit on the number of copies per share?
-    const updatedFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].concat([newFactorPub]);
     if (this.state.tssShareIndex !== newFactorTSSIndex) {
       // TODO The following function call currently fails if there already
       // exists a share at the specified index (at least in case of index 3).
@@ -566,6 +563,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       await addNewTSSShareAndFactor(this.tkey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
       return;
     }
+
+    const updatedFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].concat([newFactorPub]);
     const factorEncs = JSON.parse(JSON.stringify(this.tkey.metadata.factorEncs[this.tkey.tssTag]));
     const factorPubID = newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     factorEncs[factorPubID] = {
@@ -610,16 +609,16 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   // TODO use addFactorKeyMetadata from tkey instead?
   private async addFactorDescription(
-    share: ShareStore,
     factorKey: BN,
     shareDescription: FactorKeyTypeShareDescription,
     additionalMetadata: Record<string, string> | null = null
   ) {
     const { tssShare, tssIndex } = await this.tkey.getTSSShare(factorKey);
 
+    const metadataShare = await this.getMetadataShare();
     const factorPub = getPubKeyECC(factorKey).toString("hex");
     const metadataToSet: FactorKeyCloudMetadata = {
-      share,
+      share: metadataShare,
       tssShare,
       tssIndex,
     };
