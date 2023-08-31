@@ -123,65 +123,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     throw new Error("Cannot set provider");
   }
 
-  public async init(): Promise<void> {
-    this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
-    const sessionId = this.currentStorage.get<string>("sessionId");
-    this.sessionManager = new OpenloginSessionManager({
-      sessionTime: this.options.sessionTime,
-      sessionId,
-    });
-
-    this.nodeDetailManager = new NodeDetailManager({
-      network: this.options.web3AuthNetwork,
-      enableLogging: true,
-    });
-
-    const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
-
-    if (!nodeDetails) {
-      throw new Error("error getting node details, please try again!");
-    }
-
-    this.torusSp = new TorusServiceProvider({
-      useTSS: true,
-      customAuthArgs: {
-        web3AuthClientId: this.options.web3AuthClientId,
-        baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
-        uxMode: this.options.uxMode,
-        network: this.options.web3AuthNetwork,
-      },
-      nodeEndpoints: nodeDetails.torusNodeEndpoints,
-      nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
-    });
-
-    this.storageLayer = new TorusStorageLayer({
-      hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
-      enableLogging: true,
-    });
-
-    const shareSerializationModule = new ShareSerializationModule();
-
-    this.tkey = new ThresholdKey({
-      enableLogging: true,
-      serviceProvider: this.torusSp,
-      storageLayer: this.storageLayer,
-      manualSync: this.options.manualSync,
-      modules: {
-        shareSerialization: shareSerializationModule,
-      },
-    });
-
-    await (this.tkey.serviceProvider as TorusServiceProvider).init({ skipSw: true, skipPrefetch: true });
-    this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
-    if (this.sessionManager.sessionKey) {
-      await this.rehydrateSession();
-      if (this.state.factorKey) await this.setupProvider();
-    }
-  }
-
   public async connect(params: LoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
     if (!this.tkey) {
-      throw new Error("tkey not initialized, call init first");
+      await this.init();
     }
 
     try {
@@ -354,6 +298,65 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     });
     this.currentStorage.resetStore();
     this.resetState();
+  }
+
+  /**
+   * Initialize component. Does not initialize tKey yet.
+   */
+  private async init(): Promise<void> {
+    this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
+    const sessionId = this.currentStorage.get<string>("sessionId");
+    this.sessionManager = new OpenloginSessionManager({
+      sessionTime: this.options.sessionTime,
+      sessionId,
+    });
+
+    this.nodeDetailManager = new NodeDetailManager({
+      network: this.options.web3AuthNetwork,
+      enableLogging: true,
+    });
+
+    const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
+
+    if (!nodeDetails) {
+      throw new Error("error getting node details, please try again!");
+    }
+
+    this.torusSp = new TorusServiceProvider({
+      useTSS: true,
+      customAuthArgs: {
+        web3AuthClientId: this.options.web3AuthClientId,
+        baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
+        uxMode: this.options.uxMode,
+        network: this.options.web3AuthNetwork,
+      },
+      nodeEndpoints: nodeDetails.torusNodeEndpoints,
+      nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
+    });
+
+    this.storageLayer = new TorusStorageLayer({
+      hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
+      enableLogging: true,
+    });
+
+    const shareSerializationModule = new ShareSerializationModule();
+
+    this.tkey = new ThresholdKey({
+      enableLogging: true,
+      serviceProvider: this.torusSp,
+      storageLayer: this.storageLayer,
+      manualSync: this.options.manualSync,
+      modules: {
+        shareSerialization: shareSerializationModule,
+      },
+    });
+
+    await (this.tkey.serviceProvider as TorusServiceProvider).init({ skipSw: true, skipPrefetch: true });
+    this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
+    if (this.sessionManager.sessionKey) {
+      await this.rehydrateSession();
+      if (this.state.factorKey) await this.setupProvider();
+    }
   }
 
   private async setupTkey(factorKey: BN | undefined = undefined): Promise<void> {

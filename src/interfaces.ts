@@ -39,12 +39,6 @@ export interface IWeb3Auth {
   /** The tKey instance, if initialized. */
   tKey: ThresholdKey;
 
-  // TODO Merge `init` into `connect`?
-  /**
-   * Initialize component. Does not setup tKey yet.
-   */
-  init(): void;
-
   /**
    * Connect to tKey.
    * @param loginParams - TKey login parameters.
