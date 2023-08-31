@@ -123,7 +123,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     throw new Error("Cannot set provider");
   }
 
-  public async connect(params: LoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
+  public async login(params: LoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
     if (!this.tkey) {
       await this.init();
     }
@@ -173,7 +173,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
   }
 
   // TODO check redirect flow, google login isn't working currently
-  public async handleRedirectResult(factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
+  public async handleRedirectResult(factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider> {
     if (!this.tkey || !this.torusSp) {
       throw new Error("tkey is not initialized, call initi first");
     }
@@ -257,11 +257,11 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     return this.state.userInfo;
   }
 
-  public getKeyDetails(): KeyDetails {
+  public getKeyDetails(): KeyDetails & { tssIndex: number } {
     this.checkTkey();
     const keyDetails = this.tkey.getKeyDetails();
     keyDetails.shareDescriptions = this.tkey.getMetadata().getShareDescription();
-    return keyDetails;
+    return { ...keyDetails, tssIndex: this.state.tssShareIndex };
   }
 
   public async commitChanges(): Promise<void> {

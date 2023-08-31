@@ -53,14 +53,17 @@ function App() {
   useEffect(() => {
     const init = async () => {
       const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: 'popup'  })
-      await coreKitInstance.init();
       setCoreKitInstance(coreKitInstance);
       if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
       if (window.location.hash.includes('#state')) {
         try {
           const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
           const provider = await coreKitInstance.handleRedirectResult(factorKey);
-          if (provider) setProvider(provider);
+          if (provider) {
+            setProvider(provider)
+            const keyDetails = coreKitInstance.getKeyDetails();
+            setExportShareIndex(keyDetails.tssIndex)
+          }
         } catch (error) {
           if ((error as Error).message === "required more shares") {
             setShowBackupPhraseScreen(true);
@@ -110,10 +113,13 @@ function App() {
       } as SubVerifierDetails;
   
       const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
-      const provider = await coreKitInstance.connect({ subVerifierDetails: verifierConfig }, factorKey);
-      // setExportShareIndex(coreKitInstance.getTssShareIndex()) // TODO
-
-      if (provider) setProvider(provider)
+      const provider = await coreKitInstance.login({ subVerifierDetails: verifierConfig }, factorKey);
+      
+      if (provider) {
+        setProvider(provider)
+        const keyDetails = coreKitInstance.getKeyDetails();
+        setExportShareIndex(keyDetails.tssIndex)
+      }
     } catch (error: unknown) {
       console.log(error);
       if ((error as Error).message === "required more shares") {

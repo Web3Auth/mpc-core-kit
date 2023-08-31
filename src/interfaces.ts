@@ -31,25 +31,27 @@ export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface IWeb3Auth {
   /** The signing provider, if initialized. */
-  provider: SafeEventEmitterProvider | null;
+  provider: SafeEventEmitterProvider | undefined;
 
   /** The metadata key, if initialized. */
-  tkeyMetadataKey: BN | null;
+  tkeyMetadataKey: BN | undefined;
 
   /** The tKey instance, if initialized. */
-  tKey: ThresholdKey;
+  tKey: ThresholdKey | undefined;
 
   /**
-   * Connect to tKey.
+   * Login to tKey.
    * @param loginParams - TKey login parameters.
+   * @returns A Web3 provider if we are not in redirect mode.
    */
-  connect(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+  login(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
 
   /**
    * Handle redirect result after login.
    * @param factorKey - An optional factor key to use at initialization.
+   * @returns A Web3 provider.
    */
-  handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+  handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider>;
 
   /**
    * User logout.
@@ -91,7 +93,7 @@ export interface IWeb3Auth {
   /**
    * Get key information.
    */
-  getKeyDetails(): KeyDetails;
+  getKeyDetails(): KeyDetails & { tssIndex: number };
 
   /**
    * Commit the changes made to the user's account when in manual sync mode.
