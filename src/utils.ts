@@ -79,6 +79,63 @@ export async function stringToKey(ec: EC.curve.base, s: string): Promise<BN> {
   return bn.mod(ec.n);
 }
 
+/**
+ * Refreshes TSS shares. Allows to change number of shares. New user shares are
+ * only produced for the target indices.
+ * @param tKey - Tkey instance to use.
+ * @param factorPubs - Factor pub keys after refresh.
+ * @param tssIndices - Target tss indices to generate new shares for.
+ * @param factorKeyForExistingTSSShare - Factor key for existing TSS share.
+ * @param signatures - Signatures for authentication against RSS servers.
+ */
+async function refreshTssShares(
+  tKey: ThresholdKey,
+  factorPubs: Point[],
+  tssIndices: number[],
+  factorKeyForExistingTSSShare: BN,
+  signatures: string[]
+) {
+  const { tssShare, tssIndex } = await tKey.getTSSShare(factorKeyForExistingTSSShare);
+
+  const rssNodeDetails = await tKey._getRssNodeDetails();
+  const { serverEndpoints, serverPubKeys, serverThreshold } = rssNodeDetails;
+  const randomSelectedServers = randomSelection(
+    new Array(rssNodeDetails.serverEndpoints.length).fill(null).map((_, i) => i + 1),
+    Math.ceil(rssNodeDetails.serverEndpoints.length / 2)
+  );
+
+  const verifierNameVerifierId = tKey.serviceProvider.getVerifierNameVerifierId();
+  await tKey._refreshTSSShares(true, tssShare, tssIndex, factorPubs, tssIndices, verifierNameVerifierId, {
+    selectedServers: randomSelectedServers,
+    serverEndpoints,
+    serverPubKeys,
+    serverThreshold,
+    authSignatures: signatures,
+  });
+}
+
+export async function deleteFactor(tKey: ThresholdKey, factorPubToDelete: Point, factorKeyForExistingTSSShare: BN, signatures: string[]) {
+  if (!tKey) {
+    throw new Error("tkey does not exist, cannot add factor pub");
+  }
+  if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
+    throw new Error(`factorPubs for tssTag = "${tKey.tssTag}" does not exist`);
+  }
+
+  const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
+  const factorIndex = existingFactorPubs.findIndex((p) => p.x.eq(factorPubToDelete.x));
+  // const factorIndex = existingFactorPubs.indexOf(factorPubToDelete);
+  if (factorIndex === -1) {
+    throw new Error(`factorPub ${factorPubToDelete} does not exist`);
+  }
+
+  const updatedFactorPubs = existingFactorPubs.slice();
+  updatedFactorPubs.splice(factorIndex, 1);
+  const updatedTSSIndexes = updatedFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
+
+  await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
+}
+
 export async function addNewTSSShareAndFactor(
   tKey: ThresholdKey,
   newFactorPub: Point,
@@ -98,32 +155,9 @@ export async function addNewTSSShareAndFactor(
 
   const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
   const updatedFactorPubs = existingFactorPubs.concat([newFactorPub]);
+
   const existingTSSIndexes = existingFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
   const updatedTSSIndexes = existingTSSIndexes.concat([newFactorTSSIndex]);
-  const { tssShare, tssIndex } = await tKey.getTSSShare(factorKeyForExistingTSSShare);
 
-  // TODO the only difference to the current version of tKey's
-  // `generateNewShare` is that here we only update factorPubs, while in tkey
-  // they also update tssNonce, tssPolyCommits, and factorEncs, and this seems
-  // to cause issues.
-  tKey.metadata.addTSSData({
-    tssTag: tKey.tssTag,
-    factorPubs: updatedFactorPubs,
-  });
-
-  const rssNodeDetails = await tKey._getRssNodeDetails();
-  const { serverEndpoints, serverPubKeys, serverThreshold } = rssNodeDetails;
-  const randomSelectedServers = randomSelection(
-    new Array(rssNodeDetails.serverEndpoints.length).fill(null).map((_, i) => i + 1),
-    Math.ceil(rssNodeDetails.serverEndpoints.length / 2)
-  );
-
-  const verifierNameVerifierId = tKey.serviceProvider.getVerifierNameVerifierId();
-  await tKey._refreshTSSShares(true, tssShare, tssIndex, updatedFactorPubs, updatedTSSIndexes, verifierNameVerifierId, {
-    selectedServers: randomSelectedServers,
-    serverEndpoints,
-    serverPubKeys,
-    serverThreshold,
-    authSignatures: signatures,
-  });
+  await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
 }

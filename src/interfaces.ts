@@ -1,4 +1,4 @@
-import { KeyDetails, ShareStore } from "@tkey-mpc/common-types";
+import { KeyDetails, Point, ShareStore } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import type { AGGREGATE_VERIFIER_TYPE, LoginWindowResponse, SubVerifierDetails, TorusVerifierResponse, UX_MODE_TYPE } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
@@ -75,9 +75,9 @@ export interface IWeb3Auth {
 
   /**
    * Deletes the factor that is identified by the given public key.
-   * @param factorKey - The factor key of the factor to delete.
+   * @param factorPub - The public key of the factor to delete.
    */
-  deleteFactor(factorKey: BN): Promise<void>;
+  deleteFactor(factorPub: Point): Promise<void>;
 
   /**
    * Generates a new factor key.

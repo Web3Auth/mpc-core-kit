@@ -6,13 +6,13 @@ import { useEffect, useState } from "react";
 import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import type { provider } from "web3-core";
-// import swal from "sweetalert";
 
 import "./App.css";
 import { generateIdToken } from "./utils";
 import { SafeEventEmitterProvider } from "@web3auth/base";
 import { SubVerifierDetails } from "@toruslabs/customauth";
 import { BN } from "bn.js";
+import { Point } from "@tkey-mpc/common-types";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -34,6 +34,8 @@ function App() {
   const [seedPhrase, setSeedPhrase] = useState<string>("");
   const [password, setPassword] = useState<string>("");
   const [exportShareIndex, setExportShareIndex] = useState<number>(2);
+  const [factorPubToDeleteX, setFactorPubToDeleteX] = useState<string>("");
+  const [factorPubToDeleteY, setFactorPubToDeleteY] = useState<string>("");
 
   useEffect(() => {
     if (!mockVerifierId) return;
@@ -86,6 +88,14 @@ function App() {
       throw new Error('coreKitInstance not found');
     }
     uiConsole(coreKitInstance.getKeyDetails());
+    console.log(coreKitInstance);
+  };
+
+  const listFactors = async () => {
+    if (!coreKitInstance) {
+      throw new Error('coreKitInstance not found');
+    }
+    uiConsole(coreKitInstance.tKey.metadata.factorPubs);
   };
 
   const login = async (mockLogin: boolean) => {
@@ -160,6 +170,15 @@ function App() {
     uiConsole("Export factor key: ", factorKey);
   }
 
+  const deleteFactor = async (): Promise<void> => { 
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    const factorToDelete = new Point(factorPubToDeleteX, factorPubToDeleteY);
+    await coreKitInstance.deleteFactor(factorToDelete);
+    uiConsole("factor deleted");
+  }
+
   const submitBackupShare = async (): Promise<void> => { 
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
@@ -170,6 +189,7 @@ function App() {
     throw new Error('not implemented');
   }
 
+  /*
   const savePasswordShare = async () => {
     try {
       if (!coreKitInstance) { 
@@ -208,6 +228,7 @@ function App() {
       uiConsole(err);
     }
   }
+  */
 
   const recoverViaPassword = async () => {
     if (!coreKitInstance) { 
@@ -331,6 +352,12 @@ function App() {
           Key Details
         </button>
 
+        <button onClick={listFactors} className="card">
+          List Factors
+        </button>
+
+        
+
 
         <button onClick={resetAccount} className="card">
           Reset Account
@@ -346,9 +373,15 @@ function App() {
       <div className="flex-container">
 
         <label>Share index:</label>
-        <input value={exportShareIndex} onChange={(e) => setExportShareIndex(parseInt(e.target.value))}></input>
+        <input value={isNaN(exportShareIndex) ? "" : exportShareIndex } onChange={(e) => setExportShareIndex(parseInt(e.target.value))}></input>
         <button onClick={exportShare} className="card">
           Export share
+        </button>
+        <label>Factor pub:</label>
+        <input value={factorPubToDeleteX} onChange={(e) => setFactorPubToDeleteX(e.target.value)}></input>
+        <input value={factorPubToDeleteY} onChange={(e) => setFactorPubToDeleteY(e.target.value)}></input>
+        <button onClick={deleteFactor} className="card">
+          Delete Factor
         </button>
 
         {/* <input value={password} onChange={(e) => setPassword(e.target.value)}></input>

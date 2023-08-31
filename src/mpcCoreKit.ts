@@ -46,7 +46,7 @@ import {
   Web3AuthOptions,
   Web3AuthState,
 } from "./interfaces";
-import { addNewTSSShareAndFactor, generateTSSEndpoints } from "./utils";
+import { addNewTSSShareAndFactor, deleteFactor as utilsDeleteFactor, generateTSSEndpoints } from "./utils";
 
 export class Web3AuthMPCCoreKit implements IWeb3Auth {
   private options: Web3AuthOptions;
@@ -176,8 +176,13 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
   }
 
-  // TODO how to test redirect flow?
+  // TODO Edited, but not tested. Need to test before enabling it!
   public async handleRedirectResult(factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider> {
+    const tested = false;
+    if (!tested) {
+      throw new Error("This function is not tested yet. Please test before enabling it!");
+    }
+
     if (!this.tkey || !this.torusSp) {
       throw new Error("tkey is not initialized, call initi first");
     }
@@ -244,9 +249,16 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
   }
 
-  // TODO implement
-  deleteFactor(_factorKey: BN): Promise<void> {
-    throw new Error("Method not implemented.");
+  async deleteFactor(factorPub: Point): Promise<void> {
+    await utilsDeleteFactor(this.tkey, factorPub, this.state.factorKey, this.signatures);
+    const factorPubHex = `04${factorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN)}${factorPub.y.toString(16, FIELD_ELEMENT_HEX_LEN)}`;
+    const allDesc = this.tkey.metadata.getShareDescription();
+    const keyDesc = allDesc[factorPubHex];
+    if (keyDesc) {
+      keyDesc.forEach(async (desc) => {
+        await this.tkey?.deleteShareDescription(factorPubHex, desc, true);
+      });
+    }
   }
 
   generateFactorKey(): BN {
