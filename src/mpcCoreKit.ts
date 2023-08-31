@@ -135,7 +135,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerLogin(
           (params as SubVerifierDetailsParams).subVerifierDetails
         );
+
         if (this.isRedirectMode) return null;
+
         this.updateState({
           oAuthKey: this._getOAuthKey(loginResponse),
           userInfo: loginResponse.userInfo,
@@ -153,7 +155,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           verifierIdentifier: (params as AggregateVerifierLoginParams).aggregateVerifierIdentifier as string,
           subVerifierDetailsArray: (params as AggregateVerifierLoginParams).subVerifierDetailsArray,
         });
+
         if (this.isRedirectMode) return null;
+
         this.updateState({
           oAuthKey: this._getOAuthKey(loginResponse),
           userInfo: loginResponse.userInfo[0],
