@@ -85,7 +85,7 @@ function App() {
     if (!coreKitInstance) {
       throw new Error('coreKitInstance not found');
     }
-    uiConsole(coreKitInstance.getKeyDetails())
+    uiConsole(coreKitInstance.getKeyDetails());
   };
 
   const login = async (mockLogin: boolean) => {

@@ -316,6 +316,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       enableLogging: true,
     });
 
+    // TODO why is this always using test-verifier? doesn't work for google login?
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
