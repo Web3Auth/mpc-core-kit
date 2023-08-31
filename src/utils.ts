@@ -4,6 +4,8 @@ import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import BN from "bn.js";
 import EC from "elliptic";
 
+import { VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+
 export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number) => {
   const endpoints: string[] = [];
   const tssWSEndpoints: string[] = [];
@@ -84,16 +86,15 @@ export async function addNewTSSShareAndFactor(
   factorKeyForExistingTSSShare: BN,
   signatures: string[]
 ) {
-  // if (!tKey) {
-  //   throw new Error("tkey does not exist, cannot add factor pub");
-  // }
-  // if (!(newFactorTSSIndex === 2 || newFactorTSSIndex === 3)) {
-  //   newFactorTSSIndex = 3;
-  //   // throw new Error("tssIndex must be 2 or 3");
-  // }
-  // if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
-  //   throw new Error("factorPubs does not exist");
-  // }
+  if (!tKey) {
+    throw new Error("tkey does not exist, cannot add factor pub");
+  }
+  if (VALID_TSS_INDICES.indexOf(newFactorTSSIndex) === -1) {
+    throw new Error(`invalid new share index: must be one of ${VALID_TSS_INDICES}`);
+  }
+  if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
+    throw new Error(`factorPubs for tssTag = "${tKey.tssTag}" does not exist`);
+  }
 
   const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
   const updatedFactorPubs = existingFactorPubs.concat([newFactorPub]);

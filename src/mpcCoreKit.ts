@@ -176,7 +176,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
   }
 
-  // TODO check redirect flow, google login isn't working currently
+  // TODO how to test redirect flow?
   public async handleRedirectResult(factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider> {
     if (!this.tkey || !this.torusSp) {
       throw new Error("tkey is not initialized, call initi first");
@@ -320,7 +320,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       enableLogging: true,
     });
 
-    // TODO why is this always using test-verifier? doesn't work for google login?
+    // TODO why is this always using test-verifier? what if we use google login?
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
@@ -466,7 +466,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       this.torusSp.postboxKey = new BN(result.oAuthKey, "hex");
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
-      // TODO need to set verifierType?
+      // TODO do we need to set verifierType?
       const deviceShare = await this.checkIfFactorKeyValid(factorKey);
       await this.tkey.initialize({ neverInitializeNewKey: true });
       await this.tkey.inputShareStoreSafe(deviceShare, true);
@@ -553,7 +553,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
     }
 
-    // TODO Maybe set a limit on the number of copies per share?
+    // TODO Yash: Maybe set a limit on the number of copies per share?
     if (this.state.tssShareIndex !== newFactorTSSIndex) {
       // TODO The following function call currently fails if there already
       // exists a share at the specified index (at least in case of index 3).
@@ -566,7 +566,8 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       //   authSignatures: this.signatures,
       // });
 
-      // TODO remove once tkey function is fixed.
+      // TODO Remove the implementation below once the tkey function is fixed.
+      //
       // Generate new share.
       await addNewTSSShareAndFactor(this.tkey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
       return;
