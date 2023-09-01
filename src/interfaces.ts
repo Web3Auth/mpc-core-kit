@@ -29,12 +29,12 @@ export interface AggregateVerifierLoginParams extends BaseLoginParams {
 export type LoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
-export interface IWeb3Auth {
+export interface ICoreKit {
   /** The tKey instance, if initialized. */
   tKey: ThresholdKey | undefined;
 
   /**
-   * Login to tKey.
+   * Login to tKey and initialize all relevant components.
    * @param loginParams - TKey login parameters.
    * @returns A Web3 provider if we are not in redirect mode.
    */
@@ -79,16 +79,17 @@ export interface IWeb3Auth {
   ): Promise<void>;
 
   /**
-   * Deletes the factor that is identified by the given public key.
+   * Deletes the factor identified by the given public key, including all
+   * associated metadata.
    * @param factorPub - The public key of the factor to delete.
    */
   deleteFactor(factorPub: Point): Promise<void>;
 
   /**
    * Generates a new factor key.
-   * @returns The freshly generated factor key.
+   * @returns The freshly generated factor key and the corresponding public key.
    */
-  generateFactorKey(): BN;
+  generateFactorKey(): { private: BN; pub: Point };
 
   /**
    * Get user information.
@@ -106,7 +107,7 @@ export interface IWeb3Auth {
   commitChanges(): Promise<void>;
 
   /**
-   * WARNING: Use with utter caution.
+   * WARNING: Use with caution.
    *
    * Resets the user's account. All funds will be lost.
    */

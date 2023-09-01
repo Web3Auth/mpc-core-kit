@@ -37,7 +37,7 @@ import {
 import {
   AggregateVerifierLoginParams,
   FactorKeyCloudMetadata,
-  IWeb3Auth,
+  ICoreKit,
   LoginParams,
   SessionData,
   SubVerifierDetailsParams,
@@ -48,7 +48,7 @@ import {
 } from "./interfaces";
 import { addFactorAndRefresh, deleteFactorAndRefresh, encodePointSEC1, generateTSSEndpoints } from "./utils";
 
-export class Web3AuthMPCCoreKit implements IWeb3Auth {
+export class Web3AuthMPCCoreKit implements ICoreKit {
   private options: Web3AuthOptions;
 
   private privKeyProvider: EthereumSigningProvider | null = null;
@@ -280,9 +280,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     // TODO any other metadata we need to update? e.g. metadata transitions?
   }
 
-  generateFactorKey(): BN {
+  generateFactorKey(): { private: BN; pub: Point } {
     const factorKey = new BN(generatePrivate());
-    return factorKey;
+    const factorPub = getPubKeyPoint(factorKey);
+    return { private: factorKey, pub: factorPub };
   }
 
   public getUserInfo(): UserInfo {

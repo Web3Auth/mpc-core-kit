@@ -61,17 +61,6 @@ function App() {
         return;
       }
 
-      if (window.location.hash.includes('#state')) {
-        try {
-          const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
-          const provider = await coreKitInstance.handleRedirectResult(factorKey);
-          completeSetup(coreKitInstance, provider);
-        } catch (error) {
-          if ((error as Error).message === "required more shares") {
-            setShowBackupPhraseScreen(true);
-          }
-        }
-      }
     }
     init()
   }, [])
@@ -170,7 +159,7 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     const factorKey = coreKitInstance.generateFactorKey();
-    await coreKitInstance.createFactor(factorKey, exportShareIndex);
+    await coreKitInstance.createFactor(factorKey.private, exportShareIndex);
     console.log("Export factor key: ", factorKey);
     uiConsole("Export factor key: ", factorKey);
   }
