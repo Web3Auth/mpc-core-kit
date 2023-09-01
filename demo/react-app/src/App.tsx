@@ -31,8 +31,6 @@ function App() {
   const [web3, setWeb3] = useState<any>(undefined)
   const [mockVerifierId, setMockVerifierId] = useState<string | undefined>(undefined);
   const [showBackupPhraseScreen, setShowBackupPhraseScreen] = useState<boolean>(false);
-  const [seedPhrase, setSeedPhrase] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
   const [exportShareIndex, setExportShareIndex] = useState<number>(2);
   const [factorPubToDeleteX, setFactorPubToDeleteX] = useState<string>("");
   const [factorPubToDeleteY, setFactorPubToDeleteY] = useState<string>("");
@@ -56,16 +54,17 @@ function App() {
     const init = async () => {
       const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: 'popup'  })
       setCoreKitInstance(coreKitInstance);
-      if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
+
+      if (coreKitInstance.sessionKey) {
+        const provider = await coreKitInstance.resumeSession();
+        completeSetup(coreKitInstance, provider);
+      }
+
       if (window.location.hash.includes('#state')) {
         try {
           const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
           const provider = await coreKitInstance.handleRedirectResult(factorKey);
-          if (provider) {
-            setProvider(provider)
-            const keyDetails = coreKitInstance.getKeyDetails();
-            setExportShareIndex(keyDetails.tssIndex)
-          }
+          completeSetup(coreKitInstance, provider);
         } catch (error) {
           if ((error as Error).message === "required more shares") {
             setShowBackupPhraseScreen(true);
@@ -126,9 +125,7 @@ function App() {
       const provider = await coreKitInstance.login({ subVerifierDetails: verifierConfig }, factorKey);
       
       if (provider) {
-        setProvider(provider)
-        const keyDetails = coreKitInstance.getKeyDetails();
-        setExportShareIndex(keyDetails.tssIndex)
+        completeSetup(coreKitInstance, provider);
       }
     } catch (error: unknown) {
       console.log(error);
@@ -136,6 +133,16 @@ function App() {
         setShowBackupPhraseScreen(true);
       }
     }
+  }
+
+  const completeSetup = (coreKitInstance: Web3AuthMPCCoreKit, provider: SafeEventEmitterProvider) => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance not found");
+    }
+
+    setProvider(provider);
+    const keyDetails = coreKitInstance.getKeyDetails();
+    setExportShareIndex(keyDetails.tssIndex)
   }
 
   const logout = async () => {
@@ -162,9 +169,6 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     const factorKey = coreKitInstance.generateFactorKey();
-    // 91085@example.com
-    // 9d2615f7c497776baddee6a6d0f0c05c6b0f2f83444c01d5f788195925131cac
-    // f5ee378240e45188ce328c028a0de73d8232142170f0fb30494647b61cbead46
     await coreKitInstance.createFactor(factorKey, exportShareIndex);
     console.log("Export factor key: ", factorKey);
     uiConsole("Export factor key: ", factorKey);
@@ -177,67 +181,6 @@ function App() {
     const factorToDelete = new Point(factorPubToDeleteX, factorPubToDeleteY);
     await coreKitInstance.deleteFactor(factorToDelete);
     uiConsole("factor deleted");
-  }
-
-  const submitBackupShare = async (): Promise<void> => { 
-    if (!coreKitInstance) {
-      throw new Error("coreKitInstance is not set");
-    }
-    // await coreKitInstance.inputBackupShare(seedPhrase);
-    // uiConsole('submitted');
-    // if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
-    throw new Error('not implemented');
-  }
-
-  /*
-  const savePasswordShare = async () => {
-    try {
-      if (!coreKitInstance) { 
-        throw new Error("coreKitInstance is not set");
-      }
-      // await coreKitInstance.addSecurityQuestionShare("What is your password?", password);
-      // uiConsole('saved');
-      throw new Error('not implemented');
-    } catch (err) {
-      uiConsole(err);
-    }
-  }
-
-  const updatePasswordShare = async () => {
-    try {
-      if (!coreKitInstance) { 
-        throw new Error("coreKitInstance is not set");
-      }
-      // await coreKitInstance.changeSecurityQuestionShare("What is your password?", password);
-      // uiConsole('updated');
-      throw new Error('not implemented');
-    } catch (err) {
-      uiConsole(err);
-    }
-  }
-
-  const deletePasswordShare = async () => {
-    try {
-      if (!coreKitInstance) { 
-        throw new Error("coreKitInstance is not set");
-      }
-      // await coreKitInstance.deleteSecurityQuestionShare("What is your password?");
-      // uiConsole('deleted');
-      throw new Error('not implemented');
-    } catch (err) {
-      uiConsole(err);
-    }
-  }
-  */
-
-  const recoverViaPassword = async () => {
-    if (!coreKitInstance) { 
-      throw new Error("coreKitInstance is not set");
-    }
-    // await coreKitInstance.recoverSecurityQuestionShare("What is your password?", password);
-    // uiConsole('submitted');
-    // if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
-    throw new Error('not implemented');
   }
   
   const getChainID = async () => {
@@ -454,31 +397,6 @@ function App() {
 
       <p>Mock Login Seed Email</p>
       <input value={mockVerifierId} onChange={(e) => setMockVerifierId(e.target.value)}></input>
-
-      {
-        showBackupPhraseScreen && ( 
-          <>
-            <textarea value={seedPhrase} onChange={(e) => setSeedPhrase(e.target.value)}></textarea>
-            <button onClick={submitBackupShare} className="card">
-              Submit backup share
-            </button>
-            <hr />
-            OR
-            <hr/>
-            <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
-            <button onClick={recoverViaPassword} className="card">
-              Recover using password Share
-            </button>
-
-            <button onClick={resetAccount} className="card">
-              Reset Account
-            </button>
-            <div id="console" style={{ whiteSpace: "pre-line" }}>
-              <p style={{ whiteSpace: "pre-line" }}></p>
-            </div>
-          </>
-        )
-      }
     </>
   );
 

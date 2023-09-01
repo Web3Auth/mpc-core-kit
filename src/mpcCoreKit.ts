@@ -46,7 +46,7 @@ import {
   Web3AuthOptions,
   Web3AuthState,
 } from "./interfaces";
-import { addNewTSSShareAndFactor, deleteFactor as utilsDeleteFactor, generateTSSEndpoints } from "./utils";
+import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints } from "./utils";
 
 export class Web3AuthMPCCoreKit implements IWeb3Auth {
   private options: Web3AuthOptions;
@@ -85,14 +85,27 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     this.options = options;
+
+    this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
+    const sessionId = this.currentStorage.get<string>("sessionId");
+    this.sessionManager = new OpenloginSessionManager({
+      sessionTime: this.options.sessionTime,
+      sessionId,
+    });
+
+    this.nodeDetailManager = new NodeDetailManager({
+      network: this.options.web3AuthNetwork,
+      enableLogging: true,
+    });
   }
 
-  get provider(): SafeEventEmitterProvider | null {
-    return this.privKeyProvider?.provider ? this.privKeyProvider.provider : null;
+  get sessionKey(): string | undefined {
+    const k = this.sessionManager.sessionKey;
+    return k || undefined;
   }
 
-  get tkeyMetadataKey(): BN {
-    return this.tkey.privKey;
+  get provider(): SafeEventEmitterProvider | undefined {
+    return this.privKeyProvider?.provider ? this.privKeyProvider.provider : undefined;
   }
 
   get tKey(): ThresholdKey {
@@ -223,6 +236,17 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     }
   }
 
+  public async resumeSession(): Promise<SafeEventEmitterProvider> {
+    if (!this.sessionManager.sessionKey) {
+      throw new Error("Session does not exist.");
+    }
+
+    await this.init();
+    await this.rehydrateSession();
+    await this.setupProvider();
+    return this.provider;
+  }
+
   public async createFactor(
     factorKey: BN,
     shareType: ShareType | undefined = undefined,
@@ -250,7 +274,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
   }
 
   async deleteFactor(factorPub: Point): Promise<void> {
-    await utilsDeleteFactor(this.tkey, factorPub, this.state.factorKey, this.signatures);
+    await deleteFactorAndRefresh(this.tkey, factorPub, this.state.factorKey, this.signatures);
     const factorPubHex = `04${factorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN)}${factorPub.y.toString(16, FIELD_ELEMENT_HEX_LEN)}`;
     const allDesc = this.tkey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
@@ -259,6 +283,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
         await this.tkey?.deleteShareDescription(factorPubHex, desc, true);
       });
     }
+    // TODO any other metadata we need to update? e.g. metadata transitions?
   }
 
   generateFactorKey(): BN {
@@ -320,18 +345,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
    * Initialize component. Does not initialize tKey yet.
    */
   private async init(): Promise<void> {
-    this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
-    const sessionId = this.currentStorage.get<string>("sessionId");
-    this.sessionManager = new OpenloginSessionManager({
-      sessionTime: this.options.sessionTime,
-      sessionId,
-    });
-
-    this.nodeDetailManager = new NodeDetailManager({
-      network: this.options.web3AuthNetwork,
-      enableLogging: true,
-    });
-
     // TODO why is this always using test-verifier? what if we use google login?
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
@@ -368,12 +381,9 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       },
     });
 
+    // TODO works unreliably with `init({skipSw: true, skipPrefetch})`. Need to fix service provider?
     await (this.tkey.serviceProvider as TorusServiceProvider).init({});
     this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
-    if (this.sessionManager.sessionKey) {
-      await this.rehydrateSession();
-      if (this.state.factorKey) await this.setupProvider();
-    }
   }
 
   private async setupTkey(factorKey: BN | undefined = undefined): Promise<void> {
@@ -559,43 +569,36 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       throw new Error("factorEncs does not exist, failed in copy factor pub");
     }
     if (!this.state.tssShareIndex || !this.state.tssShare) {
-      throw new Error("factor key does not exist");
+      throw new Error("tssShareIndex or tssShare not present");
     }
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
       throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
     }
 
-    // TODO Yash: Maybe set a limit on the number of copies per share?
+    // TODO Should we set a limit on the number of copies per share?
     if (this.state.tssShareIndex !== newFactorTSSIndex) {
-      // TODO The following function call currently fails if there already
-      // exists a share at the specified index (at least in case of index 3).
-      // // Generate new share.
-      // await this.tkey.generateNewShare(true, {
-      //   inputTSSIndex: this.state.tssShare2Index,
-      //   inputTSSShare: this.state.tssShare2,
-      //   newFactorPub,
-      //   newTSSIndex: newFactorTSSIndex,
-      //   authSignatures: this.signatures,
-      // });
-
-      // TODO Remove the implementation below once the tkey function is fixed.
-      //
       // Generate new share.
-      await addNewTSSShareAndFactor(this.tkey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
+      //
+      // TODO There is a function tKey.generateNewShare which does almost the
+      // same, but fails when called repeatedly (may be buggy). Ideally, revise
+      // tkey function and use that instead?
+      await addFactorAndRefresh(this.tkey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
+
+      // Update local share.
+      // TODO remove local tss share from state? could go out of sync with remote share.
+      const { tssShare, tssIndex } = await this.tkey.getTSSShare(this.state.factorKey);
+      this.updateState({
+        tssShare,
+        tssShareIndex: tssIndex,
+      });
       return;
     }
-
-    const { tssShare, tssIndex } = await this.tkey.getTSSShare(this.state.factorKey);
-    this.updateState({
-      tssShare,
-      tssShareIndex: tssIndex,
-    });
 
     const updatedFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].concat([newFactorPub]);
     const factorEncs = JSON.parse(JSON.stringify(this.tkey.metadata.factorEncs[this.tkey.tssTag]));
     const factorPubID = newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     factorEncs[factorPubID] = {
-      tssIndex,
+      tssIndex: this.state.tssShareIndex,
       type: "direct",
       userEnc: await encrypt(
         Buffer.concat([
@@ -603,7 +606,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
           Buffer.from(newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
           Buffer.from(newFactorPub.y.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
         ]),
-        Buffer.from(tssShare.toString(16, SCALAR_HEX_LEN), "hex")
+        Buffer.from(this.state.tssShare.toString(16, SCALAR_HEX_LEN), "hex")
       ),
       serverEncs: [],
     };
@@ -664,7 +667,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     await this.tkey?.addShareDescription(factorPub, JSON.stringify(params), true);
   }
 
-  private async setupProvider() {
+  private async setupProvider(): Promise<void> {
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
     const { tssNonce, tssShare, tssShareIndex, tssPubKey, tssNodeEndpoints } = this.state;
 

@@ -30,14 +30,11 @@ export type LoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParam
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface IWeb3Auth {
-  /** The signing provider, if initialized. */
-  provider: SafeEventEmitterProvider | undefined;
-
-  /** The metadata key, if initialized. */
-  tkeyMetadataKey: BN | undefined;
-
   /** The tKey instance, if initialized. */
   tKey: ThresholdKey | undefined;
+
+  /** The session key, if existing. */
+  sessionKey: string | undefined;
 
   /**
    * Login to tKey.
@@ -52,6 +49,11 @@ export interface IWeb3Auth {
    * @returns A Web3 provider.
    */
   handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider>;
+
+  /**
+   * Attempts to resume an existing session.
+   */
+  resumeSession(): Promise<SafeEventEmitterProvider>;
 
   /**
    * User logout.

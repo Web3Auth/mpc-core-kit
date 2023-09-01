@@ -114,29 +114,7 @@ async function refreshTssShares(
   });
 }
 
-export async function deleteFactor(tKey: ThresholdKey, factorPubToDelete: Point, factorKeyForExistingTSSShare: BN, signatures: string[]) {
-  if (!tKey) {
-    throw new Error("tkey does not exist, cannot add factor pub");
-  }
-  if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
-    throw new Error(`factorPubs for tssTag = "${tKey.tssTag}" does not exist`);
-  }
-
-  const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
-  const factorIndex = existingFactorPubs.findIndex((p) => p.x.eq(factorPubToDelete.x));
-  // const factorIndex = existingFactorPubs.indexOf(factorPubToDelete);
-  if (factorIndex === -1) {
-    throw new Error(`factorPub ${factorPubToDelete} does not exist`);
-  }
-
-  const updatedFactorPubs = existingFactorPubs.slice();
-  updatedFactorPubs.splice(factorIndex, 1);
-  const updatedTSSIndexes = updatedFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
-
-  await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
-}
-
-export async function addNewTSSShareAndFactor(
+export async function addFactorAndRefresh(
   tKey: ThresholdKey,
   newFactorPub: Point,
   newFactorTSSIndex: number,
@@ -158,6 +136,27 @@ export async function addNewTSSShareAndFactor(
 
   const existingTSSIndexes = existingFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
   const updatedTSSIndexes = existingTSSIndexes.concat([newFactorTSSIndex]);
+
+  await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
+}
+
+export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDelete: Point, factorKeyForExistingTSSShare: BN, signatures: string[]) {
+  if (!tKey) {
+    throw new Error("tkey does not exist, cannot add factor pub");
+  }
+  if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
+    throw new Error(`factorPubs for tssTag = "${tKey.tssTag}" does not exist`);
+  }
+
+  const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
+  const factorIndex = existingFactorPubs.findIndex((p) => p.x.eq(factorPubToDelete.x));
+  if (factorIndex === -1) {
+    throw new Error(`factorPub ${factorPubToDelete} does not exist`);
+  }
+
+  const updatedFactorPubs = existingFactorPubs.slice();
+  updatedFactorPubs.splice(factorIndex, 1);
+  const updatedTSSIndexes = updatedFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
 
   await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
 }
