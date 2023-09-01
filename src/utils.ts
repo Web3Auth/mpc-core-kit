@@ -4,7 +4,7 @@ import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import BN from "bn.js";
 import EC from "elliptic";
 
-import { VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import { FIELD_ELEMENT_HEX_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 
 export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number) => {
   const endpoints: string[] = [];
@@ -159,4 +159,12 @@ export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDele
   const updatedTSSIndexes = updatedFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
 
   await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
+}
+
+export function encodePointSEC1(p: Point): Buffer {
+  return Buffer.concat([
+    Buffer.from("04", "hex"),
+    Buffer.from(p.x.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
+    Buffer.from(p.y.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
+  ]);
 }

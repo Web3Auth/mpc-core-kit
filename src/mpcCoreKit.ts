@@ -20,10 +20,10 @@ import { Client, utils as tssUtils } from "@toruslabs/tss-client";
 import { CHAIN_NAMESPACES, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
-import EC from "elliptic";
 
 import { BrowserStorage } from "./browserStorage";
 import {
+  CURVE,
   DEFAULT_CHAIN_CONFIG,
   DELIMITERS,
   ERRORS,
@@ -46,7 +46,7 @@ import {
   Web3AuthOptions,
   Web3AuthState,
 } from "./interfaces";
-import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints } from "./utils";
+import { addFactorAndRefresh, deleteFactorAndRefresh, encodePointSEC1, generateTSSEndpoints } from "./utils";
 
 export class Web3AuthMPCCoreKit implements IWeb3Auth {
   private options: Web3AuthOptions;
@@ -129,11 +129,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   private get isRedirectMode(): boolean {
     return this.options.uxMode === UX_MODE.REDIRECT;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/adjacent-overload-signatures
-  set provider(_: SafeEventEmitterProvider | null) {
-    throw new Error("Cannot set provider");
   }
 
   public async login(params: LoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
@@ -275,7 +270,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   async deleteFactor(factorPub: Point): Promise<void> {
     await deleteFactorAndRefresh(this.tkey, factorPub, this.state.factorKey, this.signatures);
-    const factorPubHex = `04${factorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN)}${factorPub.y.toString(16, FIELD_ELEMENT_HEX_LEN)}`;
+    const factorPubHex = encodePointSEC1(factorPub).toString("hex");
     const allDesc = this.tkey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
@@ -600,14 +595,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     factorEncs[factorPubID] = {
       tssIndex: this.state.tssShareIndex,
       type: "direct",
-      userEnc: await encrypt(
-        Buffer.concat([
-          Buffer.from("04", "hex"),
-          Buffer.from(newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
-          Buffer.from(newFactorPub.y.toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
-        ]),
-        Buffer.from(this.state.tssShare.toString(16, SCALAR_HEX_LEN), "hex")
-      ),
+      userEnc: await encrypt(encodePointSEC1(newFactorPub), Buffer.from(this.state.tssShare.toString(16, SCALAR_HEX_LEN), "hex")),
       serverEncs: [],
     };
     this.tkey.metadata.addTSSData({
@@ -695,7 +683,7 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
       const participatingServerDKGIndexes = [1, 2, 3];
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
-      const denormalisedShare = dklsCoeff.mul(tssShare as BN).umod(this.getEc().curve.n);
+      const denormalisedShare = dklsCoeff.mul(tssShare as BN).umod(CURVE.curve.n);
       const share = Buffer.from(denormalisedShare.toString(16, SCALAR_HEX_LEN), "hex").toString("base64");
 
       if (!currentSession) {
@@ -756,10 +744,5 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
 
   private _getSignatures(sessionData: TorusKey["sessionData"]["sessionTokenData"]): string[] {
     return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
-  }
-
-  private getEc(): EC.ec {
-    // eslint-disable-next-line new-cap
-    return new EC.ec("secp256k1");
   }
 }
