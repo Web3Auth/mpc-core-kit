@@ -99,11 +99,6 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
     });
   }
 
-  get sessionKey(): string | undefined {
-    const k = this.sessionManager.sessionKey;
-    return k || undefined;
-  }
-
   get provider(): SafeEventEmitterProvider | undefined {
     return this.privKeyProvider?.provider ? this.privKeyProvider.provider : undefined;
   }
@@ -229,6 +224,10 @@ export class Web3AuthMPCCoreKit implements IWeb3Auth {
       log.error("error while handling redirect result", error);
       throw new Error((error as Error).message);
     }
+  }
+
+  isResumable(): boolean {
+    return Boolean(this.sessionManager.sessionKey);
   }
 
   public async resumeSession(): Promise<SafeEventEmitterProvider> {

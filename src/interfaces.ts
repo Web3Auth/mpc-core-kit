@@ -33,9 +33,6 @@ export interface IWeb3Auth {
   /** The tKey instance, if initialized. */
   tKey: ThresholdKey | undefined;
 
-  /** The session key, if existing. */
-  sessionKey: string | undefined;
-
   /**
    * Login to tKey.
    * @param loginParams - TKey login parameters.
@@ -51,7 +48,13 @@ export interface IWeb3Auth {
   handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider>;
 
   /**
-   * Attempts to resume an existing session.
+   * Indicates whether there is an existing session that can be resumed.
+   */
+  isResumable(): boolean;
+
+  /**
+   * Resumes an existing session.
+   * @returns A Web3 Provider.
    */
   resumeSession(): Promise<SafeEventEmitterProvider>;
 

@@ -55,9 +55,10 @@ function App() {
       const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: 'popup'  })
       setCoreKitInstance(coreKitInstance);
 
-      if (coreKitInstance.sessionKey) {
+      if (coreKitInstance.isResumable()) {
         const provider = await coreKitInstance.resumeSession();
         completeSetup(coreKitInstance, provider);
+        return;
       }
 
       if (window.location.hash.includes('#state')) {
