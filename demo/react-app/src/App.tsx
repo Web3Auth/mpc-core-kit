@@ -3,7 +3,7 @@
 /* eslint-disable require-atomic-updates */
 /* eslint-disable @typescript-eslint/no-shadow */
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import type { provider } from "web3-core";
 
@@ -12,7 +12,6 @@ import { generateIdToken } from "./utils";
 import { SafeEventEmitterProvider } from "@web3auth/base";
 import { SubVerifierDetails } from "@toruslabs/customauth";
 import { BN } from "bn.js";
-import { Point } from "@tkey-mpc/common-types";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -32,8 +31,7 @@ function App() {
   const [mockVerifierId, setMockVerifierId] = useState<string | undefined>(undefined);
   const [showBackupPhraseScreen, setShowBackupPhraseScreen] = useState<boolean>(false);
   const [exportShareIndex, setExportShareIndex] = useState<number>(2);
-  const [factorPubToDeleteX, setFactorPubToDeleteX] = useState<string>("");
-  const [factorPubToDeleteY, setFactorPubToDeleteY] = useState<string>("");
+  const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
 
   useEffect(() => {
     if (!mockVerifierId) return;
@@ -84,7 +82,14 @@ function App() {
     if (!coreKitInstance) {
       throw new Error('coreKitInstance not found');
     }
-    uiConsole(coreKitInstance.tKey.metadata.factorPubs);
+    const factorPubs = coreKitInstance.tKey.metadata.factorPubs;
+    if (!factorPubs) {
+      throw new Error('factorPubs not found');
+  }
+    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map(pub => {
+      return Point.fromTkeyPoint(pub).encodeSEC1(true).toString('hex');
+    });
+    uiConsole(pubsHex);
   };
 
   const login = async (mockLogin: boolean) => {
@@ -168,8 +173,9 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    const factorToDelete = new Point(factorPubToDeleteX, factorPubToDeleteY);
-    await coreKitInstance.deleteFactor(factorToDelete);
+    const pubBuffer = Buffer.from(factorPubToDelete, 'hex');
+    const pub = Point.fromBufferSEC1(pubBuffer);
+    await coreKitInstance.deleteFactor(pub.asTkeyPoint());
     uiConsole("factor deleted");
   }
   
@@ -311,25 +317,10 @@ function App() {
           Export share
         </button>
         <label>Factor pub:</label>
-        <input value={factorPubToDeleteX} onChange={(e) => setFactorPubToDeleteX(e.target.value)}></input>
-        <input value={factorPubToDeleteY} onChange={(e) => setFactorPubToDeleteY(e.target.value)}></input>
+        <input value={factorPubToDelete} onChange={(e) => setFactorPubToDelete(e.target.value)}></input>
         <button onClick={deleteFactor} className="card">
           Delete Factor
         </button>
-
-        {/* <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
-        <button onClick={savePasswordShare} className="card">
-          Save Password Share
-        </button>
-
-        <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
-        <button onClick={updatePasswordShare} className="card">
-          Update Password Share
-        </button>
-
-        <button onClick={deletePasswordShare} className="card">
-          Delete Password Share
-        </button> */}
 
       </div>
       <h2 className="subtitle">Blockchain Calls</h2>
