@@ -1,4 +1,4 @@
-import { encrypt, getPubKeyECC, getPubKeyPoint, KeyDetails, Point, ShareStore } from "@tkey-mpc/common-types";
+import { encrypt, getPubKeyECC, getPubKeyPoint, KeyDetails, Point as TkeyPoint, ShareStore } from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
@@ -46,7 +46,8 @@ import {
   Web3AuthOptions,
   Web3AuthState,
 } from "./interfaces";
-import { addFactorAndRefresh, deleteFactorAndRefresh, encodePointSEC1, generateTSSEndpoints } from "./utils";
+import { Point } from "./point";
+import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   private options: Web3AuthOptions;
@@ -267,9 +268,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  async deleteFactor(factorPub: Point): Promise<void> {
+  async deleteFactor(factorPub: TkeyPoint): Promise<void> {
     await deleteFactorAndRefresh(this.tkey, factorPub, this.state.factorKey, this.signatures);
-    const factorPubHex = encodePointSEC1(factorPub).toString("hex");
+    const factorPubHex = Point.fromTkeyPoint(factorPub).encodeSEC1(false).toString("hex");
     const allDesc = this.tkey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
@@ -280,7 +281,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // TODO any other metadata we need to update? e.g. metadata transitions?
   }
 
-  generateFactorKey(): { private: BN; pub: Point } {
+  generateFactorKey(): { private: BN; pub: TkeyPoint } {
     const factorKey = new BN(generatePrivate());
     const factorPub = getPubKeyPoint(factorKey);
     return { private: factorKey, pub: factorPub };
@@ -555,7 +556,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * @param newFactorTSSIndex - The index of the share to copy.
    * @param newFactorPub - The public key of the new share.
    */
-  private async copyOrCreateShare(newFactorTSSIndex: number, newFactorPub: Point) {
+  private async copyOrCreateShare(newFactorTSSIndex: number, newFactorPub: TkeyPoint) {
     this.checkTkey();
     if (!this.tkey.metadata.factorPubs || !Array.isArray(this.tkey.metadata.factorPubs[this.tkey.tssTag])) {
       throw new Error("factorPubs does not exist, failed in copy factor pub");
@@ -595,7 +596,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     factorEncs[factorPubID] = {
       tssIndex: this.state.tssShareIndex,
       type: "direct",
-      userEnc: await encrypt(encodePointSEC1(newFactorPub), Buffer.from(this.state.tssShare.toString(16, SCALAR_HEX_LEN), "hex")),
+      userEnc: await encrypt(
+        Point.fromTkeyPoint(newFactorPub).encodeSEC1(false),
+        Buffer.from(this.state.tssShare.toString(16, SCALAR_HEX_LEN), "hex")
+      ),
       serverEncs: [],
     };
     this.tkey.metadata.addTSSData({
