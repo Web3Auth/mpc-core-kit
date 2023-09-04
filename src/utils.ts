@@ -56,6 +56,8 @@ export function storageAvailable(type: string): boolean {
   }
 }
 
+// TODO think which conversion functions to keep and how to export them.
+
 /**
  * Converts a mnemonic to a factor key.
  * @param tKey - An initialized tKey instance.
@@ -75,6 +77,8 @@ export async function mnemonicToKey(tKey: ThresholdKey, shareMnemonic: string): 
  */
 export async function stringToKey(ec: EC.curve.base, s: string): Promise<BN> {
   const buf = Buffer.from(s);
+  // TODO this is compatible with the implementation before, but instead would
+  // be better to hash to scalar instead?
   const bn = new BN(buf);
   return bn.mod(ec.n);
 }

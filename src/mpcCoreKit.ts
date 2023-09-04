@@ -180,7 +180,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  // TODO Edited, but not tested. Need to test before enabling it!
+  // TODO Edited, but not tested. Need to test before enabling it! Edit example to test it. @Yash
   public async handleRedirectResult(factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider> {
     const tested = false;
     if (!tested) {
@@ -268,6 +268,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  // TODO move this whole function to tkey. instead use tkey.deleteShare?
   async deleteFactor(factorPub: TkeyPoint): Promise<void> {
     await deleteFactorAndRefresh(this.tkey, factorPub, this.state.factorKey, this.signatures);
     const factorPubHex = Point.fromTkeyPoint(factorPub).toBufferSEC1(false).toString("hex");
@@ -342,6 +343,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   private async init(): Promise<void> {
     // TODO why is this always using test-verifier? what if we use google login?
+    // TODO use constants with "default" for verifier and verifierId
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
@@ -377,7 +379,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       },
     });
 
-    // TODO works unreliably with `init({skipSw: true, skipPrefetch})`. Need to fix service provider?
+    // TODO works unreliably with `init({skipSw: true, skipPrefetch: true})`.
+    // Need to fix service provider? if popup, then `skipSw` and `skipPrefetch` need to be false.
     await (this.tkey.serviceProvider as TorusServiceProvider).init({});
     this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
   }
@@ -484,7 +487,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.torusSp.postboxKey = new BN(result.oAuthKey, "hex");
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
-      // TODO do we need to set verifierType?
+      this.torusSp.verifierType = result.userInfo.aggregateVerifier ? "aggregate" : "normal";
       const deviceShare = await this.checkIfFactorKeyValid(factorKey);
       await this.tkey.initialize({ neverInitializeNewKey: true });
       await this.tkey.inputShareStoreSafe(deviceShare, true);
@@ -571,7 +574,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
     }
 
-    // TODO Should we set a limit on the number of copies per share?
+    // TODO Should we set a limit on the number of copies per share? maybe add a
+    // default limit per share? make the parameter part of constructor
+    // (optional).
     if (this.state.tssShareIndex !== newFactorTSSIndex) {
       // Generate new share.
       //
@@ -609,7 +614,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
   }
 
-  // TODO same function exists in tkey, should be exported and used from there.
+  // TODO same function exists in other examples? should maybe be placed in central library?
   private async getMetadataShare(): Promise<ShareStore> {
     try {
       const polyId = this.tkey?.metadata.getLatestPublicPolynomial().getPolynomialID();

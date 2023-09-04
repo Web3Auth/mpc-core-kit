@@ -29,10 +29,16 @@ export interface AggregateVerifierLoginParams extends BaseLoginParams {
 export type LoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
+// TODO extend interface and type documentation wherever necessary. @Yash
 export interface ICoreKit {
   /** The tKey instance, if initialized. */
   tKey: ThresholdKey | undefined;
 
+  // TODO document errors across all interface methods! maybe even define error
+  // codes and document which are thrown. in particular here, error is thrown if
+  // not factor key is given (either as function parameter or through local
+  // storage)
+  // TODO login with id token @Yash
   /**
    * Login to tKey and initialize all relevant components.
    * @param loginParams - TKey login parameters.
@@ -78,6 +84,7 @@ export interface ICoreKit {
     additionalMetadata?: Record<string, string>
   ): Promise<void>;
 
+  // TODO throw error if we would go below threshold! @Himanshu, @CW
   /**
    * Deletes the factor identified by the given public key, including all
    * associated metadata.
@@ -106,12 +113,15 @@ export interface ICoreKit {
    */
   commitChanges(): Promise<void>;
 
+  // TODO Himanshu: remove function here? instead use tkey function if we need it for demo.
   /**
    * WARNING: Use with caution.
    *
    * Resets the user's account. All funds will be lost.
    */
   CRITICAL_resetAccount(): Promise<void>;
+
+  // TODO add function for "import tss key share"
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
