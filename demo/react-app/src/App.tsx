@@ -87,7 +87,7 @@ function App() {
       throw new Error('factorPubs not found');
   }
     const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map(pub => {
-      return Point.fromTkeyPoint(pub).encodeSEC1(true).toString('hex');
+      return Point.fromTkeyPoint(pub).toBufferSEC1(true).toString('hex');
     });
     uiConsole(pubsHex);
   };
@@ -175,7 +175,7 @@ function App() {
     }
     const pubBuffer = Buffer.from(factorPubToDelete, 'hex');
     const pub = Point.fromBufferSEC1(pubBuffer);
-    await coreKitInstance.deleteFactor(pub.asTkeyPoint());
+    await coreKitInstance.deleteFactor(pub.toTkeyPoint());
     uiConsole("factor deleted");
   }
   

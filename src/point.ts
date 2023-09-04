@@ -2,7 +2,7 @@ import { Point as TkeyPoint } from "@tkey-mpc/common-types";
 import BN from "bn.js";
 import { curve } from "elliptic";
 
-import { CURVE, FIELD_ELEMENT_HEX_LEN } from "./constants";
+import { CURVE } from "./constants";
 
 type EllipticPoint = curve.base.BasePoint;
 const ZERO_POINT = CURVE.g.mul(new BN(0)) as EllipticPoint;
@@ -29,7 +29,7 @@ export class Point {
     return new Point(p);
   }
 
-  public asTkeyPoint(): TkeyPoint {
+  public toTkeyPoint(): TkeyPoint {
     if (this.p.isInfinity()) {
       throw new Error("Point at infinity can't be represented as tkey point.");
     }
@@ -39,18 +39,12 @@ export class Point {
     return new TkeyPoint(x, y);
   }
 
-  public encodeSEC1(compressed: boolean): Buffer {
+  public toBufferSEC1(compressed: boolean): Buffer {
+    // "elliptic"@6.5.4 can't encode zero point.
     if (this.p.isInfinity()) {
       return Buffer.from("00", "hex");
-    } else if (compressed) {
-      return Buffer.from(this.p.encodeCompressed("hex"), "hex");
     }
 
-    // Not infinity, uncompressed.
-    return Buffer.concat([
-      Buffer.from("04", "hex"),
-      Buffer.from(this.p.getX().toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
-      Buffer.from(this.p.getY().toString(16, FIELD_ELEMENT_HEX_LEN), "hex"),
-    ]);
+    return Buffer.from(this.p.encode("hex", compressed), "hex");
   }
 }

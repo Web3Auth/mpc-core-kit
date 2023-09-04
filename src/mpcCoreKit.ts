@@ -270,7 +270,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   async deleteFactor(factorPub: TkeyPoint): Promise<void> {
     await deleteFactorAndRefresh(this.tkey, factorPub, this.state.factorKey, this.signatures);
-    const factorPubHex = Point.fromTkeyPoint(factorPub).encodeSEC1(false).toString("hex");
+    const factorPubHex = Point.fromTkeyPoint(factorPub).toBufferSEC1(false).toString("hex");
     const allDesc = this.tkey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
@@ -597,7 +597,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       tssIndex: this.state.tssShareIndex,
       type: "direct",
       userEnc: await encrypt(
-        Point.fromTkeyPoint(newFactorPub).encodeSEC1(false),
+        Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false),
         Buffer.from(this.state.tssShare.toString(16, SCALAR_HEX_LEN), "hex")
       ),
       serverEncs: [],
