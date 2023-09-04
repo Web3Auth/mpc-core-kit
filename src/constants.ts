@@ -1,5 +1,6 @@
 import { TORUS_SAPPHIRE_NETWORK } from "@toruslabs/constants";
 import { CHAIN_NAMESPACES, CustomChainConfig } from "@web3auth/base";
+import { ec as EllipticCurve } from "elliptic";
 
 export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
@@ -54,3 +55,4 @@ export const VALID_SHARE_INDICES = [2, 3];
 
 export const SCALAR_HEX_LEN = 32 * 2; // Length of secp256k1 scalar in hex form.
 export const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
+export const CURVE = new EllipticCurve("secp256k1");

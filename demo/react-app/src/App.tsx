@@ -3,10 +3,9 @@
 /* eslint-disable require-atomic-updates */
 /* eslint-disable @typescript-eslint/no-shadow */
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import type { provider } from "web3-core";
-// import swal from "sweetalert";
 
 import "./App.css";
 import { generateIdToken } from "./utils";
@@ -31,9 +30,8 @@ function App() {
   const [web3, setWeb3] = useState<any>(undefined)
   const [mockVerifierId, setMockVerifierId] = useState<string | undefined>(undefined);
   const [showBackupPhraseScreen, setShowBackupPhraseScreen] = useState<boolean>(false);
-  const [seedPhrase, setSeedPhrase] = useState<string>("");
-  const [password, setPassword] = useState<string>("");
   const [exportShareIndex, setExportShareIndex] = useState<number>(2);
+  const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
 
   useEffect(() => {
     if (!mockVerifierId) return;
@@ -53,19 +51,14 @@ function App() {
   useEffect(() => {
     const init = async () => {
       const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: 'popup'  })
-      await coreKitInstance.init();
       setCoreKitInstance(coreKitInstance);
-      if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
-      if (window.location.hash.includes('#state')) {
-        try {
-          const provider = await coreKitInstance.handleRedirectResult();
-          if (provider) setProvider(provider);
-        } catch (error) {
-          if ((error as Error).message === "required more shares") {
-            setShowBackupPhraseScreen(true);
-          }
-        }
+
+      if (coreKitInstance.isResumable()) {
+        const provider = await coreKitInstance.resumeSession();
+        completeSetup(coreKitInstance, provider);
+        return;
       }
+
     }
     init()
   }, [])
@@ -81,7 +74,22 @@ function App() {
     if (!coreKitInstance) {
       throw new Error('coreKitInstance not found');
     }
-    uiConsole(coreKitInstance.getKeyDetails())
+    uiConsole(coreKitInstance.getKeyDetails());
+    console.log(coreKitInstance);
+  };
+
+  const listFactors = async () => {
+    if (!coreKitInstance) {
+      throw new Error('coreKitInstance not found');
+    }
+    const factorPubs = coreKitInstance.tKey.metadata.factorPubs;
+    if (!factorPubs) {
+      throw new Error('factorPubs not found');
+  }
+    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map(pub => {
+      return Point.fromTkeyPoint(pub).toBufferSEC1(true).toString('hex');
+    });
+    uiConsole(pubsHex);
   };
 
   const login = async (mockLogin: boolean) => {
@@ -109,16 +117,27 @@ function App() {
       } as SubVerifierDetails;
   
       const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
-      const provider = await coreKitInstance.connect({ subVerifierDetails: verifierConfig }, factorKey);
-      // setExportShareIndex(coreKitInstance.getTssShareIndex()) // TODO
-
-      if (provider) setProvider(provider)
+      const provider = await coreKitInstance.login({ subVerifierDetails: verifierConfig }, factorKey);
+      
+      if (provider) {
+        completeSetup(coreKitInstance, provider);
+      }
     } catch (error: unknown) {
       console.log(error);
       if ((error as Error).message === "required more shares") {
         setShowBackupPhraseScreen(true);
       }
     }
+  }
+
+  const completeSetup = (coreKitInstance: Web3AuthMPCCoreKit, provider: SafeEventEmitterProvider) => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance not found");
+    }
+
+    setProvider(provider);
+    const keyDetails = coreKitInstance.getKeyDetails();
+    setExportShareIndex(keyDetails.tssIndex)
   }
 
   const logout = async () => {
@@ -145,71 +164,19 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     const factorKey = coreKitInstance.generateFactorKey();
-    // 91085@example.com
-    // 9d2615f7c497776baddee6a6d0f0c05c6b0f2f83444c01d5f788195925131cac
-    // f5ee378240e45188ce328c028a0de73d8232142170f0fb30494647b61cbead46
-    await coreKitInstance.createFactor(factorKey, exportShareIndex);
+    await coreKitInstance.createFactor(factorKey.private, exportShareIndex);
     console.log("Export factor key: ", factorKey);
     uiConsole("Export factor key: ", factorKey);
   }
 
-  const submitBackupShare = async (): Promise<void> => { 
+  const deleteFactor = async (): Promise<void> => { 
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    // await coreKitInstance.inputBackupShare(seedPhrase);
-    // uiConsole('submitted');
-    // if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
-    throw new Error('not implemented');
-  }
-
-  const savePasswordShare = async () => {
-    try {
-      if (!coreKitInstance) { 
-        throw new Error("coreKitInstance is not set");
-      }
-      // await coreKitInstance.addSecurityQuestionShare("What is your password?", password);
-      // uiConsole('saved');
-      throw new Error('not implemented');
-    } catch (err) {
-      uiConsole(err);
-    }
-  }
-
-  const updatePasswordShare = async () => {
-    try {
-      if (!coreKitInstance) { 
-        throw new Error("coreKitInstance is not set");
-      }
-      // await coreKitInstance.changeSecurityQuestionShare("What is your password?", password);
-      // uiConsole('updated');
-      throw new Error('not implemented');
-    } catch (err) {
-      uiConsole(err);
-    }
-  }
-
-  const deletePasswordShare = async () => {
-    try {
-      if (!coreKitInstance) { 
-        throw new Error("coreKitInstance is not set");
-      }
-      // await coreKitInstance.deleteSecurityQuestionShare("What is your password?");
-      // uiConsole('deleted');
-      throw new Error('not implemented');
-    } catch (err) {
-      uiConsole(err);
-    }
-  }
-
-  const recoverViaPassword = async () => {
-    if (!coreKitInstance) { 
-      throw new Error("coreKitInstance is not set");
-    }
-    // await coreKitInstance.recoverSecurityQuestionShare("What is your password?", password);
-    // uiConsole('submitted');
-    // if (coreKitInstance.provider) setProvider(coreKitInstance.provider);
-    throw new Error('not implemented');
+    const pubBuffer = Buffer.from(factorPubToDelete, 'hex');
+    const pub = Point.fromBufferSEC1(pubBuffer);
+    await coreKitInstance.deleteFactor(pub.toTkeyPoint());
+    uiConsole("factor deleted");
   }
   
   const getChainID = async () => {
@@ -324,6 +291,12 @@ function App() {
           Key Details
         </button>
 
+        <button onClick={listFactors} className="card">
+          List Factors
+        </button>
+
+        
+
 
         <button onClick={resetAccount} className="card">
           Reset Account
@@ -339,24 +312,15 @@ function App() {
       <div className="flex-container">
 
         <label>Share index:</label>
-        <input value={exportShareIndex} onChange={(e) => setExportShareIndex(parseInt(e.target.value))}></input>
+        <input value={isNaN(exportShareIndex) ? "" : exportShareIndex } onChange={(e) => setExportShareIndex(parseInt(e.target.value))}></input>
         <button onClick={exportShare} className="card">
           Export share
         </button>
-
-        {/* <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
-        <button onClick={savePasswordShare} className="card">
-          Save Password Share
+        <label>Factor pub:</label>
+        <input value={factorPubToDelete} onChange={(e) => setFactorPubToDelete(e.target.value)}></input>
+        <button onClick={deleteFactor} className="card">
+          Delete Factor
         </button>
-
-        <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
-        <button onClick={updatePasswordShare} className="card">
-          Update Password Share
-        </button>
-
-        <button onClick={deletePasswordShare} className="card">
-          Delete Password Share
-        </button> */}
 
       </div>
       <h2 className="subtitle">Blockchain Calls</h2>
@@ -414,31 +378,6 @@ function App() {
 
       <p>Mock Login Seed Email</p>
       <input value={mockVerifierId} onChange={(e) => setMockVerifierId(e.target.value)}></input>
-
-      {
-        showBackupPhraseScreen && ( 
-          <>
-            <textarea value={seedPhrase} onChange={(e) => setSeedPhrase(e.target.value)}></textarea>
-            <button onClick={submitBackupShare} className="card">
-              Submit backup share
-            </button>
-            <hr />
-            OR
-            <hr/>
-            <input value={password} onChange={(e) => setPassword(e.target.value)}></input>
-            <button onClick={recoverViaPassword} className="card">
-              Recover using password Share
-            </button>
-
-            <button onClick={resetAccount} className="card">
-              Reset Account
-            </button>
-            <div id="console" style={{ whiteSpace: "pre-line" }}>
-              <p style={{ whiteSpace: "pre-line" }}></p>
-            </div>
-          </>
-        )
-      }
     </>
   );
 

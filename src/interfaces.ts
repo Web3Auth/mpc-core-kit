@@ -1,4 +1,4 @@
-import { KeyDetails, ShareStore } from "@tkey-mpc/common-types";
+import { KeyDetails, Point, ShareStore } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import type { AGGREGATE_VERIFIER_TYPE, LoginWindowResponse, SubVerifierDetails, TorusVerifierResponse, UX_MODE_TYPE } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
@@ -29,32 +29,34 @@ export interface AggregateVerifierLoginParams extends BaseLoginParams {
 export type LoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
-export interface IWeb3Auth {
-  /** The signing provider, if initialized. */
-  provider: SafeEventEmitterProvider | null;
-
-  /** The metadata key, if initialized. */
-  tkeyMetadataKey: BN | null;
-
+export interface ICoreKit {
   /** The tKey instance, if initialized. */
-  tKey: ThresholdKey;
-
-  // TODO Merge `init` into `connect`?
-  /**
-   * Initialize component. Does not setup tKey yet.
-   */
-  init(): void;
+  tKey: ThresholdKey | undefined;
 
   /**
-   * Connect to tKey.
+   * Login to tKey and initialize all relevant components.
    * @param loginParams - TKey login parameters.
+   * @returns A Web3 provider if we are not in redirect mode.
    */
-  connect(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+  login(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
 
   /**
    * Handle redirect result after login.
+   * @param factorKey - An optional factor key to use at initialization.
+   * @returns A Web3 provider.
    */
-  handleRedirectResult(): Promise<SafeEventEmitterProvider | null>; // TODO add factor key optional
+  handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider>;
+
+  /**
+   * Indicates whether there is an existing session that can be resumed.
+   */
+  isResumable(): boolean;
+
+  /**
+   * Resumes an existing session.
+   * @returns A Web3 Provider.
+   */
+  resumeSession(): Promise<SafeEventEmitterProvider>;
 
   /**
    * User logout.
@@ -77,16 +79,17 @@ export interface IWeb3Auth {
   ): Promise<void>;
 
   /**
-   * Deletes the factor that is identified by the given public key.
-   * @param factorKey - The factor key of the factor to delete.
+   * Deletes the factor identified by the given public key, including all
+   * associated metadata.
+   * @param factorPub - The public key of the factor to delete.
    */
-  deleteFactor(factorKey: BN): Promise<void>;
+  deleteFactor(factorPub: Point): Promise<void>;
 
   /**
    * Generates a new factor key.
-   * @returns The freshly generated factor key.
+   * @returns The freshly generated factor key and the corresponding public key.
    */
-  generateFactorKey(): BN;
+  generateFactorKey(): { private: BN; pub: Point };
 
   /**
    * Get user information.
@@ -96,7 +99,7 @@ export interface IWeb3Auth {
   /**
    * Get key information.
    */
-  getKeyDetails(): KeyDetails;
+  getKeyDetails(): KeyDetails & { tssIndex: number };
 
   /**
    * Commit the changes made to the user's account when in manual sync mode.
@@ -104,7 +107,7 @@ export interface IWeb3Auth {
   commitChanges(): Promise<void>;
 
   /**
-   * WARNING: Use with utter caution.
+   * WARNING: Use with caution.
    *
    * Resets the user's account. All funds will be lost.
    */
@@ -164,8 +167,8 @@ export interface Web3AuthState {
   signatures?: string[];
   userInfo?: UserInfo;
   tssNonce?: number;
-  tssShare2?: BN;
-  tssShare2Index?: number;
+  tssShare?: BN;
+  tssShareIndex?: number;
   tssPubKey?: Buffer;
   factorKey?: BN;
   tssNodeEndpoints?: string[];
