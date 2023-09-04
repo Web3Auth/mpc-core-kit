@@ -7,6 +7,7 @@ import { CURVE } from "./constants";
 type EllipticPoint = curve.base.BasePoint;
 const ZERO_POINT = CURVE.g.mul(new BN(0)) as EllipticPoint;
 
+// TODO add documentation
 export class Point {
   private p: EllipticPoint;
 
