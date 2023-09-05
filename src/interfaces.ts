@@ -71,8 +71,9 @@ export interface IdTokenLoginParams {
 
 // TODO extend interface and type documentation wherever necessary. @Yash
 export interface ICoreKit {
-  /** The tKey SDK instance
-   *  TKey is the core module on which this wrapper SDK sits for easy integration.
+  /**
+   * The tKey instance, if initialized.
+   * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
   tKey: ThresholdKey | undefined;
 
