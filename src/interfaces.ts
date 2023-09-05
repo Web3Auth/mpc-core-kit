@@ -83,7 +83,7 @@ export interface ICoreKit {
   /**
    * Login into the SDK in an implicit flow and initialize all relevant components.
    * @param loginParams - Parameters for Implicit Login.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage. Read more about it here: https://web3auth.io/docs/infrastructure/mpc-architecture#factor-keys
+   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
    * @returns A Web3 provider if we are not in redirect mode.
    */
   login(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
@@ -91,22 +91,21 @@ export interface ICoreKit {
   /**
    * Login into the SDK using ID Token based login and initialize all relevant components.
    * @param idTokenLoginParams - Parameters with ID Token based Login.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage. Read more about it here: https://web3auth.io/docs/infrastructure/mpc-architecture#factor-keys
+   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
    * @returns A Web3 provider
    */
   loginWithIdToken(idTokenLoginParams: IdTokenLoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
 
   /**
    * Handle redirect result after login.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage. Read more about it here: https://web3auth.io/docs/infrastructure/mpc-architecture#factor-keys
+   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
    * @returns A Web3 provider.
    */
   handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider>;
 
   /**
    * Indicates whether there is an existing session that can be resumed.
-   * @returns A boolean `true` indicating that there is an existing session that can be resumed.
-   *  `false` indicating that there is NO existing session.
+   * @returns `true`: Session Exists, `false`: Session does not exist.
    */
   isResumable(): boolean;
 
@@ -147,7 +146,7 @@ export interface ICoreKit {
   /**
    * Generates a new factor key.
    * A factor key is a BN used for encrypting your Device/ Recovery TSS Key Shares.
-   * Read more about it here: https://web3auth.io/docs/infrastructure/mpc-architecture#factor-keys
+   *
    * @returns The freshly generated factor key and the corresponding public key.
    */
   generateFactorKey(): { private: BN; pub: Point };

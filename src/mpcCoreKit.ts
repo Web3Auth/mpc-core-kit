@@ -51,7 +51,7 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { Point } from "./point";
-import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints } from "./utils";
+import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints, parseToken } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   private options: Web3AuthOptions;
@@ -206,7 +206,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
         this.updateState({
           oAuthKey: this._getOAuthKey(loginResponse),
-          userInfo: this.parseToken(idToken),
+          userInfo: parseToken(idToken),
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       } else {
@@ -217,7 +217,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
         this.updateState({
           oAuthKey: this._getOAuthKey(loginResponse),
-          userInfo: this.parseToken(idToken),
+          userInfo: parseToken(idToken),
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       }
@@ -807,15 +807,4 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private _getSignatures(sessionData: TorusKey["sessionData"]["sessionTokenData"]): string[] {
     return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
   }
-
-  private parseToken = (token: any) => {
-    try {
-      const base64Url = token.split(".")[1];
-      const base64 = base64Url.replace("-", "+").replace("_", "/");
-      return JSON.parse(window.atob(base64 || ""));
-    } catch (err) {
-      console.error(err);
-      return null;
-    }
-  };
 }
