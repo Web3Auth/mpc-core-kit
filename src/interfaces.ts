@@ -75,7 +75,7 @@ export interface ICoreKit {
    * The tKey instance, if initialized.
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
-  tKey: ThresholdKey | undefined;
+  tKey: ThresholdKey | null;
 
   // TODO document errors across all interface methods! maybe even define error
   // codes and document which are thrown. in particular here, error is thrown if

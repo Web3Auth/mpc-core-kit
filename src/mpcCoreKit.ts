@@ -106,11 +106,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   get tKey(): ThresholdKey {
+    if (this.tkey === null) throw new Error("Tkey not initialized");
     return this.tkey;
   }
 
   private get verifier(): string {
-    if (this.state.userInfo.aggregateVerifier) {
+    if (this.state.userInfo?.aggregateVerifier) {
       return this.state.userInfo.aggregateVerifier;
     }
     return this.state?.userInfo?.verifier ? this.state.userInfo.verifier : "";
@@ -129,17 +130,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async login(params: LoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
-    if (!this.tkey) {
+    if (!this.tKey) {
       await this.init();
     }
 
+    const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
     try {
       // oAuth login.
-      if ((params as SubVerifierDetailsParams).subVerifierDetails) {
+      const verifierParams = params as SubVerifierDetailsParams;
+      const aggregateParams = params as AggregateVerifierLoginParams;
+      if (verifierParams.subVerifierDetails) {
         // single verifier login.
-        const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerLogin(
-          (params as SubVerifierDetailsParams).subVerifierDetails
-        );
+        const loginResponse = await tkeyServiceProvider.triggerLogin((params as SubVerifierDetailsParams).subVerifierDetails);
 
         if (this.isRedirectMode) return null;
 
@@ -148,17 +150,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           userInfo: loginResponse.userInfo,
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
-      } else if ((params as AggregateVerifierLoginParams).subVerifierDetailsArray) {
-        if (
-          (params as AggregateVerifierLoginParams).aggregateVerifierType === AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID &&
-          (params as AggregateVerifierLoginParams).subVerifierDetailsArray.length !== 1
-        ) {
+      } else if (aggregateParams.subVerifierDetailsArray) {
+        if (aggregateParams.aggregateVerifierType === AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID) {
           throw new Error("Single id verifier must have exactly one sub verifier");
         }
-        const loginResponse = await (this.tkey?.serviceProvider as TorusServiceProvider).triggerAggregateLogin({
-          aggregateVerifierType: (params as AggregateVerifierLoginParams).aggregateVerifierType as AGGREGATE_VERIFIER_TYPE,
-          verifierIdentifier: (params as AggregateVerifierLoginParams).aggregateVerifierIdentifier as string,
-          subVerifierDetailsArray: (params as AggregateVerifierLoginParams).subVerifierDetailsArray,
+        const loginResponse = await tkeyServiceProvider.triggerAggregateLogin({
+          aggregateVerifierType: aggregateParams.aggregateVerifierType as AGGREGATE_VERIFIER_TYPE,
+          verifierIdentifier: aggregateParams.aggregateVerifierIdentifier as string,
+          subVerifierDetailsArray: aggregateParams.subVerifierDetailsArray,
         });
 
         if (this.isRedirectMode) return null;
@@ -237,7 +236,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("This function is not tested yet. Please test before enabling it!");
     }
 
-    if (!this.tkey || !this.torusSp) {
+    if (!this.tKey || !this.torusSp) {
       throw new Error("tkey is not initialized, call initi first");
     }
 
@@ -294,24 +293,21 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async createFactor(
     factorKey: BN,
-    shareType: ShareType | undefined = undefined,
+    shareType: ShareType,
     shareDescription: FactorKeyTypeShareDescription = FactorKeyTypeShareDescription.Other,
     additionalMetadata: Record<string, string> = {}
   ): Promise<void> {
     this.checkTkey();
 
-    if (!shareType) {
-      if (!this.state.tssShareIndex) {
-        throw new Error("tss share index not present");
-      }
-      shareType = this.state.tssShareIndex;
+    if (!VALID_SHARE_INDICES.includes(shareType)) {
+      throw new Error(`invalid share type: must be one of ${VALID_SHARE_INDICES}`);
     }
 
     try {
       const factorPub = getPubKeyPoint(factorKey);
       await this.copyOrCreateShare(shareType, factorPub);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
-      if (!this.options.manualSync) await this.tkey.syncLocalMetadataTransitions();
+      if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
     } catch (error) {
       log.error("error creating factor", error);
       throw error;
@@ -320,15 +316,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   // TODO move this whole function to tkey. instead use tkey.deleteShare?
   async deleteFactor(factorPub: TkeyPoint): Promise<void> {
-    await deleteFactorAndRefresh(this.tkey, factorPub, this.state.factorKey, this.signatures);
+    if (!this.state.factorKey) throw new Error("Factor key not present");
+
+    await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, this.signatures);
     const factorPubHex = Point.fromTkeyPoint(factorPub).toBufferSEC1(false).toString("hex");
-    const allDesc = this.tkey.metadata.getShareDescription();
+    const allDesc = this.tKey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
       keyDesc.forEach(async (desc) => {
-        await this.tkey?.deleteShareDescription(factorPubHex, desc, true);
+        await this.tKey?.deleteShareDescription(factorPubHex, desc, true);
       });
     }
+
+    if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
     // TODO any other metadata we need to update? e.g. metadata transitions?
   }
 
@@ -347,8 +347,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public getKeyDetails(): KeyDetails & { tssIndex: number } {
     this.checkTkey();
-    const keyDetails = this.tkey.getKeyDetails();
-    keyDetails.shareDescriptions = this.tkey.getMetadata().getShareDescription();
+    const keyDetails = this.tKey.getKeyDetails();
+    keyDetails.shareDescriptions = this.tKey.getMetadata().getShareDescription();
     return { ...keyDetails, tssIndex: this.state.tssShareIndex };
   }
 
@@ -358,7 +358,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("factorKey not present.");
     }
     try {
-      await this.tkey.syncLocalMetadataTransitions();
+      await this.tKey.syncLocalMetadataTransitions();
     } catch (error: unknown) {
       log.error("sync metadata error", error);
       throw error;
@@ -380,7 +380,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.state.oAuthKey) {
       throw new Error("user not logged in");
     }
-    await this.tkey.storageLayer.setMetadata({
+    await this.tKey.storageLayer.setMetadata({
       privKey: new BN(this.state.oAuthKey, "hex"),
       input: { message: "KEY_NOT_FOUND" },
     });
@@ -419,7 +419,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const shareSerializationModule = new ShareSerializationModule();
 
-    this.tkey = new ThresholdKey({
+    this.tKey = new ThresholdKey({
       enableLogging: true,
       serviceProvider: this.torusSp,
       storageLayer: this.storageLayer,
@@ -431,12 +431,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // TODO works unreliably with `init({skipSw: true, skipPrefetch: true})`.
     // Need to fix service provider? if popup, then `skipSw` and `skipPrefetch` need to be false.
-    await (this.tkey.serviceProvider as TorusServiceProvider).init({});
+    await (this.tKey.serviceProvider as TorusServiceProvider).init({});
     this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
   }
 
   private async setupTkey(factorKey: BN | undefined = undefined): Promise<void> {
-    const existingUser = await this.isMetadataPresent(this.state.oAuthKey as string);
+    if (!this.state.oAuthKey) {
+      throw new Error("user not logged in");
+    }
+    const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
 
     if (!existingUser) {
       // Generate new factor key if not provided.
@@ -448,21 +451,21 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const deviceTSSShare = new BN(generatePrivate());
       const deviceTSSIndex = ShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
-      await this.tkey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
+      await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
 
       // Finalize initialization.
-      await this.tkey.reconstructKey();
+      await this.tKey.reconstructKey();
       await this.finalizeTkey(factorKey);
 
       // Store factor description.
       await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.DeviceShare);
     } else {
       // Initialize tkey with existing share.
-      await this.tkey.initialize({ neverInitializeNewKey: true });
+      await this.tKey.initialize({ neverInitializeNewKey: true });
 
       if (!factorKey) {
         // Read factor key from local storage.
-        const metadata = this.tkey.getMetadata();
+        const metadata = this.tKey.getMetadata();
         const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
         const tKeyLocalStoreString = this.currentStorage.get<string>(tkeyPubX);
         const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
@@ -476,33 +479,31 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       // Provide factor key to tkey.
       const metadataShare = await this.checkIfFactorKeyValid(factorKey);
-      await this.tkey.inputShareStoreSafe(metadataShare, true);
+      await this.tKey.inputShareStoreSafe(metadataShare, true);
 
       // Finalize initialization.
-      await this.tkey.reconstructKey();
+      await this.tKey.reconstructKey();
       await this.finalizeTkey(factorKey);
     }
   }
 
   private async finalizeTkey(factorKey: BN) {
-    // Ensure sufficiently many shares are present.
-    const { requiredShares } = this.tkey.getKeyDetails();
-    if (requiredShares > 0) {
-      throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
-    }
+    if (this.tkey === null) throw new Error("Tkey not initialized");
 
     // Read tss meta data.
-    const tssNonce: number = (this.tkey.metadata.tssNonces || {})[this.tkey.tssTag];
-    const { tssShare, tssIndex: tssShareIndex } = await this.tkey.getTSSShare(factorKey);
-    const tssPubKeyPoint = this.tkey.getTSSPub();
+    const tssNonce: number = (this.tkey.metadata.tssNonces || {})[this.tKey.tssTag];
+    const { tssShare, tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
+    const tssPubKeyPoint = this.tKey.getTSSPub();
     const tssPubKey = Buffer.from(
       `${tssPubKeyPoint.x.toString(16, FIELD_ELEMENT_HEX_LEN)}${tssPubKeyPoint.y.toString(16, FIELD_ELEMENT_HEX_LEN)}`,
       "hex"
     );
+
+    // check if tssShare is required in the state
     this.updateState({ tssNonce, tssShare, tssShareIndex, tssPubKey, factorKey });
 
     // Store factor key in local storage.
-    const metadata = this.tkey.getMetadata();
+    const metadata = this.tKey.getMetadata();
     const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     this.currentStorage.set(
       tkeyPubX,
@@ -512,20 +513,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     );
 
     // Finalize setup.
-    await this.tkey.syncLocalMetadataTransitions();
+    await this.tKey.syncLocalMetadataTransitions();
     await this.setupProvider();
     await this.createSession();
   }
 
   private checkTkey() {
-    if (!this.tkey) {
+    if (!this.tKey) {
       throw new Error("tkey not initialized, call init first!");
     }
   }
 
   private async rehydrateSession() {
     try {
-      if (!this.tkey || !this.torusSp) {
+      if (!this.tKey || !this.torusSp) {
         throw new Error("tkey not initialized, call init first!");
       }
       if (!this.sessionManager.sessionKey) return {};
@@ -539,9 +540,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.torusSp.verifierId = result.userInfo.verifierId;
       this.torusSp.verifierType = result.userInfo.aggregateVerifier ? "aggregate" : "normal";
       const deviceShare = await this.checkIfFactorKeyValid(factorKey);
-      await this.tkey.initialize({ neverInitializeNewKey: true });
-      await this.tkey.inputShareStoreSafe(deviceShare, true);
-      await this.tkey.reconstructKey();
+      await this.tKey.initialize({ neverInitializeNewKey: true });
+      await this.tKey.inputShareStoreSafe(deviceShare, true);
+      await this.tKey.reconstructKey();
 
       this.updateState({
         factorKey: new BN(result.factorKey, "hex"),
@@ -585,7 +586,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async isMetadataPresent(privateKey: string) {
     const privateKeyBN = new BN(privateKey, "hex");
-    const metadata = await this.tkey?.storageLayer.getMetadata<{ message: string }>({ privKey: privateKeyBN });
+    const metadata = await this.tKey?.storageLayer.getMetadata<{ message: string }>({ privKey: privateKeyBN });
     if (metadata && Object.keys(metadata).length > 0 && metadata.message !== "KEY_NOT_FOUND") {
       return true;
     }
@@ -594,7 +595,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async checkIfFactorKeyValid(factorKey: BN): Promise<ShareStore> {
     this.checkTkey();
-    const factorKeyMetadata = await this.tkey?.storageLayer.getMetadata<{ message: string }>({ privKey: factorKey });
+    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<{ message: string }>({ privKey: factorKey });
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
       throw new Error("no metadata for your factor key, reset your account");
     }
@@ -611,10 +612,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   private async copyOrCreateShare(newFactorTSSIndex: number, newFactorPub: TkeyPoint) {
     this.checkTkey();
-    if (!this.tkey.metadata.factorPubs || !Array.isArray(this.tkey.metadata.factorPubs[this.tkey.tssTag])) {
+    if (!this.tKey.metadata.factorPubs || !Array.isArray(this.tKey.metadata.factorPubs[this.tKey.tssTag])) {
       throw new Error("factorPubs does not exist, failed in copy factor pub");
     }
-    if (!this.tkey.metadata.factorEncs || typeof this.tkey.metadata.factorEncs[this.tkey.tssTag] !== "object") {
+    if (!this.tKey.metadata.factorEncs || typeof this.tKey.metadata.factorEncs[this.tKey.tssTag] !== "object") {
       throw new Error("factorEncs does not exist, failed in copy factor pub");
     }
     if (!this.state.tssShareIndex || !this.state.tssShare) {
@@ -633,11 +634,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // TODO There is a function tKey.generateNewShare which does almost the
       // same, but fails when called repeatedly (may be buggy). Ideally, revise
       // tkey function and use that instead?
-      await addFactorAndRefresh(this.tkey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
+      await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
 
       // Update local share.
       // TODO remove local tss share from state? could go out of sync with remote share.
-      const { tssShare, tssIndex } = await this.tkey.getTSSShare(this.state.factorKey);
+      const { tssShare, tssIndex } = await this.tKey.getTSSShare(this.state.factorKey);
       this.updateState({
         tssShare,
         tssShareIndex: tssIndex,
@@ -645,8 +646,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       return;
     }
 
-    const updatedFactorPubs = this.tkey.metadata.factorPubs[this.tkey.tssTag].concat([newFactorPub]);
-    const factorEncs = JSON.parse(JSON.stringify(this.tkey.metadata.factorEncs[this.tkey.tssTag]));
+    const updatedFactorPubs = this.tKey.metadata.factorPubs[this.tKey.tssTag].concat([newFactorPub]);
+    const factorEncs = JSON.parse(JSON.stringify(this.tKey.metadata.factorEncs[this.tKey.tssTag]));
     const factorPubID = newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     factorEncs[factorPubID] = {
       tssIndex: this.state.tssShareIndex,
@@ -657,8 +658,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       ),
       serverEncs: [],
     };
-    this.tkey.metadata.addTSSData({
-      tssTag: this.tkey.tssTag,
+    this.tKey.metadata.addTSSData({
+      tssTag: this.tKey.tssTag,
       factorPubs: updatedFactorPubs,
       factorEncs,
     });
@@ -667,8 +668,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   // TODO same function exists in other examples? should maybe be placed in central library?
   private async getMetadataShare(): Promise<ShareStore> {
     try {
-      const polyId = this.tkey?.metadata.getLatestPublicPolynomial().getPolynomialID();
-      const shares = this.tkey?.shares[polyId];
+      const polyId = this.tKey?.metadata.getLatestPublicPolynomial().getPolynomialID();
+      const shares = this.tKey?.shares[polyId];
       let share: ShareStore | null = null;
 
       for (const shareIndex in shares) {
@@ -690,7 +691,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     shareDescription: FactorKeyTypeShareDescription,
     additionalMetadata: Record<string, string> | null = null
   ) {
-    const { tssShare, tssIndex } = await this.tkey.getTSSShare(factorKey);
+    const { tssShare, tssIndex } = await this.tKey.getTSSShare(factorKey);
 
     const metadataShare = await this.getMetadataShare();
     const factorPub = getPubKeyECC(factorKey).toString("hex");
@@ -701,7 +702,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     };
 
     // Set metadata for factor key backup
-    await this.tkey?.addLocalMetadataTransitions({
+    await this.tKey?.addLocalMetadataTransitions({
       input: [{ message: JSON.stringify(metadataToSet) }],
       privKey: [factorKey],
     });
@@ -711,7 +712,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       ...additionalMetadata,
       tssShareIndex: tssIndex,
     };
-    await this.tkey?.addShareDescription(factorPub, JSON.stringify(params), true);
+    await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), true);
   }
 
   private async setupProvider(): Promise<void> {
