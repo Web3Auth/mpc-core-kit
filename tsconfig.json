@@ -14,6 +14,8 @@
     "skipLibCheck": true,
     "moduleResolution": "node",
     "baseUrl": ".",
-  }
+  },
+  "include": ["./src/**/*"],
+  "exclude": ["node_modules", "**/*.spec.ts"]
 }
   
