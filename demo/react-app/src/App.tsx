@@ -3,7 +3,7 @@
 /* eslint-disable require-atomic-updates */
 /* eslint-disable @typescript-eslint/no-shadow */
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, parseToken } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import type { provider } from "web3-core";
 
@@ -107,26 +107,42 @@ function App() {
         throw new Error('mockVerifierId not found');
       }
       const token = generateIdToken(mockVerifierId, "ES256");
-      const verifierConfig = mockLogin ? {
-        verifier: "torus-test-health",
-        typeOfLogin: 'jwt',
-        clientId: "torus-key-test",
-        jwtParams: {
-          verifierIdField: "email",
-          id_token: token
+      if (mockLogin) {
+        let userInfo = parseToken(token);
+
+        const verifierConfig =  {
+          verifier: "torus-test-health",
+          verifierId : userInfo.email,
+          clientId: "torus-key-test",
+          idToken :token
+          // jwtParams: {
+          //   verifierIdField: "email",
+          //   id_token: token
+          // }
+        } as IdTokenLoginParams
+
+       
+        const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined; 
+
+        const provider = await coreKitInstance.login( verifierConfig, factorKey);
+        if (provider) {
+          completeSetup(coreKitInstance, provider);
         }
-      } as SubVerifierDetails : {
-        typeOfLogin: 'google',
-        verifier: 'google-tkey-w3a',
-        clientId:
+
+      } else {
+        const verifierConfig = {
+          typeOfLogin: 'google',
+          verifier: 'google-tkey-w3a',
+          clientId:
             '774338308167-q463s7kpvja16l4l0kko3nb925ikds2p.apps.googleusercontent.com',
-      } as SubVerifierDetails;
+        } as SubVerifierDetails;
   
-      const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
-      const provider = await coreKitInstance.login({ subVerifierDetails: verifierConfig }, factorKey);
+        const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
+        const provider = await coreKitInstance.loginWithOauth({ subVerifierDetails: verifierConfig }, factorKey);
       
-      if (provider) {
-        completeSetup(coreKitInstance, provider);
+        if (provider) {
+          completeSetup(coreKitInstance, provider);
+        }
       }
     } catch (error: unknown) {
       console.log(error);

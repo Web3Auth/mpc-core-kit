@@ -34,7 +34,7 @@ export interface AggregateVerifierLoginParams extends BaseLoginParams {
   subVerifierDetailsArray?: SubVerifierDetails[];
 }
 
-export type LoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
+export type OauthLoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface IdTokenLoginParams {
@@ -87,7 +87,7 @@ export interface ICoreKit {
    * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
    * @returns A Web3 provider if we are not in redirect mode.
    */
-  login(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+  loginWithOauth(loginParams: OauthLoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
 
   /**
    * Login into the SDK using ID Token based login and initialize all relevant components.
@@ -95,7 +95,7 @@ export interface ICoreKit {
    * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
    * @returns A Web3 provider
    */
-  loginWithIdToken(idTokenLoginParams: IdTokenLoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+  login(idTokenLoginParams: IdTokenLoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
 
   /**
    * Handle redirect result after login.

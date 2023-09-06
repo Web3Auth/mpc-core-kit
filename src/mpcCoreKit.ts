@@ -34,7 +34,7 @@ import {
   FactorKeyCloudMetadata,
   ICoreKit,
   IdTokenLoginParams,
-  LoginParams,
+  OauthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
@@ -127,7 +127,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  public async login(params: LoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
+  public async loginWithOauth(params: OauthLoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
     if (!this.tkey) {
       await this.init();
     }
@@ -176,7 +176,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async loginWithIdToken(idTokenLoginParams: IdTokenLoginParams, factorKey: BN | undefined = undefined) {
+  public async login(idTokenLoginParams: IdTokenLoginParams, factorKey: BN | undefined = undefined) {
     if (!this.tkey) {
       await this.init();
     }
@@ -185,7 +185,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // oAuth login.
       if (!idTokenLoginParams.subVerifier) {
         // single verifier login.
-        const loginResponse = await (this.tkey.serviceProvider as TorusServiceProvider).directWeb.getTorusKey(
+        const loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).directWeb.getTorusKey(
           verifier,
           verifierId,
           { verifier_id: verifierId },
@@ -203,7 +203,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         });
       } else {
         // aggregate verifier login
-        const loginResponse = await (this.tkey.serviceProvider as TorusServiceProvider).directWeb.getAggregateTorusKey(verifier, verifierId, [
+        const loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).directWeb.getAggregateTorusKey(verifier, verifierId, [
           { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
         ]);
 
@@ -215,6 +215,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       await this.setupTkey(factorKey);
+      if (!this.provider) throw new Error("provider not initialized");
       return this.provider;
     } catch (err: unknown) {
       log.error("login error", err);
@@ -223,6 +224,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       throw new Error((err as Error).message);
     }
+  }
+
   // TODO: rename function to something more descriptive
   public async inputFactorKey(factorKey: BN): Promise<SafeEventEmitterProvider> {
     if (!this.tkey) throw new Error("tkey not initialized, call login first!");
