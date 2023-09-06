@@ -232,6 +232,8 @@ export interface Web3AuthOptions {
   enableLogging?: boolean;
 }
 
+export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
+
 export interface Web3AuthState {
   oAuthKey?: string;
   signatures?: string[];

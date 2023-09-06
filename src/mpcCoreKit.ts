@@ -3,14 +3,7 @@ import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
-import {
-  AGGREGATE_VERIFIER,
-  AGGREGATE_VERIFIER_TYPE,
-  TORUS_METHOD,
-  TorusAggregateLoginResponse,
-  TorusLoginResponse,
-  UX_MODE,
-} from "@toruslabs/customauth";
+import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { keccak256 } from "@toruslabs/metadata-helpers";
@@ -45,13 +38,14 @@ import {
   TkeyLocalStoreData,
   UserInfo,
   Web3AuthOptions,
+  Web3AuthOptionsWithDefaults,
   Web3AuthState,
 } from "./interfaces";
 import { Point } from "./point";
 import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints, parseToken } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
-  private options: Web3AuthOptions;
+  private options: Web3AuthOptionsWithDefaults;
 
   private privKeyProvider: EthereumSigningProvider | null = null;
 
@@ -79,6 +73,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
+
     if (options.enableLogging) log.enableAll();
     else log.setLevel("error");
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
@@ -86,7 +81,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.storageKey) options.storageKey = "local";
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
-    this.options = options;
+
+    this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
     const sessionId = this.currentStorage.get<string>("sessionId");
@@ -130,7 +126,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async login(params: LoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
-    if (!this.tKey) {
+    if (!this.tkey) {
       await this.init();
     }
 
@@ -154,8 +150,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         if (aggregateParams.aggregateVerifierType === AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID) {
           throw new Error("Single id verifier must have exactly one sub verifier");
         }
+        // TODO need to check this!!! throw on AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID
         const loginResponse = await tkeyServiceProvider.triggerAggregateLogin({
-          aggregateVerifierType: aggregateParams.aggregateVerifierType as AGGREGATE_VERIFIER_TYPE,
+          aggregateVerifierType: aggregateParams.aggregateVerifierType || AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID,
           verifierIdentifier: aggregateParams.aggregateVerifierIdentifier as string,
           subVerifierDetailsArray: aggregateParams.subVerifierDetailsArray,
         });
@@ -170,6 +167,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       await this.setupTkey(factorKey);
+      if (!this.provider) throw new Error("provider not initialized");
       return this.provider;
     } catch (err: unknown) {
       log.error("login error", err);
@@ -227,21 +225,26 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       throw new Error((err as Error).message);
     }
+  // TODO: rename function to something more descriptive
+  public async inputFactorKey(factorKey: BN): Promise<SafeEventEmitterProvider> {
+    if (!this.tkey) throw new Error("tkey not initialized, call login first!");
+    await this.setupTkey(factorKey);
+    if (!this.provider) throw new Error("provider not initialized");
+    return this.provider;
   }
 
   // TODO Edited, but not tested. Need to test before enabling it! Edit example to test it. @Yash
   public async handleRedirectResult(factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider> {
-    const tested = false;
-    if (!tested) {
-      throw new Error("This function is not tested yet. Please test before enabling it!");
+    if (!this.tkey || !this.torusSp) {
+      await this.init();
     }
-
-    if (!this.tKey || !this.torusSp) {
+    if (!this.torusSp) {
       throw new Error("tkey is not initialized, call initi first");
     }
 
     try {
       const result = await this.torusSp.directWeb.getRedirectResult();
+
       if (result.method === TORUS_METHOD.TRIGGER_LOGIN) {
         const data = result.result as TorusLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
@@ -251,7 +254,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
         this.torusSp.verifierType = "normal";
-        this.torusSp.verifierName = this.state.userInfo.verifier;
+        const userInfo = this.getUserInfo();
+        this.torusSp.verifierName = userInfo.verifier;
       } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
         const data = result.result as TorusAggregateLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
@@ -261,14 +265,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
         this.torusSp.verifierType = "aggregate";
-        this.torusSp.verifierName = this.state.userInfo.aggregateVerifier;
+        const userInfo = this.getUserInfo();
+        this.torusSp.verifierName = userInfo.aggregateVerifier;
       } else {
         throw new Error("Unsupported method type");
       }
 
+      const userInfo = this.getUserInfo();
+      if (!this.state.oAuthKey) throw new Error("oAuthKey not present");
       this.torusSp.postboxKey = new BN(this.state.oAuthKey, "hex");
-      this.torusSp.verifierId = this.state.userInfo.verifierId;
+      this.torusSp.verifierId = userInfo.verifierId;
       await this.setupTkey(factorKey);
+
+      if (!this.provider) throw new Error("provider not initialized");
       return this.provider;
     } catch (error: unknown) {
       log.error("error while handling redirect result", error);
@@ -288,6 +297,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.init();
     await this.rehydrateSession();
     await this.setupProvider();
+    if (!this.provider) throw new Error("provider not initialized");
     return this.provider;
   }
 
@@ -349,6 +359,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.checkTkey();
     const keyDetails = this.tKey.getKeyDetails();
     keyDetails.shareDescriptions = this.tKey.getMetadata().getShareDescription();
+    if (!this.state.tssShareIndex) throw new Error("tssShareIndex not present");
     return { ...keyDetails, tssIndex: this.state.tssShareIndex };
   }
 
@@ -358,6 +369,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("factorKey not present.");
     }
     try {
+      // await this.tKey._syncShareMetadata();
       await this.tKey.syncLocalMetadataTransitions();
     } catch (error: unknown) {
       log.error("sync metadata error", error);
@@ -419,7 +431,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const shareSerializationModule = new ShareSerializationModule();
 
-    this.tKey = new ThresholdKey({
+    this.tkey = new ThresholdKey({
       enableLogging: true,
       serviceProvider: this.torusSp,
       storageLayer: this.storageLayer,
@@ -488,10 +500,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async finalizeTkey(factorKey: BN) {
-    if (this.tkey === null) throw new Error("Tkey not initialized");
-
     // Read tss meta data.
-    const tssNonce: number = (this.tkey.metadata.tssNonces || {})[this.tKey.tssTag];
+    const tssNonce: number = (this.tKey.metadata.tssNonces || {})[this.tKey.tssTag];
     const { tssShare, tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
     const tssPubKeyPoint = this.tKey.getTSSPub();
     const tssPubKey = Buffer.from(
@@ -600,6 +610,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("no metadata for your factor key, reset your account");
     }
     const metadataShare = JSON.parse(factorKeyMetadata.message);
+    // TODO: Do we need tssShare in the backup factor metadata
     if (!metadataShare.share || !metadataShare.tssShare) throw new Error("Invalid data from metadata");
     return metadataShare.share;
   }
@@ -629,6 +640,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // default limit per share? make the parameter part of constructor
     // (optional).
     if (this.state.tssShareIndex !== newFactorTSSIndex) {
+      if (!this.state.factorKey) throw new Error("factorKey not present");
+
       // Generate new share.
       //
       // TODO There is a function tKey.generateNewShare which does almost the
@@ -678,6 +691,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           share = shares[shareIndex];
         }
       }
+      if (!share) throw new Error("no metadata share found");
       return share;
     } catch (err: unknown) {
       log.error("create device share error", err);
