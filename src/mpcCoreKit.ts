@@ -6,13 +6,10 @@ import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
 import {
   AGGREGATE_VERIFIER,
   AGGREGATE_VERIFIER_TYPE,
-  ExtraParams,
   TORUS_METHOD,
   TorusAggregateLoginResponse,
   TorusLoginResponse,
-  TorusSubVerifierInfo,
   UX_MODE,
-  WebAuthnExtraParams,
 } from "@toruslabs/customauth";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
