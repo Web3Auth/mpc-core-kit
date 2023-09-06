@@ -253,9 +253,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.init();
     }
     if (!this.torusSp) {
-      throw new Error("tkey is not initialized, call initi first");
+      throw new Error("tkey is not initialized, call init first");
     }
-
     try {
       const result = await this.torusSp.directWeb.getRedirectResult();
 
@@ -520,7 +519,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
 
         if (!tKeyLocalStore.factorKey) {
-          throw new Error("factor key not present in local storage");
+          throw new Error("required more shares");
         }
 
         factorKey = new BN(tKeyLocalStore.factorKey, "hex");
@@ -551,6 +550,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // Store factor key in local storage.
     const metadata = this.tKey.getMetadata();
+    // TODO: We should not store the same recovery factor into the local storage
+    // This essentially can make the SDK 2/2 in the case of using a recovery factor to get into a new device
+    // There is also a possibility of losing a share if we're deleting a factor key
+    // Let's say we delete the device factor key from metadata, the recovery factor key will be deleted as well
+    // Ideal flow according to me -> Check is the share index is 2 or 3
+    // if 2, copy the TSS Share into a new factor key and store into the device
+    // if 3, create a new TSS Share for index 2 and store corresponding factor key into device.
     const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     this.currentStorage.set(
       tkeyPubX,

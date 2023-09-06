@@ -104,6 +104,9 @@ export interface ICoreKit {
    */
   handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider>;
 
+  // TODO: we should have another function for inputting a recovery factor key into the tkey state without triggering login.
+  // This might be really useful for redirect flow applications additionally.
+
   /**
    * Indicates whether there is an existing session that can be resumed.
    * @returns `true`: Session Exists, `false`: Session does not exist.
