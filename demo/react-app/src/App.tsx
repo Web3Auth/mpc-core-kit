@@ -50,7 +50,7 @@ function App() {
 
   useEffect(() => {
     const init = async () => {
-      const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: 'redirect'  })
+      const coreKitInstance = new Web3AuthMPCCoreKit({ web3AuthClientId: 'torus-key-test', web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: 'popup'  })
       setCoreKitInstance(coreKitInstance);
 
       if (coreKitInstance.isResumable()) {
@@ -59,7 +59,7 @@ function App() {
         return;
       }
 
-      if (window.location.hash.includes("access_token")) {
+      if (window.location.hash.includes("access_token") || window.location.hash.includes("id_token")) {
         const provider = await coreKitInstance.handleRedirectResult();
         completeSetup(coreKitInstance, provider);
         return;

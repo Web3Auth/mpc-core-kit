@@ -12,7 +12,7 @@ import type {
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
-import { FactorKeyTypeShareDescription, ShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { FactorKeyTypeShareDescription, TssFactorIndexType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
 export interface IStorage {
   getItem(key: string): string;
@@ -131,12 +131,11 @@ export interface ICoreKit {
    */
   createFactor(
     factorKey: BN,
-    shareType?: ShareType,
+    shareType?: TssFactorIndexType,
     shareDescription?: FactorKeyTypeShareDescription,
     additionalMetadata?: Record<string, string>
   ): Promise<void>;
 
-  // TODO throw error if we would go below threshold! @Himanshu, @CW
   /**
    * Deletes the factor identified by the given public key, including all
    * associated metadata.
@@ -248,8 +247,8 @@ export interface Web3AuthState {
 
 export type FactorKeyCloudMetadata = {
   share: ShareStore;
-  tssShare: BN;
-  tssIndex: number;
+  // tssShare: BN;
+  // tssIndex: number;
 };
 
 export interface SessionData {
