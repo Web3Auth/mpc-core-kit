@@ -38,6 +38,7 @@ import {
   AggregateVerifierLoginParams,
   FactorKeyCloudMetadata,
   ICoreKit,
+  IdTokenLoginParams,
   LoginParams,
   SessionData,
   SubVerifierDetailsParams,
@@ -47,7 +48,7 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { Point } from "./point";
-import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints } from "./utils";
+import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints, parseToken } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   private options: Web3AuthOptions;
@@ -165,6 +166,55 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         this.updateState({
           oAuthKey: this._getOAuthKey(loginResponse),
           userInfo: loginResponse.userInfo[0],
+          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
+        });
+      }
+
+      await this.setupTkey(factorKey);
+      return this.provider;
+    } catch (err: unknown) {
+      log.error("login error", err);
+      if (err instanceof CoreError) {
+        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+      }
+      throw new Error((err as Error).message);
+    }
+  }
+
+  public async loginWithIdToken(idTokenLoginParams: IdTokenLoginParams, factorKey: BN | undefined = undefined) {
+    if (!this.tkey) {
+      await this.init();
+    }
+    const { verifier, verifierId, idToken } = idTokenLoginParams;
+    try {
+      // oAuth login.
+      if (!idTokenLoginParams.subVerifier) {
+        // single verifier login.
+        const loginResponse = await (this.tkey.serviceProvider as TorusServiceProvider).directWeb.getTorusKey(
+          verifier,
+          verifierId,
+          { verifier_id: verifierId },
+          idToken,
+          {
+            ...idTokenLoginParams.extraVerifierParams,
+            ...idTokenLoginParams.additionalParams,
+          }
+        );
+
+        this.updateState({
+          oAuthKey: this._getOAuthKey(loginResponse),
+          userInfo: parseToken(idToken),
+          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
+        });
+      } else {
+        // aggregate verifier login
+        const loginResponse = await (this.tkey.serviceProvider as TorusServiceProvider).directWeb.getAggregateTorusKey(verifier, verifierId, [
+          { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
+        ]);
+
+        this.updateState({
+          oAuthKey: this._getOAuthKey(loginResponse),
+          userInfo: parseToken(idToken),
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       }
