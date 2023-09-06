@@ -184,9 +184,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const { verifier, verifierId, idToken } = idTokenLoginParams;
     try {
       // oAuth login.
+      let loginResponse: TorusKey;
       if (!idTokenLoginParams.subVerifier) {
         // single verifier login.
-        const loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).directWeb.getTorusKey(
+        loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).directWeb.getTorusKey(
           verifier,
           verifierId,
           { verifier_id: verifierId },
@@ -196,38 +197,29 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
             ...idTokenLoginParams.additionalParams,
           }
         );
-        const OAuthShare = this._getOAuthKey(loginResponse);
-
-        (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(OAuthShare, "hex");
-        (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
-        (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
         (this.tKey.serviceProvider as TorusServiceProvider).verifierType = "normal";
-
-        this.updateState({
-          oAuthKey: OAuthShare,
-          userInfo: { ...parseToken(idToken), verifier, verifierId },
-          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
-        });
       } else {
         // aggregate verifier login
-        const loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).directWeb.getAggregateTorusKey(verifier, verifierId, [
+        loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).directWeb.getAggregateTorusKey(verifier, verifierId, [
           { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
         ]);
-        const OAuthShare = this._getOAuthKey(loginResponse);
-
-        (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(OAuthShare, "hex");
-        (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
-        (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
         (this.tKey.serviceProvider as TorusServiceProvider).verifierType = "aggregate";
-
-        this.updateState({
-          oAuthKey: OAuthShare,
-          userInfo: { ...parseToken(idToken), verifier, verifierId },
-          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
-        });
       }
 
+      const oAuthShare = this._getOAuthKey(loginResponse);
+
+      (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(oAuthShare, "hex");
+      (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
+      (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
+
+      this.updateState({
+        oAuthKey: oAuthShare,
+        userInfo: { ...parseToken(idToken), verifier, verifierId },
+        signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
+      });
+
       await this.setupTkey(factorKey);
+
       if (!this.provider) throw new Error("provider not initialized");
       return this.provider;
     } catch (err: unknown) {
