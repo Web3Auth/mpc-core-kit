@@ -195,10 +195,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
             ...idTokenLoginParams.additionalParams,
           }
         );
+        const OAuthShare = this._getOAuthKey(loginResponse);
+
+        (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(OAuthShare, "hex");
+        (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
+        (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
+        (this.tKey.serviceProvider as TorusServiceProvider).verifierType = "normal";
 
         this.updateState({
-          oAuthKey: this._getOAuthKey(loginResponse),
-          userInfo: parseToken(idToken),
+          oAuthKey: OAuthShare,
+          userInfo: { ...parseToken(idToken), verifier, verifierId },
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       } else {
@@ -206,10 +212,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         const loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).directWeb.getAggregateTorusKey(verifier, verifierId, [
           { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
         ]);
+        const OAuthShare = this._getOAuthKey(loginResponse);
+
+        (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(OAuthShare, "hex");
+        (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
+        (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
+        (this.tKey.serviceProvider as TorusServiceProvider).verifierType = "aggregate";
 
         this.updateState({
-          oAuthKey: this._getOAuthKey(loginResponse),
-          userInfo: parseToken(idToken),
+          oAuthKey: OAuthShare,
+          userInfo: { ...parseToken(idToken), verifier, verifierId },
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       }
