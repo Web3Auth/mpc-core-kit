@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, ShareType } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssFactorIndexType } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import type { provider } from "web3-core";
 
@@ -21,7 +21,7 @@ function App() {
   const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit | undefined>(undefined);
   const [provider, setProvider] = useState<SafeEventEmitterProvider | undefined>(undefined);
   const [web3, setWeb3] = useState<any>(undefined)
-  const [exportShareType, setExportShareType] = useState<number>(2);
+  const [exportTssFactorIndexType, setExportTssFactorIndexType] = useState<number>(2);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
 
   useEffect(() => {
@@ -108,7 +108,7 @@ function App() {
 
 
       const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
-      await coreKitInstance.login(verifierConfig, factorKey);
+      await coreKitInstance.loginWithOauth(verifierConfig, factorKey);
 
       
     } catch (error: unknown) {
@@ -124,7 +124,7 @@ function App() {
 
     setProvider(provider);
     const keyDetails = coreKitInstance.getKeyDetails();
-    setExportShareType(keyDetails.tssIndex)
+    setExportTssFactorIndexType(keyDetails.tssIndex)
   }
 
   const logout = async () => {
@@ -145,9 +145,9 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    uiConsole("export share type: ", exportShareType);
+    uiConsole("export share type: ", exportTssFactorIndexType);
     const factorKey = coreKitInstance.generateFactorKey();
-    await coreKitInstance.createFactor(factorKey.private, exportShareType);
+    await coreKitInstance.createFactor(factorKey.private, exportTssFactorIndexType);
     uiConsole("Export factor key: ", factorKey);
   }
 
@@ -280,9 +280,9 @@ function App() {
       <div className="flex-container">
 
         <label>Share Type:</label>
-        <select value={exportShareType}onChange={(e) => setExportShareType(parseInt(e.target.value))}>
-          <option value={ShareType.DEVICE}>Device Share</option>
-          <option value={ShareType.RECOVERY}>Recovery Share</option>
+        <select value={exportTssFactorIndexType}onChange={(e) => setExportTssFactorIndexType(parseInt(e.target.value))}>
+          <option value={TssFactorIndexType.DEVICE}>Device Share</option>
+          <option value={TssFactorIndexType.RECOVERY}>Recovery Share</option>
         </select>
         <button onClick={exportShare} className="card">
           Export share
