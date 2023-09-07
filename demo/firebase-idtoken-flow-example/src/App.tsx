@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, ShareType } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, ShareType, parseToken } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import { initializeApp } from "firebase/app";
 import {
@@ -100,17 +100,6 @@ function App() {
     } catch (err) {
       console.error(err);
       throw err;
-    }
-  };
-
-  const parseToken = (token: any) => {
-    try {
-      const base64Url = token.split(".")[1];
-      const base64 = base64Url.replace("-", "+").replace("_", "/");
-      return JSON.parse(window.atob(base64 || ""));
-    } catch (err) {
-      console.error(err);
-      return null;
     }
   };
 
