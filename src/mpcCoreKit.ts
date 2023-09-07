@@ -87,6 +87,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
+
     const sessionId = this.currentStorage.get<string>("sessionId");
     this.sessionManager = new OpenloginSessionManager({
       sessionTime: this.options.sessionTime,
@@ -401,6 +402,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.resetState();
   }
 
+  public async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssFactorIndexType = TssFactorIndexType.DEVICE): Promise<void> {
+    if (!this.state.signatures) throw new Error("signatures not present");
+
+    const tssKeyBN = new BN(tssKey, "hex");
+    this.tKey.importTssKey({ tag: this.tKey.tssTag, importKey: tssKeyBN, factorPub, newTSSIndex }, { authSignatures: this.state.signatures });
+  }
+
   public async CRITICAL_resetAccount(): Promise<void> {
     this.checkTkey();
 
@@ -670,16 +678,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       return;
     }
 
+    if (!this.state.factorKey) throw new Error("factorKey not present");
+    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
     const updatedFactorPubs = this.tKey.metadata.factorPubs[this.tKey.tssTag].concat([newFactorPub]);
     const factorEncs = JSON.parse(JSON.stringify(this.tKey.metadata.factorEncs[this.tKey.tssTag]));
     const factorPubID = newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN);
     factorEncs[factorPubID] = {
       tssIndex: this.state.tssShareIndex,
       type: "direct",
-      userEnc: await encrypt(
-        Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false),
-        Buffer.from(this.state.tssShare.toString(16, SCALAR_HEX_LEN), "hex")
-      ),
+      userEnc: await encrypt(Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false), Buffer.from(tssShare.toString(16, SCALAR_HEX_LEN), "hex")),
       serverEncs: [],
     };
     this.tKey.metadata.addTSSData({
