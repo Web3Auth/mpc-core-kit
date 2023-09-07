@@ -37,7 +37,6 @@ import {
   OauthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
-  TkeyLocalStoreData,
   UserInfo,
   Web3AuthOptions,
   Web3AuthOptionsWithDefaults,
@@ -128,7 +127,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  public async loginWithOauth(params: OauthLoginParams, factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider | null> {
+  public async loginWithOauth(params: OauthLoginParams): Promise<void> {
     if (!this.tkey) {
       await this.init();
     }
@@ -142,7 +141,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         // single verifier login.
         const loginResponse = await tkeyServiceProvider.triggerLogin((params as SubVerifierDetailsParams).subVerifierDetails);
 
-        if (this.isRedirectMode) return null;
+        if (this.isRedirectMode) return;
 
         this.updateState({
           oAuthKey: this._getOAuthKey(loginResponse),
@@ -156,7 +155,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           subVerifierDetailsArray: aggregateParams.subVerifierDetailsArray,
         });
 
-        if (this.isRedirectMode) return null;
+        if (this.isRedirectMode) return;
 
         this.updateState({
           oAuthKey: this._getOAuthKey(loginResponse),
@@ -165,9 +164,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         });
       }
 
-      await this.setupTkey(factorKey);
-      if (!this.provider) throw new Error("provider not initialized");
-      return this.provider;
+      await this.setupTkey();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -177,7 +174,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async login(idTokenLoginParams: IdTokenLoginParams, factorKey: BN | undefined = undefined) {
+  public async login(idTokenLoginParams: IdTokenLoginParams): Promise<void> {
     if (!this.tkey) {
       await this.init();
     }
@@ -218,10 +215,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
 
-      await this.setupTkey(factorKey);
-
-      if (!this.provider) throw new Error("provider not initialized");
-      return this.provider;
+      await this.setupTkey();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -232,15 +226,30 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   // TODO: rename function to something more descriptive
-  public async inputFactorKey(factorKey: BN): Promise<SafeEventEmitterProvider> {
+  public async inputFactorKey(factorKey: BN): Promise<void> {
     if (!this.tkey) throw new Error("tkey not initialized, call login first!");
-    await this.setupTkey(factorKey);
+    try {
+      const metadataShare = await this.checkIfFactorKeyValid(factorKey);
+      await this.tKey.inputShareStoreSafe(metadataShare, true);
+
+      // Finalize initialization.
+      await this.tKey.reconstructKey();
+      await this.finalizeTkey(factorKey);
+    } catch (err: unknown) {
+      log.error("login error", err);
+      if (err instanceof CoreError) {
+        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+      }
+      throw new Error((err as Error).message);
+    }
+  }
+
+  public async getProvider(): Promise<SafeEventEmitterProvider> {
     if (!this.provider) throw new Error("provider not initialized");
     return this.provider;
   }
 
-  // TODO Edited, but not tested. Need to test before enabling it! Edit example to test it. @Yash
-  public async handleRedirectResult(factorKey: BN | undefined = undefined): Promise<SafeEventEmitterProvider> {
+  public async handleRedirectResult(): Promise<void> {
     if (!this.tkey || !this.torusSp) {
       await this.init();
     }
@@ -280,10 +289,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!this.state.oAuthKey) throw new Error("oAuthKey not present");
       this.torusSp.postboxKey = new BN(this.state.oAuthKey, "hex");
       this.torusSp.verifierId = userInfo.verifierId;
-      await this.setupTkey(factorKey);
-
-      if (!this.provider) throw new Error("provider not initialized");
-      return this.provider;
+      await this.setupTkey();
     } catch (error: unknown) {
       log.error("error while handling redirect result", error);
       throw new Error((error as Error).message);
@@ -362,12 +368,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.state.userInfo;
   }
 
-  public getKeyDetails(): KeyDetails & { tssIndex: number } {
+  public getKeyDetails(): KeyDetails {
     this.checkTkey();
     const keyDetails = this.tKey.getKeyDetails();
     keyDetails.shareDescriptions = this.tKey.getMetadata().getShareDescription();
-    if (!this.state.tssShareIndex) throw new Error("tssShareIndex not present");
-    return { ...keyDetails, tssIndex: this.state.tssShareIndex };
+    return keyDetails;
   }
 
   public async commitChanges(): Promise<void> {
@@ -474,17 +479,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
   }
 
-  private async setupTkey(factorKey: BN | undefined = undefined): Promise<void> {
+  private async setupTkey(): Promise<void> {
     if (!this.state.oAuthKey) {
       throw new Error("user not logged in");
     }
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
-
+    let factorKey: BN;
     if (!existingUser) {
       // Generate new factor key if not provided.
-      if (!factorKey) {
-        factorKey = new BN(generatePrivate());
-      }
+      factorKey = new BN(generatePrivate());
 
       // Generate and device share and initialize tkey with it.
       const deviceTSSShare = new BN(generatePrivate());
@@ -502,28 +505,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else {
       // Initialize tkey with existing share.
       await this.tKey.initialize({ neverInitializeNewKey: true });
-
-      if (!factorKey) {
-        // Read factor key from local storage.
-        const metadata = this.tKey.getMetadata();
-        const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
-        const tKeyLocalStoreString = this.currentStorage.get<string>(tkeyPubX);
-        const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
-
-        if (!tKeyLocalStore.factorKey) {
-          throw new Error("required more shares");
-        }
-
-        factorKey = new BN(tKeyLocalStore.factorKey, "hex");
-      }
-
-      // Provide factor key to tkey.
-      const metadataShare = await this.checkIfFactorKeyValid(factorKey);
-      await this.tKey.inputShareStoreSafe(metadataShare, true);
-
-      // Finalize initialization.
-      await this.tKey.reconstructKey();
-      await this.finalizeTkey(factorKey);
     }
   }
 
@@ -539,23 +520,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // check if tssShare is required in the state
     this.updateState({ tssNonce, tssShare, tssShareIndex, tssPubKey, factorKey });
-
-    // Store factor key in local storage.
-    const metadata = this.tKey.getMetadata();
-    // TODO: We should not store the same recovery factor into the local storage
-    // This essentially can make the SDK 2/2 in the case of using a recovery factor to get into a new device
-    // There is also a possibility of losing a share if we're deleting a factor key
-    // Let's say we delete the device factor key from metadata, the recovery factor key will be deleted as well
-    // Ideal flow according to me -> Check is the share index is 2 or 3
-    // if 2, copy the TSS Share into a new factor key and store into the device
-    // if 3, create a new TSS Share for index 2 and store corresponding factor key into device.
-    const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
-    this.currentStorage.set(
-      tkeyPubX,
-      JSON.stringify({
-        factorKey: factorKey.toString("hex"),
-      } as TkeyLocalStoreData)
-    );
 
     // Finalize setup.
     await this.tKey.syncLocalMetadataTransitions();

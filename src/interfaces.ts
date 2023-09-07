@@ -84,28 +84,31 @@ export interface ICoreKit {
   /**
    * Login into the SDK in an implicit flow and initialize all relevant components.
    * @param loginParams - Parameters for Implicit Login.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
-   * @returns A Web3 provider if we are not in redirect mode.
    */
-  loginWithOauth(loginParams: OauthLoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+  loginWithOauth(loginParams: OauthLoginParams): Promise<void>;
 
   /**
    * Login into the SDK using ID Token based login and initialize all relevant components.
    * @param idTokenLoginParams - Parameters with ID Token based Login.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
-   * @returns A Web3 provider
    */
-  login(idTokenLoginParams: IdTokenLoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+  login(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
 
   /**
    * Handle redirect result after login.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
-   * @returns A Web3 provider.
    */
-  handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider>;
+  handleRedirectResult(): Promise<void>;
 
-  // TODO: we should have another function for inputting a recovery factor key into the tkey state without triggering login.
-  // This might be really useful for redirect flow applications additionally.
+  /**
+   * Second step for login where the user inputs their factor key.
+   * @param factorKey: A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
+   */
+  inputFactorKey(factorKey: BN): Promise<void>;
+
+  /**
+   * Get the Web3 Provider for the current session.
+   * @returns A Web3 Provider.
+   */
+  getProvider(): Promise<SafeEventEmitterProvider>;
 
   /**
    * Indicates whether there is an existing session that can be resumed.
@@ -162,7 +165,7 @@ export interface ICoreKit {
   /**
    * Get information about how the keys of the user is managed according to the information in the metadata server.
    */
-  getKeyDetails(): KeyDetails & { tssIndex: number };
+  getKeyDetails(): KeyDetails;
 
   /**
    * Commit the changes made to the user's account when in manual sync mode.
