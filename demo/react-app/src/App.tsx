@@ -263,6 +263,17 @@ function App() {
     uiConsole(signedMessage);
   };
 
+
+  // For development use only, export TSS KEY
+  const exportTssKey = async (): Promise<void> => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    const exportTssKey = await coreKitInstance._UNSAFE_exportTssKey();
+
+    uiConsole('export Tss Key :' + exportTssKey);
+  }
+
   const resetAccount = async (): Promise<void> => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
@@ -317,7 +328,9 @@ function App() {
           List Factors
         </button>
 
-        
+        <button onClick={exportTssKey} className="card">
+          Export TssKey
+        </button> 
 
 
         <button onClick={resetAccount} className="card">
