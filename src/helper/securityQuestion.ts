@@ -82,7 +82,7 @@ export class SecurityQuestion {
 
     const factorKey = await decrypt(decryptKey, store.associatedFactor);
 
-    const newPasswordBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
+    const newPasswordBN = new BN(keccak256(Buffer.from(newAnswer, "utf8")), "hex");
     const newEncryptKey = getPubKeyECC(newPasswordBN);
     const newEncrypted = await encrypt(newEncryptKey, factorKey);
 
