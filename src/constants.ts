@@ -46,13 +46,17 @@ export const ERRORS = {
   INVALID_BACKUP_SHARE: "invalid backup share",
 };
 
-export enum ShareType {
+export const SOCIAL_FACTOR_INDEX = 1;
+export enum TssFactorIndexType {
   DEVICE = 2,
   RECOVERY = 3,
 }
 
-export const VALID_SHARE_INDICES = [2, 3];
+export const VALID_SHARE_INDICES = [TssFactorIndexType.DEVICE, TssFactorIndexType.RECOVERY];
 
 export const SCALAR_HEX_LEN = 32 * 2; // Length of secp256k1 scalar in hex form.
 export const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
 export const CURVE = new EllipticCurve("secp256k1");
+
+export const MAX_FACTORS = 10; // Maximum number of factors that can be added to an account.
+export const SOCIAL_TKEY_INDEX = 1;

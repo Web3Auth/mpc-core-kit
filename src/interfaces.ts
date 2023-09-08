@@ -12,7 +12,7 @@ import type {
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
-import { FactorKeyTypeShareDescription, ShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { FactorKeyTypeShareDescription, TssFactorIndexType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
 export interface IStorage {
   getItem(key: string): string;
@@ -34,7 +34,7 @@ export interface AggregateVerifierLoginParams extends BaseLoginParams {
   subVerifierDetailsArray?: SubVerifierDetails[];
 }
 
-export type LoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
+export type OauthLoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface IdTokenLoginParams {
@@ -75,7 +75,7 @@ export interface ICoreKit {
    * The tKey instance, if initialized.
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
-  tKey: ThresholdKey | undefined;
+  tKey: ThresholdKey | null;
 
   // TODO document errors across all interface methods! maybe even define error
   // codes and document which are thrown. in particular here, error is thrown if
@@ -84,25 +84,31 @@ export interface ICoreKit {
   /**
    * Login into the SDK in an implicit flow and initialize all relevant components.
    * @param loginParams - Parameters for Implicit Login.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
-   * @returns A Web3 provider if we are not in redirect mode.
    */
-  login(loginParams: LoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+  loginWithOauth(loginParams: OauthLoginParams): Promise<void>;
 
   /**
    * Login into the SDK using ID Token based login and initialize all relevant components.
    * @param idTokenLoginParams - Parameters with ID Token based Login.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
-   * @returns A Web3 provider
    */
-  loginWithIdToken(idTokenLoginParams: IdTokenLoginParams, factorKey?: BN): Promise<SafeEventEmitterProvider | null>;
+  login(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
 
   /**
    * Handle redirect result after login.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. Optional for new users, mandatory for existing users, if not provided we will try to fetch it from local storage.
-   * @returns A Web3 provider.
    */
-  handleRedirectResult(factorKey?: BN): Promise<SafeEventEmitterProvider>;
+  handleRedirectResult(): Promise<void>;
+
+  /**
+   * Second step for login where the user inputs their factor key.
+   * @param factorKey: A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
+   */
+  inputFactorKey(factorKey: BN): Promise<void>;
+
+  /**
+   * Get the Web3 Provider for the current session.
+   * @returns A Web3 Provider.
+   */
+  getProvider(): Promise<SafeEventEmitterProvider>;
 
   /**
    * Indicates whether there is an existing session that can be resumed.
@@ -131,12 +137,11 @@ export interface ICoreKit {
    */
   createFactor(
     factorKey: BN,
-    shareType?: ShareType,
+    shareType?: TssFactorIndexType,
     shareDescription?: FactorKeyTypeShareDescription,
     additionalMetadata?: Record<string, string>
   ): Promise<void>;
 
-  // TODO throw error if we would go below threshold! @Himanshu, @CW
   /**
    * Deletes the factor identified by the given public key, including all
    * associated metadata.
@@ -160,7 +165,7 @@ export interface ICoreKit {
   /**
    * Get information about how the keys of the user is managed according to the information in the metadata server.
    */
-  getKeyDetails(): KeyDetails & { tssIndex: number };
+  getKeyDetails(): KeyDetails;
 
   /**
    * Commit the changes made to the user's account when in manual sync mode.
@@ -232,6 +237,8 @@ export interface Web3AuthOptions {
   enableLogging?: boolean;
 }
 
+export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
+
 export interface Web3AuthState {
   oAuthKey?: string;
   signatures?: string[];
@@ -246,8 +253,8 @@ export interface Web3AuthState {
 
 export type FactorKeyCloudMetadata = {
   share: ShareStore;
-  tssShare: BN;
-  tssIndex: number;
+  // tssShare: BN;
+  // tssIndex: number;
 };
 
 export interface SessionData {

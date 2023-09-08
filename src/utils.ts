@@ -4,7 +4,10 @@ import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import BN from "bn.js";
 import EC from "elliptic";
 
-import { VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import { BrowserStorage } from "./browserStorage";
+import { FIELD_ELEMENT_HEX_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import { TkeyLocalStoreData } from "./interfaces";
+import { Web3AuthMPCCoreKit } from "./mpcCoreKit";
 
 export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number) => {
   const endpoints: string[] = [];
@@ -174,4 +177,27 @@ export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDele
   const updatedTSSIndexes = updatedFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
 
   await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
+}
+
+export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: Web3AuthMPCCoreKit, storageKey: "local" | "session" = "local"): Promise<void> {
+  const metadata = mpcCoreKit.tKey.getMetadata();
+  const currentStorage = BrowserStorage.getInstance("corekit_store", storageKey);
+
+  const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+  currentStorage.set(
+    tkeyPubX,
+    JSON.stringify({
+      factorKey: factorKey.toString("hex"),
+    } as TkeyLocalStoreData)
+  );
+}
+
+export async function getWebBrowserFactor(mpcCoreKit: Web3AuthMPCCoreKit, storageKey: "local" | "session" = "local"): Promise<BN> {
+  const metadata = mpcCoreKit.tKey.getMetadata();
+  const currentStorage = BrowserStorage.getInstance("corekit_store", storageKey);
+
+  const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+  const tKeyLocalStoreString = currentStorage.get<string>(tkeyPubX);
+  const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
+  return new BN(tKeyLocalStore.factorKey, "hex");
 }
