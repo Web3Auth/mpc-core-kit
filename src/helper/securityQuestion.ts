@@ -2,7 +2,7 @@ import { decrypt, encrypt, EncryptedMessage, getPubKeyECC, StringifiedType } fro
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
-import { TssFactorIndexType } from "../constants";
+import { FactorKeyTypeShareDescription, TssFactorIndexType } from "../constants";
 import { Web3AuthMPCCoreKit } from "../mpcCoreKit";
 
 export class TssSecurityQuestionStore {
@@ -32,10 +32,16 @@ export class TssSecurityQuestionStore {
   }
 }
 
-export class SecurityQuestion {
+export class TssSecurityQuestion {
   StoreDomainName = "tssSecurityQuestion";
 
-  async setSecurityQuestion(mpcCoreKit: Web3AuthMPCCoreKit, question: string, answer: string, factorKey?: string) {
+  async setSecurityQuestion(
+    mpcCoreKit: Web3AuthMPCCoreKit,
+    question: string,
+    answer: string,
+    description?: Record<string, string>,
+    factorKey?: string
+  ) {
     if (!mpcCoreKit.tKey) {
       throw new Error("Tkey not initialized, call init first.");
     }
@@ -53,7 +59,8 @@ export class SecurityQuestion {
     }
 
     const factorKeyBN = factorKey ? new BN(factorKey, 16) : Web3AuthMPCCoreKit.generateFactorKey().private;
-    await mpcCoreKit.createFactor(factorKeyBN, TssFactorIndexType.DEVICE);
+
+    await mpcCoreKit.createFactor(factorKeyBN, TssFactorIndexType.DEVICE, FactorKeyTypeShareDescription.SecurityQuestions, description);
 
     // TODO: check for better key distribution solution, keccah256 has not even distribution due to p modulus
     // does the getPubKeyEcc auto modulus the key or throw error?
@@ -128,5 +135,18 @@ export class SecurityQuestion {
     const decryptKey = getPubKeyECC(passwordBN);
     const factorKey = await decrypt(decryptKey, store.associatedFactor);
     return factorKey.toString("hex");
+  }
+
+  getQuestion(mpcCoreKit: Web3AuthMPCCoreKit): string {
+    if (!mpcCoreKit.tKey) {
+      throw new Error("Tkey not initialized, call init first.");
+    }
+    const tkey = mpcCoreKit.tKey;
+    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
+    if (!storeDomain || !storeDomain.questions) {
+      throw new Error("Security question does not exists");
+    }
+    const store = TssSecurityQuestionStore.fromJSON(storeDomain);
+    return store.questions;
   }
 }

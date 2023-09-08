@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, TssFactorIndexType, parseToken, getWebBrowserFactor, storeWebBrowserFactor } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, TssFactorIndexType, parseToken, getWebBrowserFactor, storeWebBrowserFactor, TssSecurityQuestion } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import { initializeApp } from "firebase/app";
 import {
@@ -41,6 +41,7 @@ function App() {
   const [exportTssFactorIndexType, setExportTssFactorIndexType] = useState<TssFactorIndexType>(TssFactorIndexType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
   const app = initializeApp(firebaseConfig);
+  const securityQuestion = new TssSecurityQuestion();
 
   useEffect(() => {
     const init = async () => {
@@ -54,9 +55,11 @@ function App() {
       setCoreKitInstance(coreKitInstance);
 
       if (coreKitInstance.isResumable()) {
-        const provider = await coreKitInstance.resumeSession();
-        completeSetup(coreKitInstance, provider);
-        return;
+        try {
+          const provider = await coreKitInstance.resumeSession();
+          completeSetup(coreKitInstance, provider);
+          return;
+        } catch {}
       }
     };
     init();
@@ -138,7 +141,7 @@ function App() {
     }
 
     setProvider(provider);
-    const factorKey = coreKitInstance.generateFactorKey();
+    const factorKey = Web3AuthMPCCoreKit.generateFactorKey();
     coreKitInstance.createFactor(factorKey.private, TssFactorIndexType.DEVICE)
     storeWebBrowserFactor(factorKey.private, coreKitInstance)
   }
@@ -186,7 +189,7 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     uiConsole("export share type: ", exportTssFactorIndexType);
-    const factorKey = coreKitInstance.generateFactorKey();
+    const factorKey = Web3AuthMPCCoreKit.generateFactorKey();
     await coreKitInstance.createFactor(factorKey.private, exportTssFactorIndexType);
     uiConsole("Export factor key: ", factorKey);
   }
@@ -291,6 +294,35 @@ function App() {
     });
     uiConsole(receipt);
   };
+
+  const recoverSecurityQuestionFactor = async (answer : string) => {
+    if (!coreKitInstance) { 
+      throw new Error("coreKitInstance is not set");
+    }
+    await securityQuestion.recoverSecurityQuestionFactor(coreKitInstance, answer); 
+  }
+
+  const createSecurityQuestion = async ( question: string, answer: string ) => {
+    if (!coreKitInstance) { 
+      throw new Error("coreKitInstance is not set");
+    }
+    await securityQuestion.setSecurityQuestion(coreKitInstance, question, answer);
+  }
+
+  const changeSecurityQuestion = async ( question: string, answer: string) => {
+    if (!coreKitInstance) { 
+      throw new Error("coreKitInstance is not set");
+    }
+    await securityQuestion.setSecurityQuestion(coreKitInstance, question, answer);
+  }
+
+  const deleteSecurityQuestion = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    await securityQuestion.deleteSecurityQuestion(coreKitInstance);
+  }
+
 
   const loggedInView = (
     <>
