@@ -155,7 +155,7 @@ export interface ICoreKit {
    *
    * @returns The freshly generated factor key and the corresponding public key.
    */
-  generateFactorKey(): { private: BN; pub: Point };
+  // generateFactorKey(): { private: BN; pub: Point };
 
   /**
    * Get user information provided by the OAuth provider.
