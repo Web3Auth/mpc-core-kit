@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, TssFactorIndexType, parseToken } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, TssFactorIndexType, parseToken, getWebBrowserFactor, storeWebBrowserFactor } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import { initializeApp } from "firebase/app";
 import {
@@ -34,11 +34,11 @@ const firebaseConfig = {
 
 
 function App() {
-  const [loginFactorKey, setLoginFactorKey] = useState<string | undefined>(undefined);
-  const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit | undefined>(undefined);
-  const [provider, setProvider] = useState<SafeEventEmitterProvider | undefined>(undefined);
+  const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
+  const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit | null>(null);
+  const [provider, setProvider] = useState<any>(null);
   const [web3, setWeb3] = useState<any>(undefined)
-  const [exportTssFactorIndexType, setExportTssFactorIndexType] = useState<number>(2);
+  const [exportTssFactorIndexType, setExportTssFactorIndexType] = useState<TssFactorIndexType>(TssFactorIndexType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
   const app = initializeApp(firebaseConfig);
 
@@ -48,7 +48,7 @@ function App() {
         {
           web3AuthClientId: 'BIr98s8ywUbjEGWq6jnq03UCYdD0YoUFzSyBFC0j1zIpve3cBUbjrkI8TpjFcExAvHaD_7vaOzzXyxhBfpliHsM',
           web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
-          uxMode: 'redirect'
+          uxMode: 'popup'
         }
       );
       setCoreKitInstance(coreKitInstance);
@@ -119,20 +119,18 @@ function App() {
         idToken,
       } as IdTokenLoginParams;
 
-      const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
-      const provider = await coreKitInstance.login(idTokenLoginParams, factorKey);
+      await coreKitInstance.login(idTokenLoginParams);
 
-      if (provider) {
-        completeSetup(coreKitInstance!, provider);
+      if (coreKitInstance.getKeyDetails().requiredShares > 0) {
+        uiConsole("required more shares, please enter your backup/ device factor key, or reset account");
+      } else {
+        const provider = await coreKitInstance.getProvider();
+        completeSetup(coreKitInstance, provider);
       }
     } catch (error: unknown) {
-      console.error(error);
-      if ((error as Error).message === "required more shares") {
-        uiConsole("required more shares, please enter your backup factor key and login again, or reset account");
-      }
+      uiConsole(error);
     }
   };
-
 
   const completeSetup = (coreKitInstance: Web3AuthMPCCoreKit, provider: SafeEventEmitterProvider) => {
     if (!coreKitInstance) {
@@ -140,8 +138,33 @@ function App() {
     }
 
     setProvider(provider);
-    const keyDetails = coreKitInstance.getKeyDetails();
-    setExportTssFactorIndexType(keyDetails.tssIndex)
+    const factorKey = coreKitInstance.generateFactorKey();
+    coreKitInstance.createFactor(factorKey.private, TssFactorIndexType.DEVICE)
+    storeWebBrowserFactor(factorKey.private, coreKitInstance)
+  }
+
+  const getDeviceShare = async () => {
+    const factorKey = await getWebBrowserFactor(coreKitInstance!);
+    setBackupFactorKey(factorKey.toString("hex"));
+    uiConsole("Device share: ", factorKey.toString("hex"));
+  }
+
+  const inputBackupFactorKey = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance not found");
+    }
+    if (!backupFactorKey) {
+      throw new Error("backupFactorKey not found");
+    }
+    const factorKey = new BN(backupFactorKey, "hex")
+    await coreKitInstance.inputFactorKey(factorKey);
+
+    if (coreKitInstance.getKeyDetails().requiredShares > 0) {
+      uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account");
+    } else {
+      const provider = await coreKitInstance.getProvider();
+      completeSetup(coreKitInstance, provider);
+    }
   }
 
   const logout = async () => {
@@ -338,10 +361,16 @@ function App() {
 
   const unloggedInView = (
     <>
-      <label>Add factor key (optional):</label>
-      <input value={loginFactorKey} onChange={(e) => setLoginFactorKey(e.target.value)}></input>
       <button onClick={() => login()} className="card">
         Login
+      </button>
+      <button onClick={() => getDeviceShare()} className="card">
+        Get Device Share
+      </button>
+      <label>Backup/ Device factor key:</label>
+      <input value={backupFactorKey} onChange={(e) => setBackupFactorKey(e.target.value)}></input>
+      <button onClick={() => inputBackupFactorKey()} className="card">
+        Input Factor Key
       </button>
       <button onClick={resetAccount} className="card">
         Reset Account
@@ -355,7 +384,7 @@ function App() {
         <a target="_blank" href="https://web3auth.io/docs/guides/mpc" rel="noreferrer">
           Web3Auth MPC Core Kit 
         </a> {" "}
-        Redirect Flow & ReactJS Ethereum Example
+        Popup Flow & ReactJS Example
       </h1>
 
       <div className="grid">{provider ? loggedInView : unloggedInView}</div>

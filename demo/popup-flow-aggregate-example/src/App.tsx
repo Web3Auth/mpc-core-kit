@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, AggregateVerifierLoginParams, TssFactorIndexType } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, AggregateVerifierLoginParams, TssFactorIndexType, storeWebBrowserFactor, getWebBrowserFactor } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
@@ -16,7 +16,7 @@ const uiConsole = (...args: any[]): void => {
 };
 
 function App() {
-  const [loginFactorKey, setLoginFactorKey] = useState<string | undefined>(undefined);
+  const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
   const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit | null>(null);
   const [provider, setProvider] = useState<any>(null);
   const [web3, setWeb3] = useState<any>(undefined)
@@ -88,18 +88,16 @@ function App() {
         ],
       } as AggregateVerifierLoginParams;
 
-      const factorKey = loginFactorKey ? new BN(loginFactorKey, "hex") : undefined;
+      await coreKitInstance.loginWithOauth(verifierConfig);
 
-      const provider = await coreKitInstance.loginWithOauth(verifierConfig, factorKey);
-
-      if (provider) {
+      if (coreKitInstance.getKeyDetails().requiredShares > 0) {
+        uiConsole("required more shares, please enter your backup/ device factor key, or reset account");
+      } else {
+        const provider = await coreKitInstance.getProvider();
         completeSetup(coreKitInstance, provider);
       }
     } catch (error: unknown) {
-      console.error(error);
-      if ((error as Error).message === "required more shares") {
-        uiConsole("required more shares, please enter your backup factor key and login again, or reset account");
-      }
+      uiConsole(error);
     }
   }
 
@@ -109,8 +107,33 @@ function App() {
     }
 
     setProvider(provider);
-    const keyDetails = coreKitInstance.getKeyDetails();
-    setExportTssFactorIndexType(keyDetails.tssIndex)
+    const factorKey = coreKitInstance.generateFactorKey();
+    coreKitInstance.createFactor(factorKey.private, TssFactorIndexType.DEVICE)
+    storeWebBrowserFactor(factorKey.private, coreKitInstance!)
+  }
+
+  const getDeviceShare = async () => {
+    const factorKey = await getWebBrowserFactor(coreKitInstance!);
+    setBackupFactorKey(factorKey.toString("hex"));
+    uiConsole("Device share: ", factorKey.toString("hex"));
+  }
+
+  const inputBackupFactorKey = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance not found");
+    }
+    if (!backupFactorKey) {
+      throw new Error("backupFactorKey not found");
+    }
+    const factorKey = new BN(backupFactorKey, "hex")
+    await coreKitInstance.inputFactorKey(factorKey);
+
+    if (coreKitInstance.getKeyDetails().requiredShares > 0) {
+      uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account");
+    } else {
+      const provider = await coreKitInstance.getProvider();
+      completeSetup(coreKitInstance, provider);
+    }
   }
 
   const logout = async () => {
@@ -307,10 +330,16 @@ function App() {
 
   const unloggedInView = (
     <>
-      <label>Add factor key (optional):</label>
-      <input value={loginFactorKey} onChange={(e) => setLoginFactorKey(e.target.value)}></input>
       <button onClick={() => login()} className="card">
         Login
+      </button>
+      <button onClick={() => getDeviceShare()} className="card">
+        Get Device Share
+      </button>
+      <label>Backup/ Device factor key:</label>
+      <input value={backupFactorKey} onChange={(e) => setBackupFactorKey(e.target.value)}></input>
+      <button onClick={() => inputBackupFactorKey()} className="card">
+        Input Factor Key
       </button>
       <button onClick={resetAccount} className="card">
         Reset Account
