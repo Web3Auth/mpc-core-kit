@@ -45,6 +45,12 @@ import {
 import { Point } from "./point";
 import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints, parseToken } from "./utils";
 
+export enum COREKIT_STATUS {
+  NOT_INITIALIZED = "NOT_INITIALIZED",
+  REQUIRED_SHARE = "REQUIRED_SHARE",
+  LOGGED_IN = "LOGGED_IN",
+}
+
 export class Web3AuthMPCCoreKit implements ICoreKit {
   private options: Web3AuthOptionsWithDefaults;
 
@@ -106,6 +112,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   get tKey(): ThresholdKey {
     if (this.tkey === null) throw new Error("Tkey not initialized");
     return this.tkey;
+  }
+
+  // TODO rethink the logic and state management here.
+  get status(): COREKIT_STATUS {
+    if (!this.tkey) return COREKIT_STATUS.NOT_INITIALIZED;
+    if (!this.tkey.privKey) return COREKIT_STATUS.REQUIRED_SHARE;
+    if (!this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
+    return COREKIT_STATUS.LOGGED_IN;
   }
 
   private get verifier(): string {
