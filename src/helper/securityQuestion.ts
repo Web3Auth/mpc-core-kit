@@ -2,7 +2,7 @@ import { decrypt, encrypt, EncryptedMessage, getPubKeyECC, getPubKeyPoint, Point
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
-import { FactorKeyTypeShareDescription, TssShareType } from "../constants";
+import { FactorKeyTypeShareDescription, TssShareType, VALID_SHARE_INDICES } from "../constants";
 import type { Web3AuthMPCCoreKit } from "../mpcCoreKit";
 import { Point } from "../point";
 import { generateFactorKey } from "../utils";
@@ -42,6 +42,7 @@ export interface setSecurityQuestionParams {
   mpcCoreKit: Web3AuthMPCCoreKit;
   question: string;
   answer: string;
+  shareType?: TssShareType;
   description?: Record<string, string>;
   factorKey?: string;
   tssIndex?: TssShareType;
@@ -58,7 +59,8 @@ export class TssSecurityQuestion {
   storeDomainName = "tssSecurityQuestion";
 
   async setSecurityQuestion(params: setSecurityQuestionParams): Promise<string> {
-    const { mpcCoreKit, question, answer, description, factorKey, tssIndex } = params;
+    const { mpcCoreKit, question, answer, description, factorKey } = params;
+    let { shareType } = params;
 
     if (!mpcCoreKit.tKey) {
       throw new Error("Tkey not initialized, call init first.");
@@ -69,6 +71,11 @@ export class TssSecurityQuestion {
     if (answer.length < 10) {
       throw new Error("answer must be at least 10 characters long");
     }
+    if (!shareType) {
+      shareType = TssShareType.RECOVERY;
+    } else if (!VALID_SHARE_INDICES.includes(shareType)) {
+      throw new Error(`invalid share type: must be one of ${VALID_SHARE_INDICES}`);
+    }
     // Check for existing security question
     const tkey = mpcCoreKit.tKey;
     const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
@@ -77,7 +84,7 @@ export class TssSecurityQuestion {
     }
 
     // default using recovery index
-    const factorTssIndex = tssIndex || TssShareType.RECOVERY;
+    const factorTssIndex = shareType || TssShareType.RECOVERY;
     const factorKeyBN = factorKey ? new BN(factorKey, 16) : generateFactorKey().private;
 
     const descriptionFinal = {
@@ -87,7 +94,7 @@ export class TssSecurityQuestion {
 
     await mpcCoreKit.createFactor({
       factorKey: factorKeyBN,
-      shareType: TssShareType.DEVICE,
+      shareType,
       shareDescription: FactorKeyTypeShareDescription.SecurityQuestions,
       additionalMetadata: descriptionFinal,
     });
@@ -102,7 +109,7 @@ export class TssSecurityQuestion {
     // set store domain
     const tkeyPt = getPubKeyPoint(factorKeyBN);
     const factorPub = Point.fromTkeyPoint(tkeyPt).toBufferSEC1(true).toString("hex");
-    const storeData = new TssSecurityQuestionStore(factorTssIndex.toString(), factorPub, associatedFactor, question);
+    const storeData = new TssSecurityQuestionStore(shareType.toString(), factorPub,  associatedFactor, question);
     tkey.metadata.setGeneralStoreDomain(this.storeDomainName, storeData.toJSON());
 
     // check for auto commit
