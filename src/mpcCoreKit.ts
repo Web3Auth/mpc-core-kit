@@ -1,4 +1,4 @@
-import { encrypt, getPubKeyECC, getPubKeyPoint, KeyDetails, Point as TkeyPoint, ShareStore } from "@tkey-mpc/common-types";
+import { encrypt, getPubKeyPoint, KeyDetails, Point as TkeyPoint, ShareStore } from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
@@ -357,12 +357,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
 
     await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, this.signatures);
-    const factorPubHex = Point.fromTkeyPoint(factorPub).toBufferSEC1(false).toString("hex");
+    const factorPubHex = Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex");
     const allDesc = this.tKey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
       keyDesc.forEach(async (desc) => {
-        await this.tKey?.deleteShareDescription(factorPubHex, desc, true);
+        await this.tKey?.deleteShareDescription(factorPubHex, desc);
       });
     }
 
@@ -719,7 +719,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     additionalMetadata: Record<string, string> | null = null
   ) {
     const { tssIndex } = await this.tKey.getTSSShare(factorKey);
-    const factorPub = getPubKeyECC(factorKey).toString("hex");
+    const tkeyPoint = getPubKeyPoint(factorKey);
+    const factorPub = Point.fromTkeyPoint(tkeyPoint).toBufferSEC1(true).toString("hex");
     const params = {
       module: shareDescription,
       dateAdded: Date.now(),
