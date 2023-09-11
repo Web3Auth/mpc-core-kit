@@ -69,6 +69,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _storageBaseKey = "corekit_store";
 
+  private enableLogging = false;
+
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
@@ -78,8 +80,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("You must specify a web3auth clientId.");
     }
 
-    if (options.enableLogging) log.enableAll();
-    else log.setLevel("error");
+    if (options.enableLogging) {
+      log.enableAll();
+      this.enableLogging = true;
+    } else log.setLevel("error");
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     if (!options.storageKey) options.storageKey = "local";
@@ -98,7 +102,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.nodeDetailManager = new NodeDetailManager({
       network: this.options.web3AuthNetwork,
-      enableLogging: true,
+      enableLogging: options.enableLogging,
     });
   }
 
@@ -440,13 +444,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.storageLayer = new TorusStorageLayer({
       hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
-      enableLogging: true,
+      enableLogging: this.enableLogging,
     });
 
     const shareSerializationModule = new ShareSerializationModule();
 
     this.tkey = new ThresholdKey({
-      enableLogging: true,
+      enableLogging: this.enableLogging,
       serviceProvider: this.torusSp,
       storageLayer: this.storageLayer,
       manualSync: this.options.manualSync,

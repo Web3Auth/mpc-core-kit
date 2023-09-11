@@ -71,6 +71,7 @@ export class TssSecurityQuestion {
     if (answer.length < 10) {
       throw new Error("answer must be at least 10 characters long");
     }
+    // default using recovery index
     if (!shareType) {
       shareType = TssShareType.RECOVERY;
     } else if (!VALID_SHARE_INDICES.includes(shareType)) {
@@ -83,8 +84,6 @@ export class TssSecurityQuestion {
       throw new Error("Security question already exists");
     }
 
-    // default using recovery index
-    const factorTssIndex = shareType || TssShareType.RECOVERY;
     const factorKeyBN = factorKey ? new BN(factorKey, 16) : generateFactorKey().private;
 
     const descriptionFinal = {
@@ -109,7 +108,7 @@ export class TssSecurityQuestion {
     // set store domain
     const tkeyPt = getPubKeyPoint(factorKeyBN);
     const factorPub = Point.fromTkeyPoint(tkeyPt).toBufferSEC1(true).toString("hex");
-    const storeData = new TssSecurityQuestionStore(shareType.toString(), factorPub,  associatedFactor, question);
+    const storeData = new TssSecurityQuestionStore(shareType.toString(), factorPub, associatedFactor, question);
     tkey.metadata.setGeneralStoreDomain(this.storeDomainName, storeData.toJSON());
 
     // check for auto commit
