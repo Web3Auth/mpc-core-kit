@@ -1,5 +1,9 @@
-import { IStorage } from "./interfaces";
-import { storageAvailable } from "./utils";
+import BN from "bn.js";
+
+import { FIELD_ELEMENT_HEX_LEN } from "../constants";
+import { IStorage, TkeyLocalStoreData } from "../interfaces";
+import { Web3AuthMPCCoreKit } from "../mpcCoreKit";
+import { storageAvailable } from "../utils";
 
 export class BrowserStorage {
   // eslint-disable-next-line no-use-before-define
@@ -65,4 +69,27 @@ export class BrowserStorage {
     store[key] = value;
     this.storage.setItem(this._storeKey, JSON.stringify(store));
   }
+}
+
+export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: Web3AuthMPCCoreKit, storageKey: "local" | "session" = "local"): Promise<void> {
+  const metadata = mpcCoreKit.tKey.getMetadata();
+  const currentStorage = BrowserStorage.getInstance("corekit_store", storageKey);
+
+  const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+  currentStorage.set(
+    tkeyPubX,
+    JSON.stringify({
+      factorKey: factorKey.toString("hex").padStart(64, "0"),
+    } as TkeyLocalStoreData)
+  );
+}
+
+export async function getWebBrowserFactor(mpcCoreKit: Web3AuthMPCCoreKit, storageKey: "local" | "session" = "local"): Promise<string> {
+  const metadata = mpcCoreKit.tKey.getMetadata();
+  const currentStorage = BrowserStorage.getInstance("corekit_store", storageKey);
+
+  const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+  const tKeyLocalStoreString = currentStorage.get<string>(tkeyPubX);
+  const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
+  return tKeyLocalStore.factorKey;
 }

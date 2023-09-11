@@ -2,7 +2,7 @@ import { decrypt, encrypt, EncryptedMessage, getPubKeyECC, getPubKeyPoint, Point
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
-import { FactorKeyTypeShareDescription, TssFactorIndexType } from "../constants";
+import { FactorKeyTypeShareDescription, TssShareType } from "../constants";
 import type { Web3AuthMPCCoreKit } from "../mpcCoreKit";
 import { Point } from "../point";
 import { generateFactorKey } from "../utils";
@@ -44,7 +44,7 @@ export interface setSecurityQuestionParams {
   answer: string;
   description?: Record<string, string>;
   factorKey?: string;
-  tssIndex?: TssFactorIndexType;
+  tssIndex?: TssShareType;
 }
 
 export interface changeSecurityQuestionParams {
@@ -77,7 +77,7 @@ export class TssSecurityQuestion {
     }
 
     // default using recovery index
-    const factorTssIndex = tssIndex || TssFactorIndexType.RECOVERY;
+    const factorTssIndex = tssIndex || TssShareType.RECOVERY;
     const factorKeyBN = factorKey ? new BN(factorKey, 16) : generateFactorKey().private;
 
     const descriptionFinal = {
@@ -85,7 +85,12 @@ export class TssSecurityQuestion {
       ...description,
     };
 
-    await mpcCoreKit.createFactor(factorKeyBN, factorTssIndex, FactorKeyTypeShareDescription.SecurityQuestions, descriptionFinal);
+    await mpcCoreKit.createFactor({
+      factorKey: factorKeyBN,
+      shareType: TssShareType.DEVICE,
+      shareDescription: FactorKeyTypeShareDescription.SecurityQuestions,
+      additionalMetadata: descriptionFinal,
+    });
 
     let hash = keccak256(Buffer.from(answer, "utf8"));
     hash = hash.startsWith("0x") ? hash.slice(2) : hash;

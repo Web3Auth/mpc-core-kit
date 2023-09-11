@@ -47,12 +47,16 @@ export const ERRORS = {
 };
 
 export const SOCIAL_FACTOR_INDEX = 1;
-export enum TssFactorIndexType {
+
+/**
+ * Defines the TSS Share Index in a simplified way for better implementation.
+ **/
+export enum TssShareType {
   DEVICE = 2,
   RECOVERY = 3,
 }
 
-export const VALID_SHARE_INDICES = [TssFactorIndexType.DEVICE, TssFactorIndexType.RECOVERY];
+export const VALID_SHARE_INDICES = [TssShareType.DEVICE, TssShareType.RECOVERY];
 
 export const SCALAR_HEX_LEN = 32 * 2; // Length of secp256k1 scalar in hex form.
 export const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
