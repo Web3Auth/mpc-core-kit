@@ -20,14 +20,14 @@ export class TssSecurityQuestionStore {
   }
 
   static fromJSON(json: StringifiedType) {
-    const { shareIndex, encrypted, question } = json;
-    return new TssSecurityQuestionStore(shareIndex, encrypted, question);
+    const { shareIndex, associatedFactor, question } = json;
+    return new TssSecurityQuestionStore(shareIndex, associatedFactor, question);
   }
 
   toJSON(): StringifiedType {
     return {
       shareIndex: this.shareIndex,
-      encrypted: this.associatedFactor,
+      associatedFactor: this.associatedFactor,
       question: this.question,
     };
   }
@@ -74,10 +74,13 @@ export class TssSecurityQuestion {
 
     await mpcCoreKit.createFactor(factorKeyBN, TssFactorIndexType.DEVICE, FactorKeyTypeShareDescription.SecurityQuestions, description);
 
+    let hash = keccak256(Buffer.from(answer, "utf8"));
+    hash = hash.startsWith("0x") ? hash.slice(2) : hash;
+
     // TODO: check for better key distribution solution, keccah256 has not even distribution due to p modulus
     // does the getPubKeyEcc auto modulus the key or throw error?
-    const answerBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
-    const associatedFactor = await encrypt(getPubKeyECC(answerBN), factorKeyBN.toBuffer());
+    const answerBN = new BN(hash, "hex");
+    const associatedFactor = await encrypt(getPubKeyECC(answerBN), Buffer.from(factorKeyBN.toString("hex"), "hex"));
     // set store domain
     const storeData = new TssSecurityQuestionStore(TssFactorIndexType.DEVICE.toString(), associatedFactor, question);
     tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, storeData.toJSON());
@@ -96,13 +99,20 @@ export class TssSecurityQuestion {
     }
 
     const store = TssSecurityQuestionStore.fromJSON(storeDomain);
+    let hash = keccak256(Buffer.from(answer, "utf8"));
+    hash = hash.startsWith("0x") ? hash.slice(2) : hash;
+    const decryptKey = Buffer.from(hash, "hex");
 
-    const answerBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
-    const decryptKey = getPubKeyECC(answerBN);
+    let factorKey;
+    try {
+      factorKey = await decrypt(decryptKey, store.associatedFactor);
+    } catch (error) {
+      throw new Error("Incorrect answer");
+    }
 
-    const factorKey = await decrypt(decryptKey, store.associatedFactor);
-
-    const newAnswerBN = new BN(keccak256(Buffer.from(newAnswer, "utf8")), "hex");
+    let newHash = keccak256(Buffer.from(newAnswer, "utf8"));
+    newHash = newHash.startsWith("0x") ? newHash.slice(2) : newHash;
+    const newAnswerBN = new BN(newHash, "hex");
     const newEncryptKey = getPubKeyECC(newAnswerBN);
     const newEncrypted = await encrypt(newEncryptKey, factorKey);
 
@@ -144,8 +154,9 @@ export class TssSecurityQuestion {
     }
     const store = TssSecurityQuestionStore.fromJSON(storeDomain);
 
-    const answerBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
-    const decryptKey = getPubKeyECC(answerBN);
+    let hash = keccak256(Buffer.from(answer, "utf8"));
+    hash = hash.startsWith("0x") ? hash.slice(2) : hash;
+    const decryptKey = Buffer.from(hash, "hex");
     const factorKey = await decrypt(decryptKey, store.associatedFactor);
     return factorKey.toString("hex", 64);
   }

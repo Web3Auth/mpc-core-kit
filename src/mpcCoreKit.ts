@@ -635,8 +635,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.tKey.metadata.factorEncs || typeof this.tKey.metadata.factorEncs[this.tKey.tssTag] !== "object") {
       throw new Error("factorEncs does not exist, failed in copy factor pub");
     }
-    if (!this.state.tssShareIndex || !this.state.tssShare) {
-      throw new Error("tssShareIndex or tssShare not present");
+    if (!this.state.factorKey) {
+      throw new Error("factorKey not present");
     }
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
       throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
@@ -710,6 +710,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       input: [{ message: JSON.stringify(metadataToSet) }],
       privKey: [factorKey],
     });
+    if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
   }
 
   private async addFactorDescription(
@@ -806,6 +807,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private resetState(): void {
+    this.tkey = null;
+    this.privKeyProvider = null;
     this.state = {
       tssNodeEndpoints: this.state.tssNodeEndpoints,
     };
