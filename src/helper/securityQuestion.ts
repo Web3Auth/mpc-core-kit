@@ -157,8 +157,13 @@ export class TssSecurityQuestion {
     let hash = keccak256(Buffer.from(answer, "utf8"));
     hash = hash.startsWith("0x") ? hash.slice(2) : hash;
     const decryptKey = Buffer.from(hash, "hex");
-    const factorKey = await decrypt(decryptKey, store.associatedFactor);
-    return factorKey.toString("hex", 64);
+    let factorKey;
+    try {
+      factorKey = await decrypt(decryptKey, store.associatedFactor);
+      return factorKey.toString("hex").padStart(64, "0");
+    } catch (error) {
+      throw new Error("Incorrect answer");
+    }
   }
 
   getQuestion(mpcCoreKit: Web3AuthMPCCoreKit): string {
