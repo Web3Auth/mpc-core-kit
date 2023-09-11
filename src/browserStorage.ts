@@ -23,7 +23,7 @@ export class BrowserStorage {
 
   static getInstance(key: string, storageKey: "session" | "local" = "local"): BrowserStorage {
     if (!this.instance) {
-      let storage: Storage;
+      let storage: Storage | undefined;
       if (storageKey === "local" && storageAvailable("localStorage")) {
         storage = localStorage;
       }
@@ -40,7 +40,9 @@ export class BrowserStorage {
   }
 
   toJSON(): string {
-    return this.storage.getItem(this._storeKey);
+    const result = this.storage.getItem(this._storeKey);
+    if (!result) throw new Error(`storage ${this._storeKey} is null`);
+    return result;
   }
 
   resetStore(): Record<string, unknown> {

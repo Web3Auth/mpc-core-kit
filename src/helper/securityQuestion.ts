@@ -2,103 +2,116 @@ import { decrypt, encrypt, EncryptedMessage, getPubKeyECC, StringifiedType } fro
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
+import { generateFactorKey } from "..//utils";
 import { FactorKeyTypeShareDescription, TssFactorIndexType } from "../constants";
-import { Web3AuthMPCCoreKit } from "../mpcCoreKit";
+import type { Web3AuthMPCCoreKit } from "../mpcCoreKit";
 
 export class TssSecurityQuestionStore {
   shareIndex: string;
 
   associatedFactor: EncryptedMessage;
 
-  questions: string;
+  question: string;
 
-  constructor(shareIndex: string, associatedFactor: EncryptedMessage, questions: string) {
+  constructor(shareIndex: string, associatedFactor: EncryptedMessage, question: string) {
     this.shareIndex = shareIndex;
     this.associatedFactor = associatedFactor;
-    this.questions = questions;
+    this.question = question;
   }
 
   static fromJSON(json: StringifiedType) {
-    const { shareIndex, encrypted, questions } = json;
-    return new TssSecurityQuestionStore(shareIndex, encrypted, questions);
+    const { shareIndex, encrypted, question } = json;
+    return new TssSecurityQuestionStore(shareIndex, encrypted, question);
   }
 
   toJSON(): StringifiedType {
     return {
       shareIndex: this.shareIndex,
       encrypted: this.associatedFactor,
-      questions: this.questions,
+      question: this.question,
     };
   }
+}
+
+export interface setSecurityQuestionParams {
+  mpcCoreKit: Web3AuthMPCCoreKit;
+  question: string;
+  answer: string;
+  description?: Record<string, string>;
+  factorKey?: string;
+}
+
+export interface changeSecurityQuestionParams {
+  mpcCoreKit: Web3AuthMPCCoreKit;
+  newQuestion: string;
+  newAnswer: string;
+  answer: string;
 }
 
 export class TssSecurityQuestion {
   StoreDomainName = "tssSecurityQuestion";
 
-  async setSecurityQuestion(
-    mpcCoreKit: Web3AuthMPCCoreKit,
-    question: string,
-    answer: string,
-    description?: Record<string, string>,
-    factorKey?: string
-  ) {
+  async setSecurityQuestion(params: setSecurityQuestionParams) {
+    const { mpcCoreKit, question, answer, description, factorKey } = params;
+
     if (!mpcCoreKit.tKey) {
       throw new Error("Tkey not initialized, call init first.");
     }
     if (!question || !answer) {
-      throw new Error("question and password are required");
+      throw new Error("question and answer are required");
     }
     if (answer.length < 10) {
-      throw new Error("password must be at least 10 characters long");
+      throw new Error("answer must be at least 10 characters long");
     }
     // Check for existing security question
     const tkey = mpcCoreKit.tKey;
     const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
-    if (storeDomain && storeDomain.questions) {
+    if (storeDomain && storeDomain.question) {
       throw new Error("Security question already exists");
     }
 
-    const factorKeyBN = factorKey ? new BN(factorKey, 16) : Web3AuthMPCCoreKit.generateFactorKey().private;
+    const factorKeyBN = factorKey ? new BN(factorKey, 16) : generateFactorKey().private;
 
     await mpcCoreKit.createFactor(factorKeyBN, TssFactorIndexType.DEVICE, FactorKeyTypeShareDescription.SecurityQuestions, description);
 
     // TODO: check for better key distribution solution, keccah256 has not even distribution due to p modulus
     // does the getPubKeyEcc auto modulus the key or throw error?
-    const passwordBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
-    const associatedFactor = await encrypt(getPubKeyECC(passwordBN), factorKeyBN.toBuffer());
+    const answerBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
+    const associatedFactor = await encrypt(getPubKeyECC(answerBN), factorKeyBN.toBuffer());
     // set store domain
     const storeData = new TssSecurityQuestionStore(TssFactorIndexType.DEVICE.toString(), associatedFactor, question);
     tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, storeData.toJSON());
 
     // check for auto commit
-    tkey._syncShareMetadata();
+    await tkey._syncShareMetadata();
   }
 
-  async changeSecurityQuestion(mpcCoreKit: Web3AuthMPCCoreKit, newQuestion: string, newAnswer: string, answer: string) {
+  async changeSecurityQuestion(params: changeSecurityQuestionParams) {
+    const { mpcCoreKit, newQuestion, newAnswer, answer } = params;
     // Check for existing security question
     const tkey = mpcCoreKit.tKey;
     const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
-    if (!storeDomain || !storeDomain.questions) {
+    if (!storeDomain || !storeDomain.question) {
       throw new Error("Security question does not exists");
     }
 
     const store = TssSecurityQuestionStore.fromJSON(storeDomain);
 
-    const passwordBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
-    const decryptKey = getPubKeyECC(passwordBN);
+    const answerBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
+    const decryptKey = getPubKeyECC(answerBN);
 
     const factorKey = await decrypt(decryptKey, store.associatedFactor);
 
-    const newPasswordBN = new BN(keccak256(Buffer.from(newAnswer, "utf8")), "hex");
-    const newEncryptKey = getPubKeyECC(newPasswordBN);
+    const newAnswerBN = new BN(keccak256(Buffer.from(newAnswer, "utf8")), "hex");
+    const newEncryptKey = getPubKeyECC(newAnswerBN);
     const newEncrypted = await encrypt(newEncryptKey, factorKey);
 
     store.associatedFactor = newEncrypted;
-    store.questions = newQuestion;
+    store.question = newQuestion;
     tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, store.toJSON());
 
     // check for auto commit
-    tkey._syncShareMetadata();
+    await tkey._syncShareMetadata();
   }
 
   // Should we check with answer before deleting?
@@ -108,9 +121,9 @@ export class TssSecurityQuestion {
     }
     const tkey = mpcCoreKit.tKey;
     const emptyStore = {};
-    await tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, emptyStore);
+    tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, emptyStore);
     // check for auto commit
-    tkey._syncShareMetadata();
+    await tkey._syncShareMetadata();
   }
 
   async recoverSecurityQuestionFactor(mpcCoreKit: Web3AuthMPCCoreKit, answer: string): Promise<string> {
@@ -118,23 +131,23 @@ export class TssSecurityQuestion {
       throw new Error("Tkey not initialized, call init first.");
     }
     if (!answer) {
-      throw new Error("question and password are required");
+      throw new Error("question and answer are required");
     }
     if (answer.length < 10) {
-      throw new Error("password must be at least 10 characters long");
+      throw new Error("answer must be at least 10 characters long");
     }
 
     const tkey = mpcCoreKit.tKey;
     const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
-    if (!storeDomain || !storeDomain.questions) {
+    if (!storeDomain || !storeDomain.question) {
       throw new Error("Security question does not exists");
     }
     const store = TssSecurityQuestionStore.fromJSON(storeDomain);
 
-    const passwordBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
-    const decryptKey = getPubKeyECC(passwordBN);
+    const answerBN = new BN(keccak256(Buffer.from(answer, "utf8")), "hex");
+    const decryptKey = getPubKeyECC(answerBN);
     const factorKey = await decrypt(decryptKey, store.associatedFactor);
-    return factorKey.toString("hex");
+    return factorKey.toString("hex", 64);
   }
 
   getQuestion(mpcCoreKit: Web3AuthMPCCoreKit): string {
@@ -143,10 +156,10 @@ export class TssSecurityQuestion {
     }
     const tkey = mpcCoreKit.tKey;
     const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
-    if (!storeDomain || !storeDomain.questions) {
+    if (!storeDomain || !storeDomain.question) {
       throw new Error("Security question does not exists");
     }
     const store = TssSecurityQuestionStore.fromJSON(storeDomain);
-    return store.questions;
+    return store.question;
   }
 }

@@ -1,6 +1,7 @@
-import { Point, randomSelection } from "@tkey-mpc/common-types";
+import { getPubKeyPoint, Point, Point as TkeyPoint, randomSelection } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
+import { generatePrivate } from "@toruslabs/eccrypto";
 import BN from "bn.js";
 import EC from "elliptic";
 
@@ -8,6 +9,12 @@ import { BrowserStorage } from "./browserStorage";
 import { FIELD_ELEMENT_HEX_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 import { TkeyLocalStoreData } from "./interfaces";
 import { Web3AuthMPCCoreKit } from "./mpcCoreKit";
+
+export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
+  const factorKey = new BN(generatePrivate());
+  const factorPub = getPubKeyPoint(factorKey);
+  return { private: factorKey, pub: factorPub };
+};
 
 export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number) => {
   const endpoints: string[] = [];
@@ -29,33 +36,37 @@ export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number
 };
 
 export function storageAvailable(type: string): boolean {
-  let storageExists = false;
-  let storageLength = 0;
+  // const storageExists = false;
+  // const storageLength = 0;
   let storage: Storage;
   try {
-    storage = window[type];
-    storageExists = true;
-    storageLength = storage.length;
+    if (type === "localStorage") storage = window.localStorage;
+    else storage = window.sessionStorage;
+
     const x = "__storage_test__";
     storage.setItem(x, x);
     storage.removeItem(x);
+
+    // storageExists = true;
+    // storageLength = storage.length;
     return true;
   } catch (error) {
-    return (
-      error &&
-      // everything except Firefox
-      (error.code === 22 ||
-        // Firefox
-        error.code === 1014 ||
-        // test name field too, because code might not be present
-        // everything except Firefox
-        error.name === "QuotaExceededError" ||
-        // Firefox
-        error.name === "NS_ERROR_DOM_QUOTA_REACHED") &&
-      // acknowledge QuotaExceededError only if there's something already stored
-      storageExists &&
-      storageLength !== 0
-    );
+    return false;
+    // return (
+    //   error &&
+    //   // everything except Firefox
+    //   (error.code === 22 ||
+    //     // Firefox
+    //     error.code === 1014 ||
+    //     // test name field too, because code might not be present
+    //     // everything except Firefox
+    //     error.name === "QuotaExceededError" ||
+    //     // Firefox
+    //     error.name === "NS_ERROR_DOM_QUOTA_REACHED") &&
+    //   // acknowledge QuotaExceededError only if there's something already stored
+    //   storageExists &&
+    //   storageLength !== 0
+    // );
   }
 }
 

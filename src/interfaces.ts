@@ -15,7 +15,7 @@ import BN from "bn.js";
 import { FactorKeyTypeShareDescription, TssFactorIndexType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
 export interface IStorage {
-  getItem(key: string): string;
+  getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 
@@ -148,14 +148,6 @@ export interface ICoreKit {
    * @param factorPub - The public key of the factor to delete.
    */
   deleteFactor(factorPub: Point): Promise<void>;
-
-  /**
-   * Generates a new factor key.
-   * A factor key is a BN used for encrypting your Device/ Recovery TSS Key Shares.
-   *
-   * @returns The freshly generated factor key and the corresponding public key.
-   */
-  // generateFactorKey(): { private: BN; pub: Point };
 
   /**
    * Get user information provided by the OAuth provider.

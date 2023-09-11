@@ -141,12 +141,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  static generateFactorKey(): { private: BN; pub: TkeyPoint } {
-    const factorKey = new BN(generatePrivate());
-    const factorPub = getPubKeyPoint(factorKey);
-    return { private: factorKey, pub: factorPub };
-  }
-
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
     if (!this.tkey) {
       await this.init();
