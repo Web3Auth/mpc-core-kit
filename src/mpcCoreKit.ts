@@ -45,6 +45,12 @@ import {
 import { Point } from "./point";
 import { addFactorAndRefresh, deleteFactorAndRefresh, generateTSSEndpoints, parseToken } from "./utils";
 
+export enum COREKIT_STATUS {
+  NOT_INITIALIZED = "NOT_INITIALIZED",
+  REQUIRED_SHARE = "REQUIRED_SHARE",
+  LOGGED_IN = "LOGGED_IN",
+}
+
 export class Web3AuthMPCCoreKit implements ICoreKit {
   private options: Web3AuthOptionsWithDefaults;
 
@@ -106,6 +112,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   get tKey(): ThresholdKey {
     if (this.tkey === null) throw new Error("Tkey not initialized");
     return this.tkey;
+  }
+
+  // TODO rethink the logic and state management here.
+  get status(): COREKIT_STATUS {
+    if (!this.tkey) return COREKIT_STATUS.NOT_INITIALIZED;
+    if (!this.tkey.privKey) return COREKIT_STATUS.REQUIRED_SHARE;
+    if (!this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
+    return COREKIT_STATUS.LOGGED_IN;
   }
 
   private get verifier(): string {
@@ -353,12 +367,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
-  }
-
-  generateFactorKey(): { private: BN; pub: TkeyPoint } {
-    const factorKey = new BN(generatePrivate());
-    const factorPub = getPubKeyPoint(factorKey);
-    return { private: factorKey, pub: factorPub };
   }
 
   public getUserInfo(): UserInfo {
@@ -627,8 +635,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.tKey.metadata.factorEncs || typeof this.tKey.metadata.factorEncs[this.tKey.tssTag] !== "object") {
       throw new Error("factorEncs does not exist, failed in copy factor pub");
     }
-    if (!this.state.tssShareIndex || !this.state.tssShare) {
-      throw new Error("tssShareIndex or tssShare not present");
+    if (!this.state.factorKey) {
+      throw new Error("factorKey not present");
     }
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
       throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
@@ -702,6 +710,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       input: [{ message: JSON.stringify(metadataToSet) }],
       privKey: [factorKey],
     });
+    if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
   }
 
   private async addFactorDescription(
@@ -798,6 +807,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private resetState(): void {
+    this.tkey = null;
+    this.privKeyProvider = null;
     this.state = {
       tssNodeEndpoints: this.state.tssNodeEndpoints,
     };

@@ -26,7 +26,7 @@ export const USER_PATH = {
 } as const;
 
 export enum FactorKeyTypeShareDescription {
-  SecurityQuestions = "securityQuestions",
+  SecurityQuestions = "tssSecurityQuestions",
   DeviceShare = "deviceShare",
   SeedPhrase = "seedPhrase",
   PasswordShare = "passwordShare",
