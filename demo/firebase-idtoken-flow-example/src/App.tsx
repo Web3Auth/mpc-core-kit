@@ -61,6 +61,9 @@ function App() {
 
       if (coreKitInstance.provider) {
         setProvider(coreKitInstance.provider);
+
+        let result = securityQuestion.getQuestion(coreKitInstance!);
+        if (result) setQuestion(result);
       }
     };
     init();
@@ -125,13 +128,8 @@ function App() {
 
       await coreKitInstance.loginWithJWT(idTokenLoginParams);
 
-      try {
-        let result = securityQuestion.getQuestion(coreKitInstance!);
-        setQuestion(result);
-      } catch (e) {
-        setQuestion(undefined);
-        uiConsole(e);
-      }
+      let result = securityQuestion.getQuestion(coreKitInstance!);
+      if (result) setQuestion(result);
 
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
         uiConsole("required more shares, please enter your backup/ device factor key, or reset account"); 
@@ -334,7 +332,7 @@ function App() {
     if (!coreKitInstance) { 
       throw new Error("coreKitInstance is not set");
     }
-    await securityQuestion.setSecurityQuestion({ mpcCoreKit: coreKitInstance, question, answer });
+    await securityQuestion.setSecurityQuestion({ mpcCoreKit: coreKitInstance, question, answer, shareType: TssShareType.RECOVERY  });
     setNewQuestion(undefined);
     let result = await securityQuestion.getQuestion(coreKitInstance);
     if (result) {
@@ -415,7 +413,7 @@ function App() {
         <div className="flex-container-top">
           <div className={ question ? "flex-column disabledDiv": "flex-column"}>
             <label>Set Security Question:</label>
-            <input value={newQuestion} placeholder="question" onChange={(e) => setNewQuestion(e.target.value)}></input>
+            <input value={question} placeholder="question" onChange={(e) => setNewQuestion(e.target.value)}></input>
             <input value={answer} placeholder="answer" onChange={(e) => setAnswer(e.target.value)}></input>
             <button onClick={() => createSecurityQuestion(newQuestion!, answer!)} className="card">
               Create Security Question
@@ -426,7 +424,7 @@ function App() {
             <label>Change Security Question:</label>
             <input value={newQuestion} placeholder="newQuestion" onChange={(e) => setNewQuestion(e.target.value)}></input>
             <input value={newAnswer} placeholder="newAnswer"  onChange={(e) => setNewAnswer(e.target.value)}></input>
-            <input value={answer} placeholder="answer" onChange={(e) => setAnswer(e.target.value)}></input>
+            <input value={answer} placeholder="oldAnswer" onChange={(e) => setAnswer(e.target.value)}></input>
             <button onClick={() => changeSecurityQuestion(newQuestion!, newAnswer!, answer!)} className="card">
               Change Security Question
             </button>
@@ -505,7 +503,7 @@ function App() {
         <a target="_blank" href="https://web3auth.io/docs/guides/mpc" rel="noreferrer">
           Web3Auth MPC Core Kit 
         </a> {" "}
-        Popup Flow & ReactJS Example
+        IdToken Flow Example
       </h1>
 
       <div className="grid">{provider ? loggedInView : unloggedInView}</div>
