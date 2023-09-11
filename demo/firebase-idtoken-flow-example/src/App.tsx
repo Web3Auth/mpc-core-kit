@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, TssFactorIndexType, parseToken, getWebBrowserFactor, storeWebBrowserFactor, TssSecurityQuestion, generateFactorKey, COREKIT_STATUS } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, TssShareType, parseToken, getWebBrowserFactor, storeWebBrowserFactor, TssSecurityQuestion, generateFactorKey, COREKIT_STATUS } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import { initializeApp } from "firebase/app";
 import {
@@ -32,56 +32,35 @@ const firebaseConfig = {
   appId: "1:461819774167:web:e74addfb6cc88f3b5b9c92",
 };
 
+const coreKitInstance = new Web3AuthMPCCoreKit(
+  {
+    web3AuthClientId: 'BIr98s8ywUbjEGWq6jnq03UCYdD0YoUFzSyBFC0j1zIpve3cBUbjrkI8TpjFcExAvHaD_7vaOzzXyxhBfpliHsM',
+    web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
+    uxMode: 'popup'
+  }
+);
 
 function App() {
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
-  const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit | undefined>(undefined);
-  const [provider, setProvider] = useState<any>(null);
+  const [provider, setProvider] = useState<SafeEventEmitterProvider | undefined>(undefined);
   const [web3, setWeb3] = useState<any>(undefined)
-  const [exportTssFactorIndexType, setExportTssFactorIndexType] = useState<TssFactorIndexType>(TssFactorIndexType.DEVICE);
+  const [exportTssShareType, setExportTssShareType] = useState<TssShareType>(TssShareType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
-  const app = initializeApp(firebaseConfig);
-  const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
   const [coreKitStatus , setCoreKitStatus] = useState<COREKIT_STATUS>(COREKIT_STATUS.NOT_INITIALIZED); 
-
-
-
   const [answer, setAnswer] = useState<string | undefined>(undefined);
   const [newAnswer, setNewAnswer] = useState<string | undefined>(undefined);
   const [question, setQuestion] = useState<string | undefined>(undefined);
   const [newQuestion, setNewQuestion] = useState<string | undefined>(undefined);
-  
-  const postSetup = async (coreKitInstance: Web3AuthMPCCoreKit) => {
-    
-    try {
-      let result = securityQuestion.getQuestion(coreKitInstance!)
-      setQuestion(result);
-    } catch  {
-      setQuestion(undefined);
-    }
 
-  }
+  const app = initializeApp(firebaseConfig);
+  const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
 
   useEffect(() => {
     const init = async () => {
-      const coreKitInstance = new Web3AuthMPCCoreKit(
-        {
-          web3AuthClientId: 'BIr98s8ywUbjEGWq6jnq03UCYdD0YoUFzSyBFC0j1zIpve3cBUbjrkI8TpjFcExAvHaD_7vaOzzXyxhBfpliHsM',
-          web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
-          uxMode: 'popup'
-        }
-      );
-      setCoreKitInstance(coreKitInstance);
+      await coreKitInstance.init();
 
-      if (coreKitInstance.isResumable()) {
-        try {
-          const provider = await coreKitInstance.resumeSession();
-          setProvider(provider);
-                    
-          postSetup(coreKitInstance);
-          // completeSetup(coreKitInstance, provider);
-          return;
-        } catch {}
+      if (coreKitInstance.provider) {
+        setProvider(coreKitInstance.provider);
       }
     };
     init();
@@ -144,25 +123,20 @@ function App() {
         idToken,
       } as IdTokenLoginParams;
 
-      await coreKitInstance.login(idTokenLoginParams);
+      await coreKitInstance.loginWithJWT(idTokenLoginParams);
 
-      if (coreKitInstance.getKeyDetails().requiredShares > 0) {
+      try {
+        let result = securityQuestion.getQuestion(coreKitInstance!);
+        setQuestion(result);
+      } catch (e) {
+        setQuestion(undefined);
+        uiConsole(e);
+      }
+
+      if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
         uiConsole("required more shares, please enter your backup/ device factor key, or reset account"); 
-
-        try {
-
-          // get Security Question/ check for password login
-          const question = await securityQuestion.getQuestion(coreKitInstance);
-          if (question) {
-            setQuestion(question);
-          }
-        } catch (error) {
-          console.error(error);
-        }
-
       } else {
-        const provider = await coreKitInstance.getProvider();
-        completeSetup(coreKitInstance, provider);
+        completeSetup();
       }
       setCoreKitStatus(coreKitInstance.status)
     } catch (error: unknown) {
@@ -170,21 +144,26 @@ function App() {
     }
   };
 
-  const completeSetup = (coreKitInstance: Web3AuthMPCCoreKit, provider: SafeEventEmitterProvider) => {
+  const completeSetup = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance not found");
     }
-
-    setProvider(provider);
-    const factorKey = generateFactorKey();
-    coreKitInstance.createFactor(factorKey.private, TssFactorIndexType.DEVICE)
-    storeWebBrowserFactor(factorKey.private, coreKitInstance)
+    setProvider(coreKitInstance.provider);
+    const factorKeyMetadata = coreKitInstance.getCurrentFactorKey();
+    if (factorKeyMetadata.shareType === TssShareType.DEVICE) {
+      storeWebBrowserFactor(factorKeyMetadata.factorKey, coreKitInstance)
+    } else {
+      const factorKey = await coreKitInstance.createFactor({
+        shareType: TssShareType.DEVICE,
+      });
+      storeWebBrowserFactor(new BN(factorKey!, "hex"), coreKitInstance)
+    }
   }
 
   const getDeviceShare = async () => {
     const factorKey = await getWebBrowserFactor(coreKitInstance!);
-    setBackupFactorKey(factorKey.toString("hex"));
-    uiConsole("Device share: ", factorKey.toString("hex"));
+    setBackupFactorKey(factorKey);
+    uiConsole("Device share: ", factorKey);
   }
 
   const inputBackupFactorKey = async () => {
@@ -197,11 +176,10 @@ function App() {
     const factorKey = new BN(backupFactorKey, "hex")
     await coreKitInstance.inputFactorKey(factorKey);
 
-    if (coreKitInstance.getKeyDetails().requiredShares > 0) {
+    if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
       uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account");
     } else {
-      const provider = await coreKitInstance.getProvider();
-      completeSetup(coreKitInstance, provider);
+      completeSetup();
     }
   }
 
@@ -214,14 +192,8 @@ function App() {
     }
     
     let factorKey = await securityQuestion.recoverSecurityQuestionFactor(coreKitInstance, answer);
-    await coreKitInstance.inputFactorKey(new BN(factorKey, "hex"));
-
-    if (coreKitInstance.getKeyDetails().requiredShares > 0) {
-      uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account");
-    } else {
-      const provider = await coreKitInstance.getProvider();
-      completeSetup(coreKitInstance, provider);
-    }
+    setBackupFactorKey(factorKey);
+    uiConsole("Security Question share: ", factorKey);
   }
 
   const logout = async () => {
@@ -243,9 +215,12 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    uiConsole("export share type: ", exportTssFactorIndexType);
+    uiConsole("export share type: ", exportTssShareType);
     const factorKey = generateFactorKey();
-    await coreKitInstance.createFactor(factorKey.private, exportTssFactorIndexType);
+    await coreKitInstance.createFactor({
+      shareType: exportTssShareType,
+      factorKey: factorKey.private
+    });
     uiConsole("Export factor key: ", factorKey);
   }
 
@@ -325,7 +300,10 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    await coreKitInstance.CRITICAL_resetAccount();
+    await coreKitInstance.tKey.storageLayer.setMetadata({
+      privKey: new BN(coreKitInstance.metadataKey!, "hex"),
+      input: { message: "KEY_NOT_FOUND" },
+    });
     uiConsole('reset');
     setProvider(undefined);
   }
@@ -416,9 +394,9 @@ function App() {
         <div className="flex-container">
 
           <label>Share Type:</label>
-          <select value={exportTssFactorIndexType}onChange={(e) => setExportTssFactorIndexType(parseInt(e.target.value))}>
-            <option value={TssFactorIndexType.DEVICE}>Device Share</option>
-            <option value={TssFactorIndexType.RECOVERY}>Recovery Share</option>
+          <select value={exportTssShareType}onChange={(e) => setExportTssShareType(parseInt(e.target.value))}>
+            <option value={TssShareType.DEVICE}>Device Share</option>
+            <option value={TssShareType.RECOVERY}>Recovery Share</option>
           </select>
           <button onClick={exportShare} className="card">
             Export share
@@ -509,7 +487,8 @@ function App() {
 
         <div className={ !question ? "disabledDiv" : ""}>
 
-          <label>Recover Using Security Answer:</label>
+        <label>Recover Using Security Answer:</label>
+          <label>{question}</label>
           <input value={answer} onChange={(e) => setAnswer(e.target.value)}></input>
           <button onClick={() => recoverSecurityQuestionFactor()} className="card">
             Recover Using Security Answer
