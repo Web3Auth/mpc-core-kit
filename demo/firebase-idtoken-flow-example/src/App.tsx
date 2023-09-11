@@ -62,8 +62,11 @@ function App() {
       if (coreKitInstance.provider) {
         setProvider(coreKitInstance.provider);
 
-        let result = securityQuestion.getQuestion(coreKitInstance!);
-        if (result) setQuestion(result);
+        try {
+          setQuestion(securityQuestion.getQuestion(coreKitInstance!));
+        } catch (error) {
+          uiConsole(error);
+        }
       }
     };
     init();
