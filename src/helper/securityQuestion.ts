@@ -44,6 +44,7 @@ export interface setSecurityQuestionParams {
   answer: string;
   description?: Record<string, string>;
   factorKey?: string;
+  tssIndex?: TssFactorIndexType;
 }
 
 export interface changeSecurityQuestionParams {
@@ -54,10 +55,10 @@ export interface changeSecurityQuestionParams {
 }
 
 export class TssSecurityQuestion {
-  StoreDomainName = "tssSecurityQuestion";
+  storeDomainName = "tssSecurityQuestion";
 
   async setSecurityQuestion(params: setSecurityQuestionParams): Promise<string> {
-    const { mpcCoreKit, question, answer, description, factorKey } = params;
+    const { mpcCoreKit, question, answer, description, factorKey, tssIndex } = params;
 
     if (!mpcCoreKit.tKey) {
       throw new Error("Tkey not initialized, call init first.");
@@ -70,12 +71,13 @@ export class TssSecurityQuestion {
     }
     // Check for existing security question
     const tkey = mpcCoreKit.tKey;
-    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
+    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
     if (storeDomain && storeDomain.question) {
       throw new Error("Security question already exists");
     }
 
-    const factorTssIndex = TssFactorIndexType.DEVICE;
+    // default using recovery index
+    const factorTssIndex = tssIndex || TssFactorIndexType.RECOVERY;
     const factorKeyBN = factorKey ? new BN(factorKey, 16) : generateFactorKey().private;
 
     const descriptionFinal = {
@@ -96,7 +98,7 @@ export class TssSecurityQuestion {
     const tkeyPt = getPubKeyPoint(factorKeyBN);
     const factorPub = Point.fromTkeyPoint(tkeyPt).toBufferSEC1(true).toString("hex");
     const storeData = new TssSecurityQuestionStore(factorTssIndex.toString(), factorPub, associatedFactor, question);
-    tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, storeData.toJSON());
+    tkey.metadata.setGeneralStoreDomain(this.storeDomainName, storeData.toJSON());
 
     // check for auto commit
     await tkey._syncShareMetadata();
@@ -108,7 +110,7 @@ export class TssSecurityQuestion {
     const { mpcCoreKit, newQuestion, newAnswer, answer } = params;
     // Check for existing security question
     const tkey = mpcCoreKit.tKey;
-    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
+    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
     if (!storeDomain || !storeDomain.question) {
       throw new Error("Security question does not exists");
     }
@@ -133,7 +135,7 @@ export class TssSecurityQuestion {
 
     store.associatedFactor = newEncrypted;
     store.question = newQuestion;
-    tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, store.toJSON());
+    tkey.metadata.setGeneralStoreDomain(this.storeDomainName, store.toJSON());
 
     // check for auto commit
     await tkey._syncShareMetadata();
@@ -146,7 +148,7 @@ export class TssSecurityQuestion {
     }
     const tkey = mpcCoreKit.tKey;
     if (deleteFactorKey) {
-      const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
+      const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
       if (!storeDomain || !storeDomain.question) {
         throw new Error("Security question does not exists");
       }
@@ -157,7 +159,7 @@ export class TssSecurityQuestion {
       }
     }
     const emptyStore = {};
-    tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, emptyStore);
+    tkey.metadata.setGeneralStoreDomain(this.storeDomainName, emptyStore);
     // check for auto commit
     await tkey._syncShareMetadata();
   }
@@ -174,7 +176,7 @@ export class TssSecurityQuestion {
     }
 
     const tkey = mpcCoreKit.tKey;
-    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
+    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
     if (!storeDomain || !storeDomain.question) {
       throw new Error("Security question does not exists");
     }
@@ -197,7 +199,7 @@ export class TssSecurityQuestion {
       throw new Error("Tkey not initialized, call init first.");
     }
     const tkey = mpcCoreKit.tKey;
-    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
+    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
     if (!storeDomain || !storeDomain.question) {
       throw new Error("Security question does not exists");
     }
