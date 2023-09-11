@@ -1,32 +1,37 @@
-import { decrypt, encrypt, EncryptedMessage, getPubKeyECC, StringifiedType } from "@tkey-mpc/common-types";
+import { decrypt, encrypt, EncryptedMessage, getPubKeyECC, getPubKeyPoint, Point as tkeyPoint, StringifiedType } from "@tkey-mpc/common-types";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
-import { generateFactorKey } from "..//utils";
 import { FactorKeyTypeShareDescription, TssFactorIndexType } from "../constants";
 import type { Web3AuthMPCCoreKit } from "../mpcCoreKit";
+import { Point } from "../point";
+import { generateFactorKey } from "../utils";
 
 export class TssSecurityQuestionStore {
   shareIndex: string;
+
+  factorPublicKey: string;
 
   associatedFactor: EncryptedMessage;
 
   question: string;
 
-  constructor(shareIndex: string, associatedFactor: EncryptedMessage, question: string) {
+  constructor(shareIndex: string, factorPublicKey: string, associatedFactor: EncryptedMessage, question: string) {
     this.shareIndex = shareIndex;
+    this.factorPublicKey = factorPublicKey;
     this.associatedFactor = associatedFactor;
     this.question = question;
   }
 
   static fromJSON(json: StringifiedType) {
-    const { shareIndex, associatedFactor, question } = json;
-    return new TssSecurityQuestionStore(shareIndex, associatedFactor, question);
+    const { shareIndex, factorPublicKey, associatedFactor, question } = json;
+    return new TssSecurityQuestionStore(shareIndex, factorPublicKey, associatedFactor, question);
   }
 
   toJSON(): StringifiedType {
     return {
       shareIndex: this.shareIndex,
+      factorPublicKey: this.factorPublicKey,
       associatedFactor: this.associatedFactor,
       question: this.question,
     };
@@ -51,7 +56,7 @@ export interface changeSecurityQuestionParams {
 export class TssSecurityQuestion {
   StoreDomainName = "tssSecurityQuestion";
 
-  async setSecurityQuestion(params: setSecurityQuestionParams) {
+  async setSecurityQuestion(params: setSecurityQuestionParams): Promise<string> {
     const { mpcCoreKit, question, answer, description, factorKey } = params;
 
     if (!mpcCoreKit.tKey) {
@@ -70,9 +75,15 @@ export class TssSecurityQuestion {
       throw new Error("Security question already exists");
     }
 
+    const factorTssIndex = TssFactorIndexType.DEVICE;
     const factorKeyBN = factorKey ? new BN(factorKey, 16) : generateFactorKey().private;
 
-    await mpcCoreKit.createFactor(factorKeyBN, TssFactorIndexType.DEVICE, FactorKeyTypeShareDescription.SecurityQuestions, description);
+    const descriptionFinal = {
+      question,
+      ...description,
+    };
+
+    await mpcCoreKit.createFactor(factorKeyBN, factorTssIndex, FactorKeyTypeShareDescription.SecurityQuestions, descriptionFinal);
 
     let hash = keccak256(Buffer.from(answer, "utf8"));
     hash = hash.startsWith("0x") ? hash.slice(2) : hash;
@@ -82,11 +93,15 @@ export class TssSecurityQuestion {
     const answerBN = new BN(hash, "hex");
     const associatedFactor = await encrypt(getPubKeyECC(answerBN), Buffer.from(factorKeyBN.toString("hex"), "hex"));
     // set store domain
-    const storeData = new TssSecurityQuestionStore(TssFactorIndexType.DEVICE.toString(), associatedFactor, question);
+    const tkeyPt = getPubKeyPoint(factorKeyBN);
+    const factorPub = Point.fromTkeyPoint(tkeyPt).toBufferSEC1(true).toString("hex");
+    const storeData = new TssSecurityQuestionStore(factorTssIndex.toString(), factorPub, associatedFactor, question);
     tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, storeData.toJSON());
 
     // check for auto commit
     await tkey._syncShareMetadata();
+
+    return factorKeyBN.toString("hex").padStart(64, "0");
   }
 
   async changeSecurityQuestion(params: changeSecurityQuestionParams) {
@@ -125,11 +140,22 @@ export class TssSecurityQuestion {
   }
 
   // Should we check with answer before deleting?
-  async deleteSecurityQuestion(mpcCoreKit: Web3AuthMPCCoreKit) {
+  async deleteSecurityQuestion(mpcCoreKit: Web3AuthMPCCoreKit, deleteFactorKey = true) {
     if (!mpcCoreKit.tKey) {
       throw new Error("Tkey not initialized, call init first.");
     }
     const tkey = mpcCoreKit.tKey;
+    if (deleteFactorKey) {
+      const storeDomain = tkey.metadata.getGeneralStoreDomain(this.StoreDomainName) as StringifiedType;
+      if (!storeDomain || !storeDomain.question) {
+        throw new Error("Security question does not exists");
+      }
+
+      const store = TssSecurityQuestionStore.fromJSON(storeDomain);
+      if (store.factorPublicKey) {
+        await mpcCoreKit.deleteFactor(tkeyPoint.fromCompressedPub(store.factorPublicKey));
+      }
+    }
     const emptyStore = {};
     tkey.metadata.setGeneralStoreDomain(this.StoreDomainName, emptyStore);
     // check for auto commit
