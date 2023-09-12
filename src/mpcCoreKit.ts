@@ -449,6 +449,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.sessionManager.invalidateSession();
     this.currentStorage.set("sessionId", "");
     this.resetState();
+    await this.init();
   }
 
   public getUserInfo(): UserInfo {
@@ -498,6 +499,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return exportTssKey.toString("hex");
   }
 
+  private getTssNonce(): number {
+    if (!this.tKey.metadata.tssNonces) throw new Error("tssNonce not present");
+    const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
+    return tssNonce;
+  }
+
   private async setupTkey(): Promise<void> {
     if (!this.state.oAuthKey) {
       throw new Error("user not logged in");
@@ -530,7 +537,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async finalizeTkey(factorKey: BN) {
     // Read tss meta data.
-    const tssNonce: number = (this.tKey.metadata.tssNonces || {})[this.tKey.tssTag];
     const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
     const tssPubKeyPoint = this.tKey.getTSSPub();
     const tssPubKey = Buffer.from(
@@ -538,7 +544,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       "hex"
     );
 
-    this.updateState({ tssNonce, tssShareIndex, tssPubKey, factorKey });
+    this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
     // Finalize setup.
     await this.tKey.syncLocalMetadataTransitions();
@@ -577,7 +583,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.updateState({
         factorKey: new BN(result.factorKey, "hex"),
         oAuthKey: result.oAuthKey,
-        tssNonce: result.tssNonce,
         tssShareIndex: result.tssShareIndex,
         tssPubKey: Buffer.from(result.tssPubKey.padStart(FIELD_ELEMENT_HEX_LEN, "0"), "hex"),
         signatures: result.signatures,
@@ -592,7 +597,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       const sessionId = OpenloginSessionManager.generateRandomSessionKey();
       this.sessionManager.sessionId = sessionId;
-      const { oAuthKey, factorKey, userInfo, tssNonce, tssShareIndex, tssPubKey } = this.state;
+      const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
       if (!this.state.factorKey) throw new Error("factorKey not present");
       const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
@@ -601,7 +606,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const payload: SessionData = {
         oAuthKey,
         factorKey: factorKey?.toString("hex"),
-        tssNonce: tssNonce as number,
         tssShareIndex: tssShareIndex as number,
         tssPubKey: Buffer.from(tssPubKey).toString("hex"),
         signatures: this.signatures,
@@ -744,9 +748,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async setupProvider(): Promise<void> {
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
-    const { tssNonce, tssShareIndex, tssPubKey, tssNodeEndpoints } = this.state;
+    const { tssShareIndex, tssPubKey, tssNodeEndpoints } = this.state;
     if (!this.state.factorKey) throw new Error("factorKey not present");
     const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
+    const tssNonce = this.getTssNonce();
 
     if (!tssPubKey || !tssNodeEndpoints) {
       throw new Error("tssPubKey or tssNodeEndpoints not available");
