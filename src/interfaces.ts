@@ -1,4 +1,4 @@
-import { KeyDetails, Point, ShareStore } from "@tkey-mpc/common-types";
+import { KeyDetails, Point as TkeyPoint, ShareStore } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -12,8 +12,7 @@ import type {
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
-import { FactorKeyTypeShareDescription, TssFactorIndexType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
-
+import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -34,8 +33,39 @@ export interface AggregateVerifierLoginParams extends BaseLoginParams {
   subVerifierDetailsArray?: SubVerifierDetails[];
 }
 
+export interface IFactorKey {
+  factorKey: BN;
+  shareType: TssShareType;
+}
+
+export enum COREKIT_STATUS {
+  NOT_INITIALIZED = "NOT_INITIALIZED",
+  INITIALIZED = "INITIALIZED",
+  REQUIRED_SHARE = "REQUIRED_SHARE",
+  LOGGED_IN = "LOGGED_IN",
+}
+
 export type OauthLoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
+
+export interface CreateFactorParams {
+  /**
+   * Setting the Type of Share - Device or Recovery.
+   **/
+  shareType: TssShareType;
+  /**
+   * A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
+   */
+  factorKey?: BN;
+  /**
+   * Setting the Description of Share - Security Questions, Device Share, Seed Phrase, Password Share, Social Share, Other. Default is Other.
+   */
+  shareDescription?: FactorKeyTypeShareDescription;
+  /**
+   * Additional metadata information you want to be stored alongside this factor for easy identification.
+   */
+  additionalMetadata?: Record<string, string>;
+}
 
 export interface IdTokenLoginParams {
   /**
@@ -69,18 +99,34 @@ export interface IdTokenLoginParams {
   additionalParams?: ExtraParams;
 }
 
-// TODO extend interface and type documentation wherever necessary. @Yash
 export interface ICoreKit {
   /**
    * The tKey instance, if initialized.
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
-  tKey: ThresholdKey | null;
+  tKey: ThresholdKey | undefined;
 
-  // TODO document errors across all interface methods! maybe even define error
-  // codes and document which are thrown. in particular here, error is thrown if
-  // not factor key is given (either as function parameter or through local
-  // storage)
+  /**
+   * Provider for making the blockchain calls.
+   **/
+  provider: SafeEventEmitterProvider | undefined;
+
+  /**
+   * Signatures generated from the OAuth Login.
+   **/
+  signatures: string[] | undefined;
+
+  /**
+   * Status of the current MPC Core Kit Instance
+   **/
+  status: COREKIT_STATUS;
+
+  /**
+   * The function used to initailise the state of MPCCoreKit
+   * Also is useful to resume an existing session.
+   */
+  init(): Promise<void>;
+
   /**
    * Login into the SDK in an implicit flow and initialize all relevant components.
    * @param loginParams - Parameters for Implicit Login.
@@ -91,7 +137,7 @@ export interface ICoreKit {
    * Login into the SDK using ID Token based login and initialize all relevant components.
    * @param idTokenLoginParams - Parameters with ID Token based Login.
    */
-  login(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
+  loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
 
   /**
    * Handle redirect result after login.
@@ -105,49 +151,27 @@ export interface ICoreKit {
   inputFactorKey(factorKey: BN): Promise<void>;
 
   /**
-   * Get the Web3 Provider for the current session.
-   * @returns A Web3 Provider.
-   */
-  getProvider(): Promise<SafeEventEmitterProvider>;
-
-  /**
-   * Indicates whether there is an existing session that can be resumed.
-   * @returns `true`: Session Exists, `false`: Session does not exist.
-   */
-  isResumable(): boolean;
-
-  /**
-   * Resumes an existing session.
-   * @returns A Web3 Provider.
-   */
-  resumeSession(): Promise<SafeEventEmitterProvider>;
-
-  /**
-   * Logs out the user, terminating the session.
-   */
-  logout(): Promise<void>;
+   * Returns the current Factor Key and TssShareType in MPC Core Kit State
+   **/
+  getCurrentFactorKey(): IFactorKey;
 
   /**
    * Creates a new factor for authentication.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
-   * @param shareType - Setting the Type of Share - Device or Recovery. Default is DEVICE.
-   * @param shareDescription - Setting the Description of Share - Security Questions, Device Share, Seed Phrase, Password Share, Social Share, Other. Default is Other.
-   * @param additionalMetadata - Additional metadata information you want to be stored alongside this factor for easy identification.
-   * @returns A promise that resolves to the factor key.
+   * @param CreateFactorParams - Parameters for creating a new factor.
    */
-  createFactor(
-    factorKey: BN,
-    shareType?: TssFactorIndexType,
-    shareDescription?: FactorKeyTypeShareDescription,
-    additionalMetadata?: Record<string, string>
-  ): Promise<void>;
+  createFactor(CreateFactorParams: CreateFactorParams): Promise<string>;
 
   /**
    * Deletes the factor identified by the given public key, including all
    * associated metadata.
    * @param factorPub - The public key of the factor to delete.
    */
-  deleteFactor(factorPub: Point): Promise<void>;
+  deleteFactor(factorPub: TkeyPoint): Promise<void>;
+
+  /**
+   * Logs out the user, terminating the session.
+   */
+  logout(): Promise<void>;
 
   /**
    * Get user information provided by the OAuth provider.
@@ -164,15 +188,15 @@ export interface ICoreKit {
    */
   commitChanges(): Promise<void>;
 
-  // TODO Himanshu: remove function here? instead use tkey function if we need it for demo.
   /**
-   * WARNING: Use with caution.
-   *
-   * Resets the user's account. All funds will be lost.
+   * Import an existing private key into the Web3Auth MPC Infrastructure.
    */
-  CRITICAL_resetAccount(): Promise<void>;
+  importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex?: TssShareType): Promise<void>;
 
-  // TODO add function for "import tss key share"
+  /**
+   * Export the user's current TSS MPC account as a private key
+   */
+  _UNSAFE_exportTssKey(): Promise<string>;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
@@ -236,7 +260,6 @@ export interface Web3AuthState {
   signatures?: string[];
   userInfo?: UserInfo;
   tssNonce?: number;
-  tssShare?: BN;
   tssShareIndex?: number;
   tssPubKey?: Buffer;
   factorKey?: BN;
@@ -253,7 +276,6 @@ export interface SessionData {
   oAuthKey: string;
   factorKey: string;
   tssNonce: number;
-  tssShare: string;
   tssShareIndex: number;
   tssPubKey: string;
   signatures: string[];

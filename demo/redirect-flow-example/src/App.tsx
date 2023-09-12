@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssFactorIndexType, storeWebBrowserFactor, getWebBrowserFactor } from "@web3auth/mpc-core-kit";
-import Web3 from 'web3';
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, storeWebBrowserFactor, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey } from "@web3auth/mpc-core-kit";
+import Web3 from "web3";
 import type { provider } from "web3-core";
 
 import "./App.css";
@@ -15,52 +15,67 @@ const uiConsole = (...args: any[]): void => {
   console.log(...args);
 };
 
+const coreKitInstance = new Web3AuthMPCCoreKit(
+  {
+    web3AuthClientId: 'BIr98s8ywUbjEGWq6jnq03UCYdD0YoUFzSyBFC0j1zIpve3cBUbjrkI8TpjFcExAvHaD_7vaOzzXyxhBfpliHsM',
+    web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
+    uxMode: 'redirect'
+  }
+);
 function App() {
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
-  const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit | undefined>(undefined);
   const [provider, setProvider] = useState<SafeEventEmitterProvider | undefined>(undefined);
   const [web3, setWeb3] = useState<any>(undefined)
-  const [exportTssFactorIndexType, setExportTssFactorIndexType] = useState<number>(2);
+  const [exportTssShareType, setExportTssShareType] = useState<TssShareType>(TssShareType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
+  const [coreKitStatus , setCoreKitStatus] = useState<COREKIT_STATUS>(COREKIT_STATUS.NOT_INITIALIZED); 
+  const [answer, setAnswer] = useState<string | undefined>(undefined);
+  const [newAnswer, setNewAnswer] = useState<string | undefined>(undefined);
+  const [question, setQuestion] = useState<string | undefined>(undefined);
+  const [newQuestion, setNewQuestion] = useState<string | undefined>(undefined);
+
+  const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
 
   useEffect(() => {
     const init = async () => {
-      const coreKitInstance = new Web3AuthMPCCoreKit(
-        {
-          web3AuthClientId: 'BIr98s8ywUbjEGWq6jnq03UCYdD0YoUFzSyBFC0j1zIpve3cBUbjrkI8TpjFcExAvHaD_7vaOzzXyxhBfpliHsM',
-          web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
-          uxMode: 'redirect'
-        }
-      );
-      setCoreKitInstance(coreKitInstance);
+      await coreKitInstance.init();
 
-      if (coreKitInstance.isResumable()) {
-        const provider = await coreKitInstance.resumeSession();
-        completeSetup(coreKitInstance, provider);
-        return;
+      setCoreKitStatus(coreKitInstance.status)
+
+      if (coreKitInstance.provider) {
+        setProvider(coreKitInstance.provider);
+        try {
+          let result = securityQuestion.getQuestion(coreKitInstance!);
+          setQuestion(result);
+        } catch (e) {
+          setQuestion(undefined);
+          uiConsole(e);
+        }
+      }
+
+      if (window.location.hash.includes("#state")) {
+        submitRedirectResult();
       }
     };
-    init();
-  }, []);
-
-  useEffect(() => {
     const submitRedirectResult = async () => {
       try {
         await coreKitInstance!.handleRedirectResult();
-        if (coreKitInstance!.getKeyDetails().requiredShares > 0) {
+        setCoreKitStatus(coreKitInstance.status)
+
+        let result = securityQuestion.getQuestion(coreKitInstance!);
+        if (result) setQuestion(result);
+
+        if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
           uiConsole("required more shares, please enter your backup/ device factor key, or reset account");
         } else {
-          const provider = await coreKitInstance!.getProvider();
-          completeSetup(coreKitInstance!, provider);
+          completeSetup();
         }
       } catch (error: unknown) {
         uiConsole(error);
       }
     }
-    if (coreKitInstance && window.location.hash.includes("#state")) {
-      submitRedirectResult();
-    }
-  }, [coreKitInstance]);
+    init();
+  }, []);
 
   useEffect(() => {
     if (provider) {
@@ -69,6 +84,7 @@ function App() {
     }
   }, [provider])
 
+  
   const keyDetails = async () => {
     if (!coreKitInstance) {
       throw new Error('coreKitInstance not found');
@@ -111,22 +127,28 @@ function App() {
     }
   };
 
-
-  const completeSetup = (coreKitInstance: Web3AuthMPCCoreKit, provider: SafeEventEmitterProvider) => {
+  const completeSetup = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance not found");
     }
+    setProvider(coreKitInstance.provider);
+    setCoreKitStatus(coreKitInstance.status)
 
-    setProvider(provider);
-    const factorKey = coreKitInstance.generateFactorKey();
-    coreKitInstance.createFactor(factorKey.private, TssFactorIndexType.DEVICE)
-    storeWebBrowserFactor(factorKey.private, coreKitInstance)
+    const factorKeyMetadata = coreKitInstance.getCurrentFactorKey();
+    if (factorKeyMetadata.shareType === TssShareType.DEVICE) {
+      storeWebBrowserFactor(factorKeyMetadata.factorKey, coreKitInstance)
+    } else {
+      const factorKey = await coreKitInstance.createFactor({
+        shareType: TssShareType.DEVICE,
+      });
+      storeWebBrowserFactor(new BN(factorKey!, "hex"), coreKitInstance)
+    }
   }
 
   const getDeviceShare = async () => {
     const factorKey = await getWebBrowserFactor(coreKitInstance!);
-    setBackupFactorKey(factorKey.toString("hex"));
-    uiConsole("Device share: ", factorKey.toString("hex"));
+    setBackupFactorKey(factorKey);
+    uiConsole("Device share: ", factorKey);
   }
 
   const inputBackupFactorKey = async () => {
@@ -139,12 +161,24 @@ function App() {
     const factorKey = new BN(backupFactorKey, "hex")
     await coreKitInstance.inputFactorKey(factorKey);
 
-    if (coreKitInstance.getKeyDetails().requiredShares > 0) {
+    if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
       uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account");
     } else {
-      const provider = await coreKitInstance.getProvider();
-      completeSetup(coreKitInstance, provider);
+      completeSetup();
     }
+  }
+
+  const recoverSecurityQuestionFactor = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance not found");
+    }
+    if (!answer) {
+      throw new Error("backupFactorKey not found");
+    }
+    
+    let factorKey = await securityQuestion.recoverSecurityQuestionFactor(coreKitInstance, answer);
+    setBackupFactorKey(factorKey);
+    uiConsole("Security Question share: ", factorKey);
   }
 
   const logout = async () => {
@@ -152,6 +186,7 @@ function App() {
       throw new Error("coreKitInstance not found");
     }
     await coreKitInstance.logout();
+    setCoreKitStatus(COREKIT_STATUS.NOT_INITIALIZED);
     uiConsole("Log out");
     setProvider(undefined);
   };
@@ -165,9 +200,12 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    uiConsole("export share type: ", exportTssFactorIndexType);
-    const factorKey = coreKitInstance.generateFactorKey();
-    await coreKitInstance.createFactor(factorKey.private, exportTssFactorIndexType);
+    uiConsole("export share type: ", exportTssShareType);
+    const factorKey = generateFactorKey();
+    await coreKitInstance.createFactor({
+      shareType: exportTssShareType,
+      factorKey: factorKey.private
+    });
     uiConsole("Export factor key: ", factorKey);
   }
 
@@ -247,7 +285,10 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    await coreKitInstance.CRITICAL_resetAccount();
+    await coreKitInstance.tKey.storageLayer.setMetadata({
+      privKey: new BN(coreKitInstance.metadataKey!, "hex"),
+      input: { message: "KEY_NOT_FOUND" },
+    });
     uiConsole('reset');
     setProvider(undefined);
   }
@@ -271,6 +312,38 @@ function App() {
     });
     uiConsole(receipt);
   };
+
+  const createSecurityQuestion = async ( question: string, answer: string ) => {
+    if (!coreKitInstance) { 
+      throw new Error("coreKitInstance is not set");
+    }
+    await securityQuestion.setSecurityQuestion({ mpcCoreKit: coreKitInstance, question, answer, shareType: TssShareType.RECOVERY });
+    setNewQuestion(undefined);
+    let result = await securityQuestion.getQuestion(coreKitInstance);
+    if (result) {
+      setQuestion(question);
+    }
+  }
+
+  const changeSecurityQuestion = async ( newQuestion: string, newAnswer: string, answer: string) => {
+    if (!coreKitInstance) { 
+      throw new Error("coreKitInstance is not set");
+    }
+    await securityQuestion.changeSecurityQuestion({ mpcCoreKit: coreKitInstance, newQuestion, newAnswer, answer });
+    let result = await securityQuestion.getQuestion(coreKitInstance);
+    if (result) {
+      setQuestion(question);
+    }
+  }
+
+  const deleteSecurityQuestion = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    await securityQuestion.deleteSecurityQuestion(coreKitInstance);
+    setQuestion(undefined);
+
+  }
 
   const loggedInView = (
     <>
@@ -297,21 +370,56 @@ function App() {
         </button>
       </div>
       <h2 className="subtitle">Recovery/ Key Manipulation</h2>
-      <div className="flex-container">
+      <div>
 
-        <label>Share Type:</label>
-        <select value={exportTssFactorIndexType}onChange={(e) => setExportTssFactorIndexType(parseInt(e.target.value))}>
-          <option value={TssFactorIndexType.DEVICE}>Device Share</option>
-          <option value={TssFactorIndexType.RECOVERY}>Recovery Share</option>
-        </select>
-        <button onClick={exportShare} className="card">
-          Export share
-        </button>
-        <label>Factor pub:</label>
-        <input value={factorPubToDelete} onChange={(e) => setFactorPubToDelete(e.target.value)}></input>
-        <button onClick={deleteFactor} className="card">
-          Delete Factor
-        </button>
+        <h4 >Export/ Import Factors</h4>
+        <div className="flex-container">
+
+          <label>Share Type:</label>
+          <select value={exportTssShareType}onChange={(e) => setExportTssShareType(parseInt(e.target.value))}>
+            <option value={TssShareType.DEVICE}>Device Share</option>
+            <option value={TssShareType.RECOVERY}>Recovery Share</option>
+          </select>
+          <button onClick={exportShare} className="card">
+            Export share
+          </button>
+          <label>Factor pub:</label>
+          <input value={factorPubToDelete} onChange={(e) => setFactorPubToDelete(e.target.value)}></input>
+          <button onClick={deleteFactor} className="card">
+            Delete Factor
+          </button>
+        </div>
+
+
+        <h4>Security Question</h4>
+
+        <div>{ question }</div>
+        <div className="flex-container-top">
+          <div className={ question ? "flex-column disabledDiv": "flex-column"}>
+            <label>Set Security Question:</label>
+            <input value={question} placeholder="question" onChange={(e) => setNewQuestion(e.target.value)}></input>
+            <input value={answer} placeholder="answer" onChange={(e) => setAnswer(e.target.value)}></input>
+            <button onClick={() => createSecurityQuestion(newQuestion!, answer!)} className="card">
+              Create Security Question
+            </button>
+          </div>
+
+          <div className={ !question ? "flex-column disabledDiv": "flex-column"}>
+            <label>Change Security Question:</label>
+            <input value={newQuestion} placeholder="newQuestion" onChange={(e) => setNewQuestion(e.target.value)}></input>
+            <input value={newAnswer} placeholder="newAnswer"  onChange={(e) => setNewAnswer(e.target.value)}></input>
+            <input value={answer} placeholder="oldAnswer" onChange={(e) => setAnswer(e.target.value)}></input>
+            <button onClick={() => changeSecurityQuestion(newQuestion!, newAnswer!, answer!)} className="card">
+              Change Security Question
+            </button>
+              
+          </div>
+          <div className={ !question ? "disabledDiv": ""}>
+            <button onClick={() => deleteSecurityQuestion()} className="card">
+              Delete Security Question
+            </button>
+          </div>
+        </div>
       </div>
       <h2 className="subtitle">Blockchain Calls</h2>
       <div className="flex-container">
@@ -344,17 +452,32 @@ function App() {
       <button onClick={() => login()} className="card">
         Login
       </button>
-      <button onClick={() => getDeviceShare()} className="card">
-        Get Device Share
-      </button>
-      <label>Backup/ Device factor key:</label>
-      <input value={backupFactorKey} onChange={(e) => setBackupFactorKey(e.target.value)}></input>
-      <button onClick={() => inputBackupFactorKey()} className="card">
-        Input Factor Key
-      </button>
-      <button onClick={resetAccount} className="card">
-        Reset Account
-      </button>
+      <div className={coreKitStatus=== COREKIT_STATUS.NOT_INITIALIZED ? "disabledDiv" : "" } >
+
+        <button onClick={() => getDeviceShare()} className="card">
+          Get Device Share
+        </button>
+        <label>Backup/ Device factor key:</label>
+        <input value={backupFactorKey} onChange={(e) => setBackupFactorKey(e.target.value)}></input>
+        <button onClick={() => inputBackupFactorKey()} className="card">
+          Input Factor Key
+        </button>
+        <button onClick={resetAccount} className="card">
+          Reset Account
+        </button>
+
+
+        <div className={ !question ? "disabledDiv" : ""}>
+
+        <label>Recover Using Security Answer:</label>
+          <label>{question}</label>
+          <input value={answer} onChange={(e) => setAnswer(e.target.value)}></input>
+          <button onClick={() => recoverSecurityQuestionFactor()} className="card">
+            Recover Using Security Answer
+          </button>
+        </div>
+      </div>
+      
     </>
   );
 
@@ -364,7 +487,7 @@ function App() {
         <a target="_blank" href="https://web3auth.io/docs/guides/mpc" rel="noreferrer">
           Web3Auth MPC Core Kit 
         </a> {" "}
-        Redirect Flow & ReactJS Example
+        Redirect Flow Example
       </h1>
 
       <div className="grid">{provider ? loggedInView : unloggedInView}</div>
