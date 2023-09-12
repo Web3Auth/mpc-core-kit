@@ -547,10 +547,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private checkReady() {
-    if (this.ready) {
-      return true;
+    if (!this.ready) {
+      throw Error("MPC Core Kit not initialized, call init first!");
     }
-    return false;
   }
 
   private async rehydrateSession() {
