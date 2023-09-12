@@ -155,11 +155,6 @@ export interface ICoreKit {
   getCurrentFactorKey(): IFactorKey;
 
   /**
-   * Logs out the user, terminating the session.
-   */
-  logout(): Promise<void>;
-
-  /**
    * Creates a new factor for authentication.
    * @param CreateFactorParams - Parameters for creating a new factor.
    */
@@ -171,6 +166,11 @@ export interface ICoreKit {
    * @param factorPub - The public key of the factor to delete.
    */
   deleteFactor(factorPub: TkeyPoint): Promise<void>;
+
+  /**
+   * Logs out the user, terminating the session.
+   */
+  logout(): Promise<void>;
 
   /**
    * Get user information provided by the OAuth provider.

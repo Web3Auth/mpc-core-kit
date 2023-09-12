@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/member-ordering */
 import { encrypt, getPubKeyPoint, KeyDetails, Point as TkeyPoint, ShareStore } from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
@@ -115,12 +116,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.privKeyProvider?.provider ? this.privKeyProvider.provider : undefined;
   }
 
+  set provider(_: SafeEventEmitterProvider | null) {
+    throw new Error("Not implemented");
+  }
+
   get signatures(): string[] {
     return this.state?.signatures ? this.state.signatures : [];
   }
 
+  set signatures(_: string[] | null) {
+    throw new Error("Not implemented");
+  }
+
   get metadataKey(): string | null {
     return this.state?.oAuthKey ? this.state.oAuthKey : null;
+  }
+
+  set metadataKey(_: string | null) {
+    throw new Error("Not implemented");
   }
 
   // TODO rethink the logic and state management here.
@@ -146,8 +159,58 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
+  public async init(): Promise<void> {
+    const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
+
+    if (!nodeDetails) {
+      throw new Error("error getting node details, please try again!");
+    }
+
+    this.torusSp = new TorusServiceProvider({
+      useTSS: true,
+      customAuthArgs: {
+        web3AuthClientId: this.options.web3AuthClientId,
+        baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
+        uxMode: this.options.uxMode,
+        network: this.options.web3AuthNetwork,
+      },
+      nodeEndpoints: nodeDetails.torusNodeEndpoints,
+      nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
+    });
+
+    this.storageLayer = new TorusStorageLayer({
+      hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
+      enableLogging: this.enableLogging,
+    });
+
+    const shareSerializationModule = new ShareSerializationModule();
+
+    this.tkey = new ThresholdKey({
+      enableLogging: this.enableLogging,
+      serviceProvider: this.torusSp,
+      storageLayer: this.storageLayer,
+      manualSync: this.options.manualSync,
+      modules: {
+        shareSerialization: shareSerializationModule,
+      },
+    });
+
+    if (this.isRedirectMode) {
+      await (this.tKey.serviceProvider as TorusServiceProvider).init({ skipSw: true, skipPrefetch: true });
+    } else {
+      await (this.tKey.serviceProvider as TorusServiceProvider).init({});
+    }
+
+    this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
+
+    if (this.sessionManager.sessionKey) {
+      await this.rehydrateSession();
+      if (this.state.factorKey) await this.setupProvider();
+    }
+  }
+
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
-    if (!this.tkey) throw new Error("MPC Core Kit not initialized, call init first!");
+    this.checkTkey();
 
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
     try {
@@ -192,7 +255,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void> {
-    if (!this.tkey) throw new Error("MPC Core Kit not initialized, call init first!");
+    this.checkTkey();
 
     const { verifier, verifierId, idToken } = idTokenLoginParams;
     try {
@@ -241,41 +304,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async inputFactorKey(factorKey: BN): Promise<void> {
-    if (!this.tkey) throw new Error("MPC Core Kit not initialized, call init first!");
-    try {
-      const metadataShare = await this.checkIfFactorKeyValid(factorKey);
-      await this.tKey.inputShareStoreSafe(metadataShare, true);
-
-      // Finalize initialization.
-      await this.tKey.reconstructKey();
-      await this.finalizeTkey(factorKey);
-    } catch (err: unknown) {
-      log.error("login error", err);
-      if (err instanceof CoreError) {
-        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
-      }
-      throw new Error((err as Error).message);
-    }
-  }
-
-  public getCurrentFactorKey(): IFactorKey {
-    if (!this.tkey) throw new Error("MPC Core Kit not initialized, call init first!");
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-    if (!this.state.tssShareIndex) throw new Error("TSS Share Type (Index) not present");
-    try {
-      return {
-        factorKey: this.state.factorKey,
-        shareType: this.state.tssShareIndex,
-      };
-    } catch (err: unknown) {
-      log.error("state error", err);
-      throw new Error((err as Error).message);
-    }
-  }
-
   public async handleRedirectResult(): Promise<void> {
-    if (!this.tkey || !this.torusSp) throw new Error("MPC Core Kit not initialized, call init first!");
+    this.checkTkey();
+
+    if (!this.torusSp) throw new Error("MPC Core Kit not initialized, call init first!");
 
     try {
       const result = await this.torusSp.directWeb.getRedirectResult();
@@ -314,6 +346,39 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } catch (error: unknown) {
       log.error("error while handling redirect result", error);
       throw new Error((error as Error).message);
+    }
+  }
+
+  public async inputFactorKey(factorKey: BN): Promise<void> {
+    this.checkTkey();
+    try {
+      const metadataShare = await this.checkIfFactorKeyValid(factorKey);
+      await this.tKey.inputShareStoreSafe(metadataShare, true);
+
+      // Finalize initialization.
+      await this.tKey.reconstructKey();
+      await this.finalizeTkey(factorKey);
+    } catch (err: unknown) {
+      log.error("login error", err);
+      if (err instanceof CoreError) {
+        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+      }
+      throw new Error((err as Error).message);
+    }
+  }
+
+  public getCurrentFactorKey(): IFactorKey {
+    this.checkTkey();
+    if (!this.state.factorKey) throw new Error("factorKey not present");
+    if (!this.state.tssShareIndex) throw new Error("TSS Share Type (Index) not present");
+    try {
+      return {
+        factorKey: this.state.factorKey,
+        shareType: this.state.tssShareIndex,
+      };
+    } catch (err: unknown) {
+      log.error("state error", err);
+      throw new Error((err as Error).message);
     }
   }
 
@@ -367,6 +432,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
   }
 
+  public async logout(): Promise<void> {
+    if (!this.sessionManager.sessionKey) {
+      throw new Error("User is not logged in.");
+    }
+    await this.sessionManager.invalidateSession();
+    this.currentStorage.set("sessionId", "");
+    this.resetState();
+  }
+
   public getUserInfo(): UserInfo {
     if (!this.state.userInfo) {
       throw new Error("user is not logged in.");
@@ -394,15 +468,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async logout(): Promise<void> {
-    if (!this.sessionManager.sessionKey) {
-      throw new Error("User is not logged in.");
-    }
-    await this.sessionManager.invalidateSession();
-    this.currentStorage.set("sessionId", "");
-    this.resetState();
-  }
-
   public async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
     if (!this.state.signatures) throw new Error("signatures not present");
 
@@ -421,56 +486,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
 
     return exportTssKey.toString("hex");
-  }
-
-  public async init(): Promise<void> {
-    const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
-
-    if (!nodeDetails) {
-      throw new Error("error getting node details, please try again!");
-    }
-
-    this.torusSp = new TorusServiceProvider({
-      useTSS: true,
-      customAuthArgs: {
-        web3AuthClientId: this.options.web3AuthClientId,
-        baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
-        uxMode: this.options.uxMode,
-        network: this.options.web3AuthNetwork,
-      },
-      nodeEndpoints: nodeDetails.torusNodeEndpoints,
-      nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
-    });
-
-    this.storageLayer = new TorusStorageLayer({
-      hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
-      enableLogging: this.enableLogging,
-    });
-
-    const shareSerializationModule = new ShareSerializationModule();
-
-    this.tkey = new ThresholdKey({
-      enableLogging: this.enableLogging,
-      serviceProvider: this.torusSp,
-      storageLayer: this.storageLayer,
-      manualSync: this.options.manualSync,
-      modules: {
-        shareSerialization: shareSerializationModule,
-      },
-    });
-
-    if (this.isRedirectMode) {
-      await (this.tKey.serviceProvider as TorusServiceProvider).init({ skipSw: true, skipPrefetch: true });
-    } else {
-      await (this.tKey.serviceProvider as TorusServiceProvider).init({});
-    }
-
-    this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
-
-    if (this.sessionManager.sessionKey) {
-      await this.rehydrateSession();
-      if (this.state.factorKey) await this.setupProvider();
-    }
   }
 
   private async setupTkey(): Promise<void> {
@@ -528,7 +543,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async rehydrateSession() {
     try {
-      if (!this.tKey || !this.torusSp) {
+      this.checkTkey();
+
+      if (!this.torusSp) {
         throw new Error("tkey not initialized, call init first!");
       }
       if (!this.sessionManager.sessionKey) return {};
