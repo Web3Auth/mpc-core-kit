@@ -259,7 +259,6 @@ export interface Web3AuthState {
   oAuthKey?: string;
   signatures?: string[];
   userInfo?: UserInfo;
-  tssNonce?: number;
   tssShareIndex?: number;
   tssPubKey?: Buffer;
   factorKey?: BN;
@@ -275,7 +274,6 @@ export type FactorKeyCloudMetadata = {
 export interface SessionData {
   oAuthKey: string;
   factorKey: string;
-  tssNonce: number;
   tssShareIndex: number;
   tssPubKey: string;
   signatures: string[];
