@@ -131,8 +131,10 @@ function App() {
 
       await coreKitInstance.loginWithJWT(idTokenLoginParams);
 
-      let result = securityQuestion.getQuestion(coreKitInstance!);
-      if (result) setQuestion(result);
+      try {
+        let result = securityQuestion.getQuestion(coreKitInstance!);
+        if (result) setQuestion(result);
+      } catch {}
 
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
         uiConsole("required more shares, please enter your backup/ device factor key, or reset account"); 
@@ -339,7 +341,7 @@ function App() {
     setNewQuestion(undefined);
     let result = await securityQuestion.getQuestion(coreKitInstance);
     if (result) {
-      setQuestion(question);
+      setQuestion(result);
     }
   }
 
@@ -350,7 +352,7 @@ function App() {
     await securityQuestion.changeSecurityQuestion({ mpcCoreKit: coreKitInstance, newQuestion, newAnswer, answer });
     let result = await securityQuestion.getQuestion(coreKitInstance);
     if (result) {
-      setQuestion(question);
+      setQuestion(result);
     }
   }
 
