@@ -211,7 +211,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
 
-    if (this.sessionManager.sessionKey) {
+    if (this.sessionManager.sessionId) {
       await this.rehydrateSession();
       if (this.state.factorKey) await this.setupProvider();
     }
@@ -443,7 +443,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async logout(): Promise<void> {
-    if (!this.sessionManager.sessionKey) {
+    if (!this.sessionManager.sessionId) {
       throw new Error("User is not logged in.");
     }
     await this.sessionManager.invalidateSession();
@@ -559,7 +559,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!this.torusSp) {
         throw new Error("tkey not initialized, call init first!");
       }
-      if (!this.sessionManager.sessionKey) return {};
+      if (!this.sessionManager.sessionId) return {};
       const result = await this.sessionManager.authorizeSession();
       const factorKey = new BN(result.factorKey, "hex");
       if (!factorKey) {
@@ -591,7 +591,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async createSession() {
     try {
       const sessionId = OpenloginSessionManager.generateRandomSessionKey();
-      this.sessionManager.sessionKey = sessionId;
+      this.sessionManager.sessionId = sessionId;
       const { oAuthKey, factorKey, userInfo, tssNonce, tssShareIndex, tssPubKey } = this.state;
       if (!this.state.factorKey) throw new Error("factorKey not present");
       const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
