@@ -449,6 +449,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.sessionManager.invalidateSession();
     this.currentStorage.set("sessionId", "");
     this.resetState();
+    await this.init();
   }
 
   public getUserInfo(): UserInfo {
