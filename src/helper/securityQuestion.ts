@@ -71,6 +71,8 @@ export class TssSecurityQuestion {
     if (answer.length < 10) {
       throw new Error("answer must be at least 10 characters long");
     }
+    const domainKey = `${this.storeDomainName}:${params.mpcCoreKit.tKey.tssTag}`;
+
     // default using recovery index
     if (!shareType) {
       shareType = TssShareType.RECOVERY;
@@ -79,7 +81,7 @@ export class TssSecurityQuestion {
     }
     // Check for existing security question
     const tkey = mpcCoreKit.tKey;
-    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
+    const storeDomain = tkey.metadata.getGeneralStoreDomain(domainKey) as StringifiedType;
     if (storeDomain && storeDomain.question) {
       throw new Error("Security question already exists");
     }
@@ -109,7 +111,7 @@ export class TssSecurityQuestion {
     const tkeyPt = getPubKeyPoint(factorKeyBN);
     const factorPub = Point.fromTkeyPoint(tkeyPt).toBufferSEC1(true).toString("hex");
     const storeData = new TssSecurityQuestionStore(shareType.toString(), factorPub, associatedFactor, question);
-    tkey.metadata.setGeneralStoreDomain(this.storeDomainName, storeData.toJSON());
+    tkey.metadata.setGeneralStoreDomain(domainKey, storeData.toJSON());
 
     // check for auto commit
     await tkey._syncShareMetadata();
@@ -119,9 +121,14 @@ export class TssSecurityQuestion {
 
   async changeSecurityQuestion(params: changeSecurityQuestionParams) {
     const { mpcCoreKit, newQuestion, newAnswer, answer } = params;
+    if (!newQuestion || !newAnswer || !answer) {
+      throw new Error("question and answer are required");
+    }
     // Check for existing security question
     const tkey = mpcCoreKit.tKey;
-    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
+
+    const domainKey = `${this.storeDomainName}:${params.mpcCoreKit.tKey.tssTag}`;
+    const storeDomain = tkey.metadata.getGeneralStoreDomain(domainKey) as StringifiedType;
     if (!storeDomain || !storeDomain.question) {
       throw new Error("Security question does not exists");
     }
@@ -146,7 +153,7 @@ export class TssSecurityQuestion {
 
     store.associatedFactor = newEncrypted;
     store.question = newQuestion;
-    tkey.metadata.setGeneralStoreDomain(this.storeDomainName, store.toJSON());
+    tkey.metadata.setGeneralStoreDomain(domainKey, store.toJSON());
 
     // check for auto commit
     await tkey._syncShareMetadata();
@@ -157,9 +164,11 @@ export class TssSecurityQuestion {
     if (!mpcCoreKit.tKey) {
       throw new Error("Tkey not initialized, call init first.");
     }
+
+    const domainKey = `${this.storeDomainName}:${mpcCoreKit.tKey.tssTag}`;
     const tkey = mpcCoreKit.tKey;
     if (deleteFactorKey) {
-      const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
+      const storeDomain = tkey.metadata.getGeneralStoreDomain(domainKey) as StringifiedType;
       if (!storeDomain || !storeDomain.question) {
         throw new Error("Security question does not exists");
       }
@@ -170,7 +179,7 @@ export class TssSecurityQuestion {
       }
     }
     const emptyStore = {};
-    tkey.metadata.setGeneralStoreDomain(this.storeDomainName, emptyStore);
+    tkey.metadata.setGeneralStoreDomain(domainKey, emptyStore);
     // check for auto commit
     await tkey._syncShareMetadata();
   }
@@ -186,8 +195,9 @@ export class TssSecurityQuestion {
       throw new Error("answer must be at least 10 characters long");
     }
 
+    const domainKey = `${this.storeDomainName}:${mpcCoreKit.tKey.tssTag}`;
     const tkey = mpcCoreKit.tKey;
-    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
+    const storeDomain = tkey.metadata.getGeneralStoreDomain(domainKey) as StringifiedType;
     if (!storeDomain || !storeDomain.question) {
       throw new Error("Security question does not exists");
     }
@@ -210,7 +220,9 @@ export class TssSecurityQuestion {
       throw new Error("Tkey not initialized, call init first.");
     }
     const tkey = mpcCoreKit.tKey;
-    const storeDomain = tkey.metadata.getGeneralStoreDomain(this.storeDomainName) as StringifiedType;
+
+    const domainKey = `${this.storeDomainName}:${mpcCoreKit.tKey.tssTag}`;
+    const storeDomain = tkey.metadata.getGeneralStoreDomain(domainKey) as StringifiedType;
     if (!storeDomain || !storeDomain.question) {
       throw new Error("Security question does not exists");
     }
