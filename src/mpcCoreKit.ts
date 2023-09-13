@@ -317,8 +317,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async handleRedirectResult(): Promise<void> {
     this.checkReady();
 
-    if (!this.torusSp) throw new Error("MPC Core Kit not initialized, call init first!");
-
     try {
       const result = await this.torusSp.directWeb.getRedirectResult();
 
@@ -562,9 +560,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       this.checkReady();
 
-      if (!this.torusSp) {
-        throw new Error("tkey not initialized, call init first!");
-      }
       if (!this.sessionManager.sessionId) return {};
       const result = await this.sessionManager.authorizeSession();
       const factorKey = new BN(result.factorKey, "hex");
