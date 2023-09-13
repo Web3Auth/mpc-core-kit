@@ -140,7 +140,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     throw new Error("Not implemented");
   }
 
-  // TODO rethink the logic and state management here.
   get status(): COREKIT_STATUS {
     if (!this.tkey) return COREKIT_STATUS.NOT_INITIALIZED;
     if (this.ready) return COREKIT_STATUS.INITIALIZED;
@@ -664,7 +663,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
 
       // Update local share.
-      // TODO remove local tss share from state? could go out of sync with remote share.
       const { tssIndex } = await this.tKey.getTSSShare(this.state.factorKey);
       this.updateState({
         tssShareIndex: tssIndex,
