@@ -104,17 +104,17 @@ export interface ICoreKit {
    * The tKey instance, if initialized.
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
-  tKey: ThresholdKey | undefined;
+  tKey: ThresholdKey | null;
 
   /**
    * Provider for making the blockchain calls.
    **/
-  provider: SafeEventEmitterProvider | undefined;
+  provider: SafeEventEmitterProvider | null;
 
   /**
    * Signatures generated from the OAuth Login.
    **/
-  signatures: string[] | undefined;
+  signatures: string[] | null;
 
   /**
    * Status of the current MPC Core Kit Instance
