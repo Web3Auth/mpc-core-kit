@@ -1,9 +1,7 @@
 import { getPubKeyPoint, Point, Point as TkeyPoint, randomSelection } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
-import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import BN from "bn.js";
-import EC from "elliptic";
 
 import { VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 
@@ -59,31 +57,6 @@ export function parseToken(token: string) {
   const base64Url = token.split(".")[1];
   const base64 = base64Url.replace("-", "+").replace("_", "/");
   return JSON.parse(window.atob(base64 || ""));
-}
-
-/**
- * Converts a mnemonic to a factor key.
- * @param tKey - An initialized tKey instance.
- * @param shareMnemonic - The mnemonic to convert.
- * @returns The factor key.
- */
-export async function mnemonicToKey(tKey: ThresholdKey, shareMnemonic: string): Promise<BN> {
-  const factorKey = await (tKey.modules.shareSerialization as ShareSerializationModule).deserialize(shareMnemonic, "mnemonic");
-  return factorKey;
-}
-
-/**
- * Converts an arbitrary string to a factor key over an elliptic curve.
- * @param ec - The elliptic curve.
- * @param shareMnemonic - The mnemonic to convert.
- * @returns The factor key.
- */
-export async function stringToKey(ec: EC.curve.base, s: string): Promise<BN> {
-  const buf = Buffer.from(s);
-  // TODO this is compatible with the implementation before, but instead would
-  // be better to hash to scalar instead?
-  const bn = new BN(buf);
-  return bn.mod(ec.n);
 }
 
 /**
