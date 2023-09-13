@@ -68,9 +68,6 @@ export class TssSecurityQuestion {
     if (!question || !answer) {
       throw new Error("question and answer are required");
     }
-    if (answer.length < 10) {
-      throw new Error("answer must be at least 10 characters long");
-    }
     const domainKey = `${this.storeDomainName}:${params.mpcCoreKit.tKey.tssTag}`;
 
     // default using recovery index
