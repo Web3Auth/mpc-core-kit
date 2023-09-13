@@ -15,13 +15,16 @@ const uiConsole = (...args: any[]): void => {
   console.log(...args);
 };
 
+const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
+
 const coreKitInstance = new Web3AuthMPCCoreKit(
   {
     web3AuthClientId: 'BIr98s8ywUbjEGWq6jnq03UCYdD0YoUFzSyBFC0j1zIpve3cBUbjrkI8TpjFcExAvHaD_7vaOzzXyxhBfpliHsM',
-    web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
-    uxMode: 'redirect'
+    web3AuthNetwork: selectedNetwork,
+    uxMode: 'popup'
   }
 );
+
 function App() {
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
   const [provider, setProvider] = useState<SafeEventEmitterProvider | undefined>(undefined);
@@ -66,7 +69,7 @@ function App() {
         if (result) setQuestion(result);
 
         if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
-          uiConsole("required more shares, please enter your backup/ device factor key, or reset account");
+          uiConsole("required more shares, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
         } else {
           completeSetup();
         }
@@ -162,7 +165,7 @@ function App() {
     await coreKitInstance.inputFactorKey(factorKey);
 
     if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
-      uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account");
+      uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
     } else {
       completeSetup();
     }
@@ -196,7 +199,7 @@ function App() {
     uiConsole(user);
   };
 
-  const exportShare = async (): Promise<void> => {
+  const exportFactor = async (): Promise<void> => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
@@ -281,9 +284,16 @@ function App() {
     uiConsole(signedMessage);
   };
 
-  const resetAccount = async (): Promise<void> => {
+  const criticalResetAccount = async (): Promise<void> => {
+    // This is a critical function that should only be used for testing purposes
+    // Resetting your account means clearing all the metadata associated with it from the metadata server
+    // The key details will be deleted from our server and you will not be able to recover your account
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
+    }
+    //@ts-ignore
+    if (selectedNetwork === WEB3AUTH_NETWORK.MAINNET) {
+      throw new Error("reset account is not recommended on mainnet");
     }
     await coreKitInstance.tKey.storageLayer.setMetadata({
       privKey: new BN(coreKitInstance.metadataKey!, "hex"),
@@ -361,8 +371,8 @@ function App() {
           List Factors
         </button>
 
-        <button onClick={resetAccount} className="card">
-          Reset Account
+        <button onClick={criticalResetAccount} className="card">
+          [CRITICAL] Reset Account
         </button>
 
         <button onClick={logout} className="card">
@@ -380,7 +390,7 @@ function App() {
             <option value={TssShareType.DEVICE}>Device Share</option>
             <option value={TssShareType.RECOVERY}>Recovery Share</option>
           </select>
-          <button onClick={exportShare} className="card">
+          <button onClick={exportFactor} className="card">
             Export share
           </button>
           <label>Factor pub:</label>
@@ -462,8 +472,8 @@ function App() {
         <button onClick={() => inputBackupFactorKey()} className="card">
           Input Factor Key
         </button>
-        <button onClick={resetAccount} className="card">
-          Reset Account
+        <button onClick={criticalResetAccount} className="card">
+          [CRITICAL] Reset Account
         </button>
 
 
