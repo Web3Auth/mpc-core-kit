@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/member-ordering */
-import { encrypt, getPubKeyPoint, KeyDetails, Point as TkeyPoint, ShareStore } from "@tkey-mpc/common-types";
+import { BNString, encrypt, getPubKeyPoint, KeyDetails, Point as TkeyPoint, SHARE_DELETED, ShareStore } from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
@@ -420,11 +420,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  async deleteFactor(factorPub: TkeyPoint): Promise<void> {
+  async deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void> {
     if (!this.state.factorKey) throw new Error("Factor key not present");
     if (!this.tKey.metadata.factorPubs) throw new Error("Factor pubs not present");
     const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
     if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
+    if (
+      Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex") ===
+      Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey)).toBufferSEC1(true).toString("hex")
+    ) {
+      throw new Error("Cannot delete current active factor");
+    }
 
     await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, this.signatures);
     const factorPubHex = Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex");
@@ -434,6 +440,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       keyDesc.forEach(async (desc) => {
         await this.tKey?.deleteShareDescription(factorPubHex, desc);
       });
+    }
+
+    // delete factorKey share metadata if factorkey is provided
+    if (factorKey) {
+      const factorKeyBN = new BN(factorKey, "hex");
+      const derivedFactorPub = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN));
+      // only delete if factorPub matches
+      if (derivedFactorPub.toBufferSEC1(true).toString("hex") === factorPubHex) {
+        await this.deleteShareWithFactorKey(factorKeyBN);
+      }
     }
 
     if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
@@ -456,11 +472,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.state.userInfo;
   }
 
-  public getKeyDetails(): KeyDetails {
+  public getKeyDetails(): KeyDetails & { tssPubKey?: TkeyPoint } {
     this.checkReady();
     const keyDetails = this.tKey.getKeyDetails();
     keyDetails.shareDescriptions = this.tKey.getMetadata().getShareDescription();
-    return keyDetails;
+    // const tssPubKey = this.tKey.getTSSPub();
+    return { ...keyDetails };
   }
 
   public async commitChanges(): Promise<void> {
@@ -693,6 +710,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       log.error("create device share error", err);
       throw new Error((err as Error).message);
     }
+  }
+
+  private async deleteShareWithFactorKey(factorKey: BN): Promise<void> {
+    await this.tKey.addLocalMetadataTransitions({ input: [{ message: SHARE_DELETED, dateAdded: Date.now() }], privKey: [factorKey] });
+    if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
   }
 
   private async backupShareWithFactorKey(factorKey: BN) {
