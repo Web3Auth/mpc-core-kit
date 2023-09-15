@@ -185,9 +185,6 @@ export class TssSecurityQuestion {
     if (!answer) {
       throw new Error("question and answer are required");
     }
-    if (answer.length < 10) {
-      throw new Error("answer must be at least 10 characters long");
-    }
 
     const tkey = mpcCoreKit.tKey;
 
