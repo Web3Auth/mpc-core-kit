@@ -1,6 +1,5 @@
 import { getPubKeyPoint, Point as tkeyPoint, StringifiedType } from "@tkey-mpc/common-types";
 import { keccak256 } from "@toruslabs/torus.js";
-import { log } from "@web3auth/base";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, VALID_SHARE_INDICES } from "../constants";
