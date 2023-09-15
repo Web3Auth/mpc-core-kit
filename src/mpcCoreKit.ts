@@ -1,5 +1,14 @@
 /* eslint-disable @typescript-eslint/member-ordering */
-import { BNString, encrypt, getPubKeyPoint, KeyDetails, Point as TkeyPoint, SHARE_DELETED, ShareStore } from "@tkey-mpc/common-types";
+import {
+  BNString,
+  encrypt,
+  getPubKeyPoint,
+  KeyDetails,
+  Point as TkeyPoint,
+  SHARE_DELETED,
+  ShareStore,
+  StringifiedType,
+} from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
@@ -34,7 +43,6 @@ import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
   CreateFactorParams,
-  FactorKeyCloudMetadata,
   ICoreKit,
   IdTokenLoginParams,
   IFactorKey,
@@ -627,13 +635,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async checkIfFactorKeyValid(factorKey: BN): Promise<ShareStore> {
     this.checkReady();
-    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<{ message: string }>({ privKey: factorKey });
+    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey });
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
       throw new Error("no metadata for your factor key, reset your account");
     }
-    const metadataShare = JSON.parse(factorKeyMetadata.message);
-    if (!metadataShare.share) throw new Error("Invalid data from metadata");
-    return metadataShare.share;
+    return ShareStore.fromJSON(factorKeyMetadata);
   }
 
   /**
@@ -719,13 +725,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async backupShareWithFactorKey(factorKey: BN) {
     const metadataShare = await this.getMetadataShare();
-    const metadataToSet: FactorKeyCloudMetadata = {
-      share: metadataShare,
-    };
 
     // Set metadata for factor key backup
     await this.tKey?.addLocalMetadataTransitions({
-      input: [{ message: JSON.stringify(metadataToSet) }],
+      input: [metadataShare],
       privKey: [factorKey],
     });
     if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
