@@ -179,7 +179,7 @@ function App() {
       throw new Error("backupFactorKey not found");
     }
     
-    let factorKey = await securityQuestion.recoverSecurityQuestionFactor(coreKitInstance, answer);
+    let factorKey = await securityQuestion.recoverFactor(coreKitInstance, answer);
     setBackupFactorKey(factorKey);
     uiConsole("Security Question share: ", factorKey);
   }
