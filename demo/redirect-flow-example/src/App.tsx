@@ -403,6 +403,13 @@ function App() {
           <button onClick={deleteFactor} className="card">
             Delete Factor
           </button>
+          
+        <div className="flex-container">
+        <input value={backupFactorKey} onChange={(e) => setBackupFactorKey(e.target.value)}></input>
+          <button onClick={() => inputBackupFactorKey()} className="card">
+            Input Factor Key
+          </button>
+        </div>
         </div>
 
 
