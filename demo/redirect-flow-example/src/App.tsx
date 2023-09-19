@@ -409,6 +409,9 @@ function App() {
           <button onClick={() => inputBackupFactorKey()} className="card">
             Input Factor Key
           </button>
+          <button onClick={async () => uiConsole(await coreKitInstance._UNSAFE_exportTssKey())} className="card">
+            Export Private Key
+          </button>
         </div>
         </div>
 
