@@ -50,6 +50,8 @@ import { Point } from "./point";
 import { addFactorAndRefresh, deleteFactorAndRefresh, generateFactorKey, generateTSSEndpoints, parseToken } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
+  public state: Web3AuthState = {};
+
   private options: Web3AuthOptionsWithDefaults;
 
   private privKeyProvider: EthereumSigningProvider | null = null;
@@ -59,8 +61,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private storageLayer: TorusStorageLayer | null = null;
 
   private tkey: ThresholdKey | null = null;
-
-  private state: Web3AuthState = {};
 
   private sessionManager!: OpenloginSessionManager<SessionData>;
 
@@ -151,6 +151,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return COREKIT_STATUS.NOT_INITIALIZED;
   }
 
+  get sessionId(): string {
+    return this.sessionManager.sessionId;
+  }
+
   private get verifier(): string {
     if (this.state.userInfo?.aggregateVerifier) {
       return this.state.userInfo.aggregateVerifier;
@@ -180,6 +184,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
         uxMode: this.options.uxMode,
         network: this.options.web3AuthNetwork,
+        redirectPathName: this.options.redirectPathName,
+        locationReplaceOnRedirect: true,
       },
       nodeEndpoints: nodeDetails.torusNodeEndpoints,
       nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
@@ -209,13 +215,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
+    this.ready = true;
 
     if (this.sessionManager.sessionId) {
       await this.rehydrateSession();
       if (this.state.factorKey) await this.setupProvider();
     }
-
-    this.ready = true;
   }
 
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
@@ -712,7 +717,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async addFactorDescription(
     factorKey: BN,
     shareDescription: FactorKeyTypeShareDescription,
-    additionalMetadata: Record<string, string> | null = null
+    additionalMetadata: Record<string, string> = {}
   ) {
     const { tssIndex } = await this.tKey.getTSSShare(factorKey);
     const tkeyPoint = getPubKeyPoint(factorKey);

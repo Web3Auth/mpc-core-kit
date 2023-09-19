@@ -99,6 +99,16 @@ export interface IdTokenLoginParams {
   additionalParams?: ExtraParams;
 }
 
+export interface Web3AuthState {
+  oAuthKey?: string;
+  signatures?: string[];
+  userInfo?: UserInfo;
+  tssShareIndex?: number;
+  tssPubKey?: Buffer;
+  factorKey?: BN;
+  tssNodeEndpoints?: string[];
+}
+
 export interface ICoreKit {
   /**
    * The tKey instance, if initialized.
@@ -120,6 +130,16 @@ export interface ICoreKit {
    * Status of the current MPC Core Kit Instance
    **/
   status: COREKIT_STATUS;
+
+  /**
+   * The current sdk state.
+   */
+  state: Web3AuthState;
+
+  /**
+   * The current session id.
+   */
+  sessionId: string;
 
   /**
    * The function used to initailise the state of MPCCoreKit
@@ -246,19 +266,46 @@ export interface Web3AuthOptions {
    * enables logging of the internal packages.
    */
   enableLogging?: boolean;
+
+  /**
+   * This option is used to specify the url path where user will be
+   * redirected after login. Redirect Uri for OAuth is baseUrl/redirectPathName.
+   *
+   *
+   * @defaultValue redirect
+   *
+   * @remarks
+   * At verifier's interface (where you obtain client id), please use baseUrl/redirectPathName
+   * as the redirect_uri
+   *
+   * Torus Direct SDK installs a service worker relative to baseUrl to capture
+   * the auth redirect at `redirectPathName` path.
+   *
+   * For ex: While using serviceworker if `baseUrl` is "http://localhost:3000/serviceworker" and
+   * `redirectPathName` is 'redirect' (which is default)
+   * then user will be redirected to http://localhost:3000/serviceworker/redirect page after login
+   * where service worker will capture the results and send it back to original window where login
+   * was initiated.
+   *
+   * For browsers where service workers are not supported or if you wish to not use
+   * service workers,create and serve redirect page (i.e redirect.html file which is
+   * available in serviceworker folder of this package)
+   *
+   * If you are using redirect uxMode, you can get the results directly on your `redirectPathName`
+   * path using `getRedirectResult` function.
+   *
+   * For ex: if baseUrl is "http://localhost:3000" and `redirectPathName` is 'auth'
+   * then user will be redirected to http://localhost:3000/auth page after login
+   * where you can get login result by calling `getRedirectResult` on redirected page mount.
+   *
+   * Please refer to examples https://github.com/torusresearch/customauth/tree/master/examples
+   * for more understanding.
+   *
+   */
+  redirectPathName?: string;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
-
-export interface Web3AuthState {
-  oAuthKey?: string;
-  signatures?: string[];
-  userInfo?: UserInfo;
-  tssShareIndex?: number;
-  tssPubKey?: Buffer;
-  factorKey?: BN;
-  tssNodeEndpoints?: string[];
-}
 
 export type FactorKeyCloudMetadata = {
   share: ShareStore;
