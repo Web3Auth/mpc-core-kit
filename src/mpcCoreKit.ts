@@ -508,6 +508,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tKey.importTssKey({ tag: this.tKey.tssTag, importKey: tssKeyBN, factorPub, newTSSIndex }, { authSignatures: this.state.signatures });
   }
 
+  public async _UNSAFE_exportTssKey(): Promise<string> {
+    if (!this.state.factorKey) throw new Error("factorKey not present");
+    if (!this.state.signatures) throw new Error("signatures not present");
+
+    const exportTssKey = await this.tKey._UNSAFE_exportTssKey({
+      factorKey: this.state.factorKey,
+      authSignatures: this.state.signatures,
+      selectedServers: [],
+    });
+
+    return exportTssKey.toString("hex");
+  }
+
   private getTssNonce(): number {
     if (!this.tKey.metadata.tssNonces) throw new Error("tssNonce not present");
     const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];

@@ -192,6 +192,11 @@ export interface ICoreKit {
    * Import an existing private key into the Web3Auth MPC Infrastructure.
    */
   importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex?: TssShareType): Promise<void>;
+
+  /**
+   * Export the user's current TSS MPC account as a private key
+   */
+  _UNSAFE_exportTssKey(): Promise<string>;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
