@@ -15,7 +15,7 @@ const uiConsole = (...args: any[]): void => {
   console.log(...args);
 };
 
-const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
+const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
 
 const coreKitInstance = new Web3AuthMPCCoreKit(
   {
@@ -65,12 +65,17 @@ function App() {
         await coreKitInstance!.handleRedirectResult();
         setCoreKitStatus(coreKitInstance.status)
 
-        let result = securityQuestion.getQuestion(coreKitInstance!);
-        if (result) setQuestion(result);
+        try {
+          let result = securityQuestion.getQuestion(coreKitInstance!);
+          setQuestion(result);
+        } catch (e) {
+          uiConsole(e);
+        }
 
         if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
           uiConsole("required more shares, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
         } else {
+          uiConsole("Current Core Kit Status:", coreKitInstance.status)
           completeSetup();
         }
       } catch (error: unknown) {
@@ -462,7 +467,7 @@ function App() {
       <button onClick={() => login()} className="card">
         Login
       </button>
-      <div className={coreKitStatus=== COREKIT_STATUS.NOT_INITIALIZED ? "disabledDiv" : "" } >
+      <div className={coreKitStatus=== COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv" } >
 
         <button onClick={() => getDeviceShare()} className="card">
           Get Device Share
