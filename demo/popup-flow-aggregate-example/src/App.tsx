@@ -19,7 +19,7 @@ const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
 
 const coreKitInstance = new Web3AuthMPCCoreKit(
   {
-    web3AuthClientId: 'BIr98s8ywUbjEGWq6jnq03UCYdD0YoUFzSyBFC0j1zIpve3cBUbjrkI8TpjFcExAvHaD_7vaOzzXyxhBfpliHsM',
+    web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
     web3AuthNetwork: selectedNetwork,
     uxMode: 'popup'
   }
