@@ -106,7 +106,6 @@ export interface Web3AuthState {
   tssShareIndex?: number;
   tssPubKey?: Buffer;
   factorKey?: BN;
-  tssNodeEndpoints?: string[];
 }
 
 export interface ICoreKit {

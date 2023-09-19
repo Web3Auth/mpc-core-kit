@@ -221,7 +221,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await (this.tKey.serviceProvider as TorusServiceProvider).init({});
     }
 
-    this.updateState({ tssNodeEndpoints: nodeDetails.torusNodeTSSEndpoints });
     this.ready = true;
 
     if (this.sessionManager.sessionId) {
@@ -770,13 +769,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async setupProvider(): Promise<void> {
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
-    const { tssShareIndex, tssPubKey, tssNodeEndpoints } = this.state;
+    const { tssShareIndex, tssPubKey } = this.state;
+    const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
+      verifier: "test-verifier",
+      verifierId: "test@example.com",
+    });
+
     if (!this.state.factorKey) throw new Error("factorKey not present");
     const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
     const tssNonce = this.getTssNonce();
 
-    if (!tssPubKey || !tssNodeEndpoints) {
-      throw new Error("tssPubKey or tssNodeEndpoints not available");
+    if (!tssPubKey || !torusNodeTSSEndpoints) {
+      throw new Error("tssPubKey or torusNodeTSSEndpoints not available");
     }
 
     const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
@@ -788,9 +792,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const tss = await import("@toruslabs/tss-lib");
       // 1. setup
       // generate endpoints for servers
-      const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(tssNodeEndpoints, parties, clientIndex);
+      const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex);
       const randomSessionNonce = keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
-      const tssImportUrl = `${tssNodeEndpoints[0]}/v1/clientWasm`;
+      const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
       // session is needed for authentication to the web3auth infrastructure holding the factor 1
       const currentSession = `${sessionId}${randomSessionNonce}`;
 
@@ -851,9 +855,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private resetState(): void {
     this.tkey = null;
     this.privKeyProvider = null;
-    this.state = {
-      tssNodeEndpoints: this.state.tssNodeEndpoints,
-    };
   }
 
   private _getOAuthKey(result: TorusKey): string {
