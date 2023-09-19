@@ -116,8 +116,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tkey;
   }
 
-  get provider(): SafeEventEmitterProvider | undefined {
-    return this.privKeyProvider?.provider ? this.privKeyProvider.provider : undefined;
+  get provider(): SafeEventEmitterProvider | null {
+    return this.privKeyProvider?.provider ? this.privKeyProvider.provider : null;
   }
 
   set provider(_: SafeEventEmitterProvider | null) {

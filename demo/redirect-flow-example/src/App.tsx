@@ -27,7 +27,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
 
 function App() {
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
-  const [provider, setProvider] = useState<SafeEventEmitterProvider | undefined>(undefined);
+  const [provider, setProvider] = useState<SafeEventEmitterProvider | null>(null);
   const [web3, setWeb3] = useState<any>(undefined)
   const [exportTssShareType, setExportTssShareType] = useState<TssShareType>(TssShareType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
@@ -191,7 +191,7 @@ function App() {
     await coreKitInstance.logout();
     setCoreKitStatus(COREKIT_STATUS.NOT_INITIALIZED);
     uiConsole("Log out");
-    setProvider(undefined);
+    setProvider(null);
   };
 
   const getUserInfo = (): void => {
@@ -300,7 +300,7 @@ function App() {
       input: { message: "KEY_NOT_FOUND" },
     });
     uiConsole('reset');
-    setProvider(undefined);
+    setProvider(null);
   }
 
   const sendTransaction = async () => {
