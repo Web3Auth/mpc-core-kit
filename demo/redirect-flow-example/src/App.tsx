@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, storeWebBrowserFactor, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
@@ -31,7 +31,6 @@ function App() {
   const [web3, setWeb3] = useState<any>(undefined)
   const [exportTssShareType, setExportTssShareType] = useState<TssShareType>(TssShareType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
-  const [coreKitStatus , setCoreKitStatus] = useState<COREKIT_STATUS>(COREKIT_STATUS.NOT_INITIALIZED); 
   const [answer, setAnswer] = useState<string | undefined>(undefined);
   const [newAnswer, setNewAnswer] = useState<string | undefined>(undefined);
   const [question, setQuestion] = useState<string | undefined>(undefined);
@@ -43,19 +42,21 @@ function App() {
     const init = async () => {
       await coreKitInstance.init();
 
-      setCoreKitStatus(coreKitInstance.status)
-
       if (coreKitInstance.provider) {
         setProvider(coreKitInstance.provider);
-        try {
-          let result = securityQuestion.getQuestion(coreKitInstance!);
-          setQuestion(result);
-        } catch (e) {
-          setQuestion(undefined);
-          uiConsole(e);
-        }
       }
 
+      if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
+        uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
+      }
+
+      try {
+        let result = securityQuestion.getQuestion(coreKitInstance!);
+        setQuestion(result);
+      } catch (e) {
+        setQuestion(undefined);
+        uiConsole(e);
+      }
     };
     init();
   }, []);
@@ -110,24 +111,6 @@ function App() {
     }
   };
 
-  const completeSetup = async () => {
-    if (!coreKitInstance) {
-      throw new Error("coreKitInstance not found");
-    }
-    setProvider(coreKitInstance.provider);
-    setCoreKitStatus(coreKitInstance.status)
-
-    const factorKeyMetadata = coreKitInstance.getCurrentFactorKey();
-    if (factorKeyMetadata.shareType === TssShareType.DEVICE) {
-      storeWebBrowserFactor(factorKeyMetadata.factorKey, coreKitInstance)
-    } else {
-      const factorKey = await coreKitInstance.createFactor({
-        shareType: TssShareType.DEVICE,
-      });
-      storeWebBrowserFactor(new BN(factorKey!, "hex"), coreKitInstance)
-    }
-  }
-
   const getDeviceShare = async () => {
     const factorKey = await getWebBrowserFactor(coreKitInstance!);
     setBackupFactorKey(factorKey);
@@ -146,8 +129,10 @@ function App() {
 
     if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
       uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
-    } else {
-      completeSetup();
+    }
+
+    if (coreKitInstance.provider) {
+      setProvider(coreKitInstance.provider);
     }
   }
 
@@ -169,7 +154,6 @@ function App() {
       throw new Error("coreKitInstance not found");
     }
     await coreKitInstance.logout();
-    setCoreKitStatus(COREKIT_STATUS.NOT_INITIALIZED);
     uiConsole("Log out");
     setProvider(null);
   };
@@ -335,6 +319,16 @@ function App() {
 
   }
 
+  const enableMFA = async () => { 
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    const factorKey = await coreKitInstance.enableMFA({});
+    const factorKeyMnemonic = await keyToMnemonic(coreKitInstance, factorKey);
+
+    uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
+  }
+
   const loggedInView = (
     <>
       <h2 className="subtitle">Account Details</h2>
@@ -361,8 +355,13 @@ function App() {
       </div>
       <h2 className="subtitle">Recovery/ Key Manipulation</h2>
       <div>
-
-        <h4 >Export/ Import Factors</h4>
+        <h4 >Enabling MFA</h4>
+        <div className="flex-container">
+          <button onClick={enableMFA} className="card">
+            Enable MFA
+          </button>
+        </div>
+        <h4 >Manual Factors Manipulation</h4>
         <div className="flex-container">
 
           <label>Share Type:</label>
@@ -385,7 +384,7 @@ function App() {
             Input Factor Key
           </button>
           <button onClick={async () => uiConsole(await coreKitInstance._UNSAFE_exportTssKey())} className="card">
-            Export Private Key
+            [CAUTION] Export Private Key
           </button>
         </div>
         </div>
@@ -452,7 +451,7 @@ function App() {
       <button onClick={() => login()} className="card">
         Login
       </button>
-      <div className={coreKitStatus=== COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv" } >
+      <div className={coreKitInstance.status=== COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv" } >
 
         <button onClick={() => getDeviceShare()} className="card">
           Get Device Share
