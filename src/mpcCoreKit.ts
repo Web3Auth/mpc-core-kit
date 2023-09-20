@@ -509,6 +509,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.deleteShareWithFactorKey(factorKeyBN);
       }
     }
+    await this.tKey._syncShareMetadata();
 
     if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
   }
@@ -712,9 +713,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async checkIfFactorKeyValid(factorKey: BN): Promise<boolean> {
     this.checkReady();
     const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey });
-    if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
+    if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND" || factorKeyMetadata.message === "SHARE_DELETED") {
       return false;
     }
+    log.info("factorKeyMetadata", factorKeyMetadata);
     return true;
   }
 
