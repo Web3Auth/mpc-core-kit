@@ -1,14 +1,5 @@
 /* eslint-disable @typescript-eslint/member-ordering */
-import {
-  BNString,
-  encrypt,
-  getPubKeyPoint,
-  KeyDetails,
-  Point as TkeyPoint,
-  SHARE_DELETED,
-  ShareStore,
-  StringifiedType,
-} from "@tkey-mpc/common-types";
+import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
@@ -23,6 +14,7 @@ import { Client, utils as tssUtils } from "@toruslabs/tss-client";
 import { CHAIN_NAMESPACES, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
+import bowser from "bowser";
 
 import {
   CURVE,
@@ -38,14 +30,16 @@ import {
   VALID_SHARE_INDICES,
   WEB3AUTH_NETWORK,
 } from "./constants";
-import { BrowserStorage } from "./helper/browserStorage";
+import { BrowserStorage, storeWebBrowserFactor } from "./helper/browserStorage";
 import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
   CreateFactorParams,
+  EnableMFAParams,
   ICoreKit,
   IdTokenLoginParams,
   IFactorKey,
+  MPCKeyDetails,
   OauthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
@@ -55,7 +49,7 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { Point } from "./point";
-import { addFactorAndRefresh, deleteFactorAndRefresh, generateFactorKey, generateTSSEndpoints, parseToken } from "./utils";
+import { addFactorAndRefresh, deleteFactorAndRefresh, generateFactorKey, generateTSSEndpoints, getHashedPrivateKey, parseToken } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = {};
@@ -102,6 +96,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.storageKey) options.storageKey = "local";
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
+    if (!options.redirectPathName) options.redirectPathName = "redirect";
+    if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
+    if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -227,6 +224,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.rehydrateSession();
       if (this.state.factorKey) await this.setupProvider();
     }
+
+    if (window.location.hash.includes("#state")) {
+      await this.handleRedirectResult();
+    }
   }
 
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
@@ -324,7 +325,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async handleRedirectResult(): Promise<void> {
+  private async handleRedirectResult(): Promise<void> {
     this.checkReady();
 
     try {
@@ -370,8 +371,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async inputFactorKey(factorKey: BN): Promise<void> {
     this.checkReady();
     try {
-      const metadataShare = await this.checkIfFactorKeyValid(factorKey);
-      await this.tKey.inputShareStoreSafe(metadataShare, true);
+      const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
+      await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
 
       // Finalize initialization.
       await this.tKey.reconstructKey();
@@ -396,6 +397,44 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       };
     } catch (err: unknown) {
       log.error("state error", err);
+      throw new Error((err as Error).message);
+    }
+  }
+
+  public getTssPublicKey(): TkeyPoint {
+    this.checkReady();
+    return this.tKey.getTSSPub();
+  }
+
+  public async enableMFA(enableMFAParams: EnableMFAParams): Promise<string> {
+    this.checkReady();
+
+    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
+    if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
+      throw new Error("MFA already enabled");
+    }
+
+    try {
+      const browserInfo = bowser.parse(navigator.userAgent);
+      const browserName = `${browserInfo.browser.name}`;
+      const browserData = {
+        browserName,
+        browserVersion: browserInfo.browser.version,
+        deviceName: browserInfo.os.name,
+      };
+      const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
+      storeWebBrowserFactor(deviceFactorKey, this);
+      await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
+
+      const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
+
+      const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
+      await this.deleteFactor(hashedFactorPub, hashedFactorKey);
+      await this.deleteShareWithFactorKey(hashedFactorKey);
+
+      return backupFactorKey;
+    } catch (err: unknown) {
+      log.error("error enabling MFA", err);
       throw new Error((err as Error).message);
     }
   }
@@ -462,6 +501,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.deleteShareWithFactorKey(factorKeyBN);
       }
     }
+    await this.tKey._syncShareMetadata();
 
     if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
   }
@@ -483,12 +523,22 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.state.userInfo;
   }
 
-  public getKeyDetails(): KeyDetails & { tssPubKey?: TkeyPoint } {
+  public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
-    const keyDetails = this.tKey.getKeyDetails();
-    keyDetails.shareDescriptions = this.tKey.getMetadata().getShareDescription();
-    // const tssPubKey = this.tKey.getTSSPub();
-    return { ...keyDetails };
+    const tkeyDetails = this.tKey.getKeyDetails();
+    const tssPubKey = this.state.tssPubKey ? this.tKey.getTSSPub() : undefined;
+
+    const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
+    const keyDetails: MPCKeyDetails = {
+      // use tkey's for now
+      requiredFactors: tkeyDetails.requiredShares,
+      threshold: tkeyDetails.threshold,
+      totalFactors: factors.length + 1,
+      shareDescriptions: this.tKey.getMetadata().getShareDescription(),
+      metadataPubKey: tkeyDetails.pubKey,
+      tssPubKey,
+    };
+    return keyDetails;
   }
 
   public async commitChanges(): Promise<void> {
@@ -504,7 +554,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  private async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
     if (!this.state.signatures) throw new Error("signatures not present");
 
     const tssKeyBN = new BN(tssKey, "hex");
@@ -535,12 +587,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("user not logged in");
     }
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
-    let factorKey: BN;
-    if (!existingUser) {
-      // Generate new factor key if not provided.
-      factorKey = new BN(generatePrivate());
 
-      // Generate and device share and initialize tkey with it.
+    if (!existingUser) {
+      // Generate or use hash factor and initialize tkey with it.
+      let factorKey: BN;
+      if (this.options.disableHashedFactorKey) {
+        factorKey = generateFactorKey().private;
+      } else {
+        factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
+      }
       const deviceTSSShare = new BN(generatePrivate());
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
@@ -552,10 +607,21 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       // Store factor description.
       await this.backupShareWithFactorKey(factorKey);
-      await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.DeviceShare);
+      if (this.options.disableHashedFactorKey) {
+        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.Other);
+      } else {
+        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
+      }
     } else {
-      // Initialize tkey with existing share.
       await this.tKey.initialize({ neverInitializeNewKey: true });
+      const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
+      if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
+        // Initialize tkey with existing hashed share if available.
+        const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
+        await this.tKey.inputShareStoreSafe(factorKeyMetadata);
+        await this.tKey.reconstructKey();
+        await this.finalizeTkey(hashedFactorKey);
+      }
     }
     this.authLoggedIn = true;
   }
@@ -563,11 +629,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async finalizeTkey(factorKey: BN) {
     // Read tss meta data.
     const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
-    const tssPubKeyPoint = this.tKey.getTSSPub();
-    const tssPubKey = Buffer.from(
-      `${tssPubKeyPoint.x.toString(16, FIELD_ELEMENT_HEX_LEN)}${tssPubKeyPoint.y.toString(16, FIELD_ELEMENT_HEX_LEN)}`,
-      "hex"
-    );
+    const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
 
     this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
@@ -597,9 +659,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
       this.torusSp.verifierType = result.userInfo.aggregateVerifier ? "aggregate" : "normal";
-      const deviceShare = await this.checkIfFactorKeyValid(factorKey);
+      const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
       await this.tKey.initialize({ neverInitializeNewKey: true });
-      await this.tKey.inputShareStoreSafe(deviceShare, true);
+      await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
       await this.tKey.reconstructKey();
 
       this.updateState({
@@ -649,7 +711,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return false;
   }
 
-  private async checkIfFactorKeyValid(factorKey: BN): Promise<ShareStore> {
+  private async checkIfFactorKeyValid(factorKey: BN): Promise<boolean> {
+    this.checkReady();
+    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey });
+    if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND" || factorKeyMetadata.message === "SHARE_DELETED") {
+      return false;
+    }
+    log.info("factorKeyMetadata", factorKeyMetadata);
+    return true;
+  }
+
+  private async getFactorKeyMetadata(factorKey: BN): Promise<ShareStore> {
     this.checkReady();
     const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey });
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
