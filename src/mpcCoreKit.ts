@@ -409,7 +409,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async enableMFA(enableMFAParams: EnableMFAParams): Promise<string> {
     this.checkReady();
 
-    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
+    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
     if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
       throw new Error("MFA already enabled");
     }
@@ -594,7 +594,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (this.options.disableHashedFactorKey) {
         factorKey = generateFactorKey().private;
       } else {
-        factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
+        factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
       }
       const deviceTSSShare = new BN(generatePrivate());
       const deviceTSSIndex = TssShareType.DEVICE;
@@ -614,7 +614,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
     } else {
       await this.tKey.initialize({ neverInitializeNewKey: true });
-      const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
+      const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
       if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
         // Initialize tkey with existing hashed share if available.
         const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);

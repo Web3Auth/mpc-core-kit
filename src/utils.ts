@@ -142,8 +142,8 @@ export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDele
   await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
 }
 
-export const getHashedPrivateKey = (postboxKey: string, clientId: string, verifier: string, verifierId: string): BN => {
-  const uid = `${postboxKey}_${clientId}_${verifier}_${verifierId}`;
+export const getHashedPrivateKey = (postboxKey: string, clientId: string): BN => {
+  const uid = `${postboxKey}_${clientId}`;
   let hashUid = keccak256(Buffer.from(uid, "utf8"));
   hashUid = hashUid.replace("0x", "");
   return new BN(hashUid, "hex");
