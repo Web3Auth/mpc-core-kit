@@ -1,5 +1,6 @@
 import { TORUS_SAPPHIRE_NETWORK } from "@toruslabs/constants";
 import { CHAIN_NAMESPACES, CustomChainConfig } from "@web3auth/base";
+import { ec as EllipticCurve } from "elliptic";
 
 export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
@@ -25,10 +26,13 @@ export const USER_PATH = {
 } as const;
 
 export enum FactorKeyTypeShareDescription {
-  SecurityQuestions = "securityQuestions",
+  HashedShare = "hashedShare",
+  SecurityQuestions = "tssSecurityQuestions",
   DeviceShare = "deviceShare",
   SeedPhrase = "seedPhrase",
   PasswordShare = "passwordShare",
+  SocialShare = "socialShare",
+  Other = "Other",
 }
 
 export const DELIMITERS = {
@@ -42,3 +46,22 @@ export const ERRORS = {
   TKEY_SHARES_REQUIRED: "required more shares",
   INVALID_BACKUP_SHARE: "invalid backup share",
 };
+
+export const SOCIAL_FACTOR_INDEX = 1;
+
+/**
+ * Defines the TSS Share Index in a simplified way for better implementation.
+ **/
+export enum TssShareType {
+  DEVICE = 2,
+  RECOVERY = 3,
+}
+
+export const VALID_SHARE_INDICES = [TssShareType.DEVICE, TssShareType.RECOVERY];
+
+export const SCALAR_HEX_LEN = 32 * 2; // Length of secp256k1 scalar in hex form.
+export const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
+export const CURVE = new EllipticCurve("secp256k1");
+
+export const MAX_FACTORS = 10; // Maximum number of factors that can be added to an account.
+export const SOCIAL_TKEY_INDEX = 1;

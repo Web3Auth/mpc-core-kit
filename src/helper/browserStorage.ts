@@ -1,5 +1,8 @@
-import { IStorage } from "./interfaces";
-import { storageAvailable } from "./utils";
+import BN from "bn.js";
+
+import { FIELD_ELEMENT_HEX_LEN } from "../constants";
+import { ICoreKit, IStorage, TkeyLocalStoreData } from "../interfaces";
+import { storageAvailable } from "../utils";
 
 export class BrowserStorage {
   // eslint-disable-next-line no-use-before-define
@@ -23,7 +26,7 @@ export class BrowserStorage {
 
   static getInstance(key: string, storageKey: "session" | "local" = "local"): BrowserStorage {
     if (!this.instance) {
-      let storage: Storage;
+      let storage: Storage | undefined;
       if (storageKey === "local" && storageAvailable("localStorage")) {
         storage = localStorage;
       }
@@ -40,7 +43,9 @@ export class BrowserStorage {
   }
 
   toJSON(): string {
-    return this.storage.getItem(this._storeKey);
+    const result = this.storage.getItem(this._storeKey);
+    if (!result) throw new Error(`storage ${this._storeKey} is null`);
+    return result;
   }
 
   resetStore(): Record<string, unknown> {
@@ -63,4 +68,27 @@ export class BrowserStorage {
     store[key] = value;
     this.storage.setItem(this._storeKey, JSON.stringify(store));
   }
+}
+
+export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit, storageKey: "local" | "session" = "local"): Promise<void> {
+  const metadata = mpcCoreKit.tKey.getMetadata();
+  const currentStorage = BrowserStorage.getInstance("mpc_corekit_store", storageKey);
+
+  const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+  currentStorage.set(
+    tkeyPubX,
+    JSON.stringify({
+      factorKey: factorKey.toString("hex").padStart(64, "0"),
+    } as TkeyLocalStoreData)
+  );
+}
+
+export async function getWebBrowserFactor(mpcCoreKit: ICoreKit, storageKey: "local" | "session" = "local"): Promise<string> {
+  const metadata = mpcCoreKit.tKey.getMetadata();
+  const currentStorage = BrowserStorage.getInstance("mpc_corekit_store", storageKey);
+
+  const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+  const tKeyLocalStoreString = currentStorage.get<string>(tkeyPubX);
+  const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
+  return tKeyLocalStore.factorKey;
 }

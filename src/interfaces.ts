@@ -1,12 +1,20 @@
-import { KeyDetails, ShareStore } from "@tkey-mpc/common-types";
-import type { AGGREGATE_VERIFIER_TYPE, LoginWindowResponse, SubVerifierDetails, TorusVerifierResponse, UX_MODE_TYPE } from "@toruslabs/customauth";
+import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey-mpc/common-types";
+import ThresholdKey from "@tkey-mpc/core";
+import type {
+  AGGREGATE_VERIFIER_TYPE,
+  ExtraParams,
+  LoginWindowResponse,
+  SubVerifierDetails,
+  TorusVerifierResponse,
+  UX_MODE_TYPE,
+  WebAuthnExtraParams,
+} from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
-import { USER_PATH, WEB3AUTH_NETWORK } from "./constants";
-
+import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 export interface IStorage {
-  getItem(key: string): string;
+  getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 
@@ -20,33 +28,202 @@ export interface SubVerifierDetailsParams extends BaseLoginParams {
 }
 
 export interface AggregateVerifierLoginParams extends BaseLoginParams {
-  aggregateVerifierIdentifier?: string;
+  aggregateVerifierIdentifier: string;
+  subVerifierDetailsArray: SubVerifierDetails[];
   aggregateVerifierType?: AGGREGATE_VERIFIER_TYPE;
-  subVerifierDetailsArray?: SubVerifierDetails[];
 }
 
-export type LoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
+export interface IFactorKey {
+  factorKey: BN;
+  shareType: TssShareType;
+}
+
+export enum COREKIT_STATUS {
+  NOT_INITIALIZED = "NOT_INITIALIZED",
+  INITIALIZED = "INITIALIZED",
+  REQUIRED_SHARE = "REQUIRED_SHARE",
+  LOGGED_IN = "LOGGED_IN",
+}
+
+export type MPCKeyDetails = {
+  metadataPubKey: TkeyPoint;
+  threshold: number;
+  requiredFactors: number;
+  totalFactors: number;
+  shareDescriptions: ShareDescriptionMap;
+  tssPubKey?: TkeyPoint;
+};
+
+export type OauthLoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
-export interface IWeb3Auth {
+export interface EnableMFAParams {
+  /**
+   * A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
+   */
+  factorKey?: BN;
+  /**
+   * Setting the Description of Share - Security Questions, Device Share, Seed Phrase, Password Share, Social Share, Other. Default is Other.
+   */
+  shareDescription?: FactorKeyTypeShareDescription;
+  /**
+   * Additional metadata information you want to be stored alongside this factor for easy identification.
+   */
+  additionalMetadata?: Record<string, string>;
+}
+
+export interface CreateFactorParams extends EnableMFAParams {
+  /**
+   * Setting the Type of Share - Device or Recovery.
+   **/
+  shareType: TssShareType;
+}
+
+export interface IdTokenLoginParams {
+  /**
+   * Name of the verifier created on Web3Auth Dashboard. In case of Aggregate Verifier, the name of the top level aggregate verifier.
+   */
+  verifier: string;
+
+  /**
+   * Unique Identifier for the User. The verifier identifier field set for the verifier/ sub verifier. E.g. "sub" field in your on jwt id token.
+   */
+  verifierId: string;
+
+  /**
+   * The idToken received from the Auth Provider.
+   */
+  idToken: string;
+
+  /**
+   * Name of the sub verifier in case of aggregate verifier setup. This field should only be provided in case of an aggregate verifier.
+   */
+  subVerifier?: string;
+
+  /**
+   * Extra verifier params in case of a WebAuthn verifier type.
+   */
+  extraVerifierParams?: WebAuthnExtraParams;
+
+  /**
+   * Any additional parameter (key value pair) you'd like to pass to the login function.
+   */
+  additionalParams?: ExtraParams;
+}
+
+export interface Web3AuthState {
+  oAuthKey?: string;
+  signatures?: string[];
+  userInfo?: UserInfo;
+  tssShareIndex?: number;
+  tssPubKey?: Buffer;
+  factorKey?: BN;
+}
+
+export interface ICoreKit {
+  /**
+   * The tKey instance, if initialized.
+   * TKey is the core module on which this wrapper SDK sits for easy integration.
+   **/
+  tKey: ThresholdKey | null;
+
+  /**
+   * Provider for making the blockchain calls.
+   **/
   provider: SafeEventEmitterProvider | null;
-  tkeyPrivKey: BN | null;
-  init(): void;
-  connect(loginParams: LoginParams): Promise<SafeEventEmitterProvider | null>;
-  handleRedirectResult(): Promise<SafeEventEmitterProvider | null>;
-  getUserInfo(): UserInfo;
-  inputBackupShare(shareMnemonic: string): Promise<void>;
-  exportBackupShare(): Promise<string>;
-  addSecurityQuestionShare(question: string, password: string): Promise<void>;
-  changeSecurityQuestionShare(question: string, password: string): Promise<void>;
-  recoverSecurityQuestionShare(question: string, password: string): Promise<void>;
-  deleteSecurityQuestionShare(question: string): Promise<void>;
-  addCustomShare(factorKey: BN, metadata: Record<string, string>): Promise<void>;
-  recoverCustomShare(factorKey: BN): Promise<void>;
-  getKeyDetails(): KeyDetails;
-  commitChanges(): Promise<void>;
+
+  /**
+   * Signatures generated from the OAuth Login.
+   **/
+  signatures: string[] | null;
+
+  /**
+   * Status of the current MPC Core Kit Instance
+   **/
+  status: COREKIT_STATUS;
+
+  /**
+   * The current sdk state.
+   */
+  state: Web3AuthState;
+
+  /**
+   * The current session id.
+   */
+  sessionId: string;
+
+  /**
+   * The function used to initailise the state of MPCCoreKit
+   * Also is useful to resume an existing session.
+   */
+  init(): Promise<void>;
+
+  /**
+   * Login into the SDK in an implicit flow and initialize all relevant components.
+   * @param loginParams - Parameters for Implicit Login.
+   */
+  loginWithOauth(loginParams: OauthLoginParams): Promise<void>;
+
+  /**
+   * Login into the SDK using ID Token based login and initialize all relevant components.
+   * @param idTokenLoginParams - Parameters with ID Token based Login.
+   */
+  loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
+
+  /**
+   * Enable MFA for the user. Deletes the Cloud Factor and generates a new Factor Key.
+   * Recommended for Non Custodial Flow.
+   */
+  enableMFA(enableMFAParams: EnableMFAParams): Promise<string>;
+
+  /**
+   * Second step for login where the user inputs their factor key.
+   * @param factorKey: A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
+   */
+  inputFactorKey(factorKey: BN): Promise<void>;
+
+  /**
+   * Returns the current Factor Key and TssShareType in MPC Core Kit State
+   **/
+  getCurrentFactorKey(): IFactorKey;
+
+  /**
+   * Creates a new factor for authentication.
+   * @param CreateFactorParams - Parameters for creating a new factor.
+   */
+  createFactor(CreateFactorParams: CreateFactorParams): Promise<string>;
+
+  /**
+   * Deletes the factor identified by the given public key, including all
+   * associated metadata.
+   * @param factorPub - The public key of the factor to delete.
+   */
+  deleteFactor(factorPub: TkeyPoint): Promise<void>;
+
+  /**
+   * Logs out the user, terminating the session.
+   */
   logout(): Promise<void>;
-  CRITICAL_resetAccount(): Promise<void>;
+
+  /**
+   * Get user information provided by the OAuth provider.
+   */
+  getUserInfo(): UserInfo;
+
+  /**
+   * Get information about how the keys of the user is managed according to the information in the metadata server.
+   */
+  getKeyDetails(): MPCKeyDetails;
+
+  /**
+   * Commit the changes made to the user's account when in manual sync mode.
+   */
+  commitChanges(): Promise<void>;
+
+  /**
+   * Export the user's current TSS MPC account as a private key
+   */
+  _UNSAFE_exportTssKey(): Promise<string>;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
@@ -54,8 +231,14 @@ export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3A
 export type USER_PATH_TYPE = (typeof USER_PATH)[keyof typeof USER_PATH];
 
 export interface Web3AuthOptions {
+  /**
+   * The Web3Auth Client ID for your application. Find one at https://dashboard.web3auth.io
+   */
   web3AuthClientId: string;
 
+  /**
+   * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.
+   */
   chainConfig?: CustomChainConfig;
 
   /**
@@ -70,7 +253,7 @@ export interface Web3AuthOptions {
 
   /**
    *
-   * @defaultValue `'sapphire_mainner'`
+   * @defaultValue `'sapphire_mainnet'`
    */
   web3AuthNetwork?: WEB3AUTH_NETWORK_TYPE;
 
@@ -95,31 +278,57 @@ export interface Web3AuthOptions {
    * enables logging of the internal packages.
    */
   enableLogging?: boolean;
+
+  /**
+   * This option is used to specify the url path where user will be
+   * redirected after login. Redirect Uri for OAuth is baseUrl/redirectPathName.
+   *
+   *
+   * @defaultValue `"redirect"`
+   *
+   * @remarks
+   * At verifier's interface (where you obtain client id), please use baseUrl/redirectPathName
+   * as the redirect_uri
+   *
+   * Torus Direct SDK installs a service worker relative to baseUrl to capture
+   * the auth redirect at `redirectPathName` path.
+   *
+   * For ex: While using serviceworker if `baseUrl` is "http://localhost:3000/serviceworker" and
+   * `redirectPathName` is 'redirect' (which is default)
+   * then user will be redirected to http://localhost:3000/serviceworker/redirect page after login
+   * where service worker will capture the results and send it back to original window where login
+   * was initiated.
+   *
+   * For browsers where service workers are not supported or if you wish to not use
+   * service workers,create and serve redirect page (i.e redirect.html file which is
+   * available in serviceworker folder of this package)
+   *
+   * If you are using redirect uxMode, you can get the results directly on your `redirectPathName`
+   * path using `getRedirectResult` function.
+   *
+   * For ex: if baseUrl is "http://localhost:3000" and `redirectPathName` is 'auth'
+   * then user will be redirected to http://localhost:3000/auth page after login
+   * where you can get login result by calling `getRedirectResult` on redirected page mount.
+   *
+   * Please refer to examples https://github.com/torusresearch/customauth/tree/master/examples
+   * for more understanding.
+   *
+   */
+  redirectPathName?: string;
+
+  /**
+   * @defaultValue `false`
+   * Disables the cloud factor key, enabling the one key semi custodial flow.
+   * Recommended for Non Custodial Flow.
+   */
+  disableHashedFactorKey?: boolean;
 }
 
-export interface Web3AuthState {
-  oAuthKey?: string;
-  signatures?: string[];
-  userInfo?: UserInfo;
-  tssNonce?: number;
-  tssShare2?: BN;
-  tssShare2Index?: number;
-  tssPubKey?: Buffer;
-  factorKey?: BN;
-  tssNodeEndpoints?: string[];
-}
-
-export type FactorKeyCloudMetadata = {
-  share: ShareStore;
-  tssShare: BN;
-  tssIndex: number;
-};
+export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
 export interface SessionData {
   oAuthKey: string;
   factorKey: string;
-  tssNonce: number;
-  tssShare: string;
   tssShareIndex: number;
   tssPubKey: string;
   signatures: string[];
