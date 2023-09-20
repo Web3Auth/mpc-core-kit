@@ -31,6 +31,7 @@ function App() {
   const [web3, setWeb3] = useState<any>(undefined)
   const [exportTssShareType, setExportTssShareType] = useState<TssShareType>(TssShareType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
+  const [coreKitStatus, setCoreKitStatus] = useState<COREKIT_STATUS>(COREKIT_STATUS.NOT_INITIALIZED);
   const [answer, setAnswer] = useState<string | undefined>(undefined);
   const [newAnswer, setNewAnswer] = useState<string | undefined>(undefined);
   const [question, setQuestion] = useState<string | undefined>(undefined);
@@ -49,6 +50,8 @@ function App() {
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
         uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
       }
+
+      setCoreKitStatus(coreKitInstance.status);
 
       try {
         let result = securityQuestion.getQuestion(coreKitInstance!);
@@ -84,7 +87,7 @@ function App() {
     if (!factorPubs) {
       throw new Error('factorPubs not found');
     }
-    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map(pub => {
+    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map((pub: any) => {
       return Point.fromTkeyPoint(pub).toBufferSEC1(true).toString('hex');
     });
     uiConsole(pubsHex);
@@ -106,6 +109,8 @@ function App() {
       } as SubVerifierDetailsParams;
 
       await coreKitInstance.loginWithOauth(verifierConfig);
+      setCoreKitStatus(coreKitInstance.status);
+
     } catch (error: unknown) {
       console.error(error);
     }
@@ -337,6 +342,10 @@ function App() {
           Get User Info
         </button>
 
+        <button onClick={async () => uiConsole(await coreKitInstance.getTssPublicKey())} className="card">
+          Get Public Key
+        </button>
+
         <button onClick={keyDetails} className="card">
           Key Details
         </button>
@@ -344,14 +353,21 @@ function App() {
         <button onClick={listFactors} className="card">
           List Factors
         </button>
+      </div>
+      <div className="flex-container">
 
         <button onClick={criticalResetAccount} className="card">
           [CRITICAL] Reset Account
         </button>
 
+        <button onClick={async () => uiConsole(await coreKitInstance._UNSAFE_exportTssKey())} className="card">
+          [CAUTION] Export TSS Private Key
+        </button>
+
         <button onClick={logout} className="card">
           Log Out
         </button>
+
       </div>
       <h2 className="subtitle">Recovery/ Key Manipulation</h2>
       <div>
@@ -372,29 +388,27 @@ function App() {
           <button onClick={exportFactor} className="card">
             Export share
           </button>
-          <label>Factor pub:</label>
+        </div>
+        <div className="flex-container">
+        <label>Factor pub:</label>
           <input value={factorPubToDelete} onChange={(e) => setFactorPubToDelete(e.target.value)}></input>
           <button onClick={deleteFactor} className="card">
             Delete Factor
           </button>
-          
+        </div>
         <div className="flex-container">
         <input value={backupFactorKey} onChange={(e) => setBackupFactorKey(e.target.value)}></input>
           <button onClick={() => inputBackupFactorKey()} className="card">
             Input Factor Key
           </button>
-          <button onClick={async () => uiConsole(await coreKitInstance._UNSAFE_exportTssKey())} className="card">
-            [CAUTION] Export Private Key
-          </button>
-        </div>
         </div>
 
 
         <h4>Security Question</h4>
 
         <div>{ question }</div>
-        <div className="flex-container-top">
-          <div className={ question ? "flex-column disabledDiv": "flex-column"}>
+        <div className="flex-container">
+          <div className={ question ? " disabledDiv": ""}>
             <label>Set Security Question:</label>
             <input value={question} placeholder="question" onChange={(e) => setNewQuestion(e.target.value)}></input>
             <input value={answer} placeholder="answer" onChange={(e) => setAnswer(e.target.value)}></input>
@@ -403,7 +417,7 @@ function App() {
             </button>
           </div>
 
-          <div className={ !question ? "flex-column disabledDiv": "flex-column"}>
+          <div className={ !question ? " disabledDiv": ""}>
             <label>Change Security Question:</label>
             <input value={newQuestion} placeholder="newQuestion" onChange={(e) => setNewQuestion(e.target.value)}></input>
             <input value={newAnswer} placeholder="newAnswer"  onChange={(e) => setNewAnswer(e.target.value)}></input>
@@ -413,7 +427,9 @@ function App() {
             </button>
               
           </div>
-          <div className={ !question ? "disabledDiv": ""}>
+        </div>
+        <div className="flex-container">
+        <div className={ !question ? "disabledDiv": ""}>
             <button onClick={() => deleteSecurityQuestion()} className="card">
               Delete Security Question
             </button>
@@ -451,7 +467,7 @@ function App() {
       <button onClick={() => login()} className="card">
         Login
       </button>
-      <div className={coreKitInstance.status=== COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv" } >
+      <div className={coreKitStatus=== COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv" } >
 
         <button onClick={() => getDeviceShare()} className="card">
           Get Device Share
