@@ -585,14 +585,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("user not logged in");
     }
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
-    let factorKey: BN;
-    if (this.options.disableHashedFactorKey) {
-      factorKey = generateFactorKey().private;
-    } else {
-      factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
-    }
+
     if (!existingUser) {
-      // Generate and device share and initialize tkey with it.
+      // Generate or use hash factor and initialize tkey with it.
+      let factorKey: BN;
+      if (this.options.disableHashedFactorKey) {
+        factorKey = generateFactorKey().private;
+      } else {
+        factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
+      }
       const deviceTSSShare = new BN(generatePrivate());
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
