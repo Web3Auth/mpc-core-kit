@@ -6,9 +6,9 @@ import BN from "bn.js";
  * @param shareMnemonic - The mnemonic to convert.
  * @returns A BN respective to your mnemonic
  */
-export async function mnemonicToKey(shareMnemonic: string): Promise<BN> {
+export function mnemonicToKey(shareMnemonic: string): string {
   const factorKey = ShareSerializationModule.deserializeMnemonic(shareMnemonic);
-  return factorKey;
+  return factorKey.toString("hex");
 }
 
 /**
@@ -16,7 +16,7 @@ export async function mnemonicToKey(shareMnemonic: string): Promise<BN> {
  * @param shareBN - The BN to convert.
  * @returns A mnemonic respective to your BN
  */
-export async function keyToMnemonic(shareHex: string): Promise<unknown> {
+export function keyToMnemonic(shareHex: string): string {
   const shareBN = new BN(shareHex, "hex");
   const mnemonic = ShareSerializationModule.serializeMnemonic(shareBN);
   return mnemonic;
