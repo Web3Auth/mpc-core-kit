@@ -364,7 +364,7 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     const factorKey = await coreKitInstance.enableMFA({});
-    const factorKeyMnemonic = await keyToMnemonic(coreKitInstance, factorKey);
+    const factorKeyMnemonic = keyToMnemonic(factorKey);
 
     uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
   }

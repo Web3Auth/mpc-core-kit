@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
@@ -178,7 +178,12 @@ function App() {
       shareType: exportTssShareType,
       factorKey: factorKey.private
     });
+    let mnemonic = keyToMnemonic(factorKey.private.toString('hex'));
+    let key = mnemonicToKey(mnemonic);
+
     uiConsole("Export factor key: ", factorKey);
+    console.log("menmonic : ", mnemonic);
+    console.log("key: ", key);  
   }
 
   const deleteFactor = async (): Promise<void> => {
@@ -329,7 +334,7 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     const factorKey = await coreKitInstance.enableMFA({});
-    const factorKeyMnemonic = await keyToMnemonic(coreKitInstance, factorKey);
+    const factorKeyMnemonic = await keyToMnemonic(factorKey);
 
     uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
   }
