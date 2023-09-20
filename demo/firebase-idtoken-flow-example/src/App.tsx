@@ -350,6 +350,15 @@ function App() {
     }
   }
 
+  const deleteSecurityQuestion = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    await securityQuestion.deleteSecurityQuestion(coreKitInstance);
+    setQuestion(undefined);
+
+  }
+
   const enableMFA = async () => { 
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
