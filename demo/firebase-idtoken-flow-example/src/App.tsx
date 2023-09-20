@@ -123,7 +123,7 @@ function App() {
 
       const idTokenLoginParams = {
         verifier: "w3a-firebase-demo",
-        verifierId: parsedToken.sub,
+        verifierId: parsedToken.email,
         idToken,
       } as IdTokenLoginParams;
 
