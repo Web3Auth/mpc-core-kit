@@ -1,4 +1,4 @@
-import { KeyDetails, Point as TkeyPoint } from "@tkey-mpc/common-types";
+import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -44,6 +44,15 @@ export enum COREKIT_STATUS {
   REQUIRED_SHARE = "REQUIRED_SHARE",
   LOGGED_IN = "LOGGED_IN",
 }
+
+export type MPCKeyDetails = {
+  metadataPubKey: TkeyPoint;
+  threshold: number;
+  requiredFactors: number;
+  totalFactors: number;
+  shareDescriptions: ShareDescriptionMap;
+  tssPubKey?: TkeyPoint;
+};
 
 export type OauthLoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
@@ -204,7 +213,7 @@ export interface ICoreKit {
   /**
    * Get information about how the keys of the user is managed according to the information in the metadata server.
    */
-  getKeyDetails(): KeyDetails;
+  getKeyDetails(): MPCKeyDetails;
 
   /**
    * Commit the changes made to the user's account when in manual sync mode.

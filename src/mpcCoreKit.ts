@@ -1,14 +1,5 @@
 /* eslint-disable @typescript-eslint/member-ordering */
-import {
-  BNString,
-  encrypt,
-  getPubKeyPoint,
-  KeyDetails,
-  Point as TkeyPoint,
-  SHARE_DELETED,
-  ShareStore,
-  StringifiedType,
-} from "@tkey-mpc/common-types";
+import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
@@ -48,6 +39,7 @@ import {
   ICoreKit,
   IdTokenLoginParams,
   IFactorKey,
+  MPCKeyDetails,
   OauthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
@@ -531,13 +523,22 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.state.userInfo;
   }
 
-  public getKeyDetails(): KeyDetails & { tssPubKey?: TkeyPoint } {
+  public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
-    const keyDetails = this.tKey.getKeyDetails();
-    keyDetails.shareDescriptions = this.tKey.getMetadata().getShareDescription();
-    // const tssPubKey = this.tKey.getTSSPub();
+    const tkeyDetails = this.tKey.getKeyDetails();
     const tssPubKey = this.state.tssPubKey ? this.tKey.getTSSPub() : undefined;
-    return { ...keyDetails, tssPubKey };
+
+    const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
+    const keyDetails: MPCKeyDetails = {
+      // use tkey's for now
+      requiredFactors: tkeyDetails.requiredShares,
+      threshold: tkeyDetails.threshold,
+      totalFactors: factors.length + 1,
+      shareDescriptions: this.tKey.getMetadata().getShareDescription(),
+      metadataPubKey: tkeyDetails.pubKey,
+      tssPubKey,
+    };
+    return keyDetails;
   }
 
   public async commitChanges(): Promise<void> {
