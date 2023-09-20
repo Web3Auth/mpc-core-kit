@@ -56,32 +56,7 @@ function App() {
         }
       }
 
-      if (window.location.hash.includes("#state")) {
-        submitRedirectResult();
-      }
     };
-    const submitRedirectResult = async () => {
-      try {
-        await coreKitInstance!.handleRedirectResult();
-        setCoreKitStatus(coreKitInstance.status)
-
-        try {
-          let result = securityQuestion.getQuestion(coreKitInstance!);
-          setQuestion(result);
-        } catch (e) {
-          uiConsole(e);
-        }
-
-        if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
-          uiConsole("required more shares, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
-        } else {
-          uiConsole("Current Core Kit Status:", coreKitInstance.status)
-          completeSetup();
-        }
-      } catch (error: unknown) {
-        uiConsole(error);
-      }
-    }
     init();
   }, []);
 
@@ -297,9 +272,9 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     //@ts-ignore
-    if (selectedNetwork === WEB3AUTH_NETWORK.MAINNET) {
-      throw new Error("reset account is not recommended on mainnet");
-    }
+    // if (selectedNetwork === WEB3AUTH_NETWORK.MAINNET) {
+    //   throw new Error("reset account is not recommended on mainnet");
+    // }
     await coreKitInstance.tKey.storageLayer.setMetadata({
       privKey: new BN(coreKitInstance.metadataKey!, "hex"),
       input: { message: "KEY_NOT_FOUND" },

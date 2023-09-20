@@ -1,9 +1,10 @@
 import { getPubKeyPoint, Point, Point as TkeyPoint, randomSelection } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
-import { CURVE, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import { VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -141,7 +142,9 @@ export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDele
   await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
 }
 
-export const getCloudPrivateKey = (postboxKey: string, clientId: string, verifier: string, verifierId: string): BN => {
-  const uid = `${clientId}_${verifier}_${verifierId}`;
-  return new BN(postboxKey, "hex").sub(new BN(Buffer.from(uid, "utf8"))).umod(CURVE.n);
+export const getHashedPrivateKey = (postboxKey: string, clientId: string, verifier: string, verifierId: string): BN => {
+  const uid = `${postboxKey}_${clientId}_${verifier}_${verifierId}`;
+  let hashUid = keccak256(Buffer.from(uid, "utf8"));
+  hashUid = hashUid.replace("0x", "");
+  return new BN(hashUid, "hex");
 };

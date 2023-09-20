@@ -1,4 +1,4 @@
-import { KeyDetails, Point as TkeyPoint, ShareStore } from "@tkey-mpc/common-types";
+import { KeyDetails, Point as TkeyPoint } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -312,7 +312,7 @@ export interface Web3AuthOptions {
    * Disables the cloud factor key, enabling the one key semi custodial flow.
    * Recommended for Non Custodial Flow.
    */
-  disableCloudFactorKey?: boolean;
+  disableHashedFactorKey?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;

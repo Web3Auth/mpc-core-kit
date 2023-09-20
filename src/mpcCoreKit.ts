@@ -57,7 +57,7 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { Point } from "./point";
-import { addFactorAndRefresh, deleteFactorAndRefresh, generateFactorKey, generateTSSEndpoints, getCloudPrivateKey, parseToken } from "./utils";
+import { addFactorAndRefresh, deleteFactorAndRefresh, generateFactorKey, generateTSSEndpoints, getHashedPrivateKey, parseToken } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = {};
@@ -106,7 +106,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
     if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
-    if (!options.disableCloudFactorKey) options.disableCloudFactorKey = false;
+    if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -234,7 +234,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     if (window.location.hash.includes("#state")) {
-      this.handleRedirectResult();
+      await this.handleRedirectResult();
     }
   }
 
@@ -409,11 +409,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  public getTssPublicKey(): TkeyPoint {
+    this.checkReady();
+    return this.tKey.getTSSPub();
+  }
+
   public async enableMFA(enableMFAParams: EnableMFAParams): Promise<string> {
     this.checkReady();
 
-    const cloudFactorKey = getCloudPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
-    if (!(await this.checkIfFactorKeyValid(cloudFactorKey))) {
+    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
+    if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
       throw new Error("MFA already enabled");
     }
 
@@ -431,8 +436,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
 
-      const cloudFactorPub = getPubKeyPoint(cloudFactorKey);
-      this.deleteFactor(cloudFactorPub, cloudFactorKey);
+      const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
+      await this.deleteFactor(hashedFactorPub, hashedFactorKey);
+      await this.deleteShareWithFactorKey(hashedFactorKey);
 
       return backupFactorKey;
     } catch (err: unknown) {
@@ -529,7 +535,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const keyDetails = this.tKey.getKeyDetails();
     keyDetails.shareDescriptions = this.tKey.getMetadata().getShareDescription();
     // const tssPubKey = this.tKey.getTSSPub();
-    return { ...keyDetails };
+    const tssPubKey = this.state.tssPubKey ? this.tKey.getTSSPub() : undefined;
+    return { ...keyDetails, tssPubKey };
   }
 
   public async commitChanges(): Promise<void> {
@@ -579,10 +586,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
     let factorKey: BN;
-    if (this.options.disableCloudFactorKey) {
+    if (this.options.disableHashedFactorKey) {
       factorKey = generateFactorKey().private;
     } else {
-      factorKey = getCloudPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
+      factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
     }
     if (!existingUser) {
       // Generate and device share and initialize tkey with it.
@@ -597,20 +604,21 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       // Store factor description.
       await this.backupShareWithFactorKey(factorKey);
-      if (this.options.disableCloudFactorKey) {
+      if (this.options.disableHashedFactorKey) {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.Other);
       } else {
-        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.CloudShare);
+        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
       }
-    } else if (await this.checkIfFactorKeyValid(factorKey)) {
-      // Initialize tkey with existing share.
-      const factorPub = getPubKeyPoint(factorKey);
-      const { tssIndex, tssShare } = await this.tKey.getTSSShare(factorKey);
-      await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare: tssShare, deviceTSSIndex: tssIndex });
-      await this.tKey.reconstructKey();
-      await this.finalizeTkey(factorKey);
     } else {
       await this.tKey.initialize({ neverInitializeNewKey: true });
+      const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
+      if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
+        // Initialize tkey with existing hashed share if available.
+        const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
+        await this.tKey.inputShareStoreSafe(factorKeyMetadata);
+        await this.tKey.reconstructKey();
+        await this.finalizeTkey(hashedFactorKey);
+      }
     }
     this.authLoggedIn = true;
   }
@@ -618,11 +626,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async finalizeTkey(factorKey: BN) {
     // Read tss meta data.
     const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
-    const tssPubKeyPoint = this.tKey.getTSSPub();
-    const tssPubKey = Buffer.from(
-      `${tssPubKeyPoint.x.toString(16, FIELD_ELEMENT_HEX_LEN)}${tssPubKeyPoint.y.toString(16, FIELD_ELEMENT_HEX_LEN)}`,
-      "hex"
-    );
+    const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
 
     this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
