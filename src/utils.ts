@@ -3,7 +3,7 @@ import ThresholdKey from "@tkey-mpc/core";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import BN from "bn.js";
 
-import { VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import { CURVE, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -140,3 +140,8 @@ export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDele
 
   await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
 }
+
+export const getCloudPrivateKey = (postboxKey: string, clientId: string, verifier: string, verifierId: string): BN => {
+  const uid = `${clientId}_${verifier}_${verifierId}`;
+  return new BN(postboxKey, "hex").sub(new BN(Buffer.from(uid, "utf8"))).umod(CURVE.n);
+};

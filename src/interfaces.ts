@@ -48,11 +48,7 @@ export enum COREKIT_STATUS {
 export type OauthLoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
-export interface CreateFactorParams {
-  /**
-   * Setting the Type of Share - Device or Recovery.
-   **/
-  shareType: TssShareType;
+export interface EnableMFAParams {
   /**
    * A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
    */
@@ -65,6 +61,13 @@ export interface CreateFactorParams {
    * Additional metadata information you want to be stored alongside this factor for easy identification.
    */
   additionalMetadata?: Record<string, string>;
+}
+
+export interface CreateFactorParams extends EnableMFAParams {
+  /**
+   * Setting the Type of Share - Device or Recovery.
+   **/
+  shareType: TssShareType;
 }
 
 export interface IdTokenLoginParams {
@@ -159,9 +162,10 @@ export interface ICoreKit {
   loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
 
   /**
-   * Handle redirect result after login.
+   * Enable MFA for the user. Deletes the Cloud Factor and generates a new Factor Key.
+   * Recommended for Non Custodial Flow.
    */
-  handleRedirectResult(): Promise<void>;
+  enableMFA(enableMFAParams: EnableMFAParams): Promise<string>;
 
   /**
    * Second step for login where the user inputs their factor key.
@@ -208,11 +212,6 @@ export interface ICoreKit {
   commitChanges(): Promise<void>;
 
   /**
-   * Import an existing private key into the Web3Auth MPC Infrastructure.
-   */
-  importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex?: TssShareType): Promise<void>;
-
-  /**
    * Export the user's current TSS MPC account as a private key
    */
   _UNSAFE_exportTssKey(): Promise<string>;
@@ -245,7 +244,7 @@ export interface Web3AuthOptions {
 
   /**
    *
-   * @defaultValue `'sapphire_mainner'`
+   * @defaultValue `'sapphire_mainnet'`
    */
   web3AuthNetwork?: WEB3AUTH_NETWORK_TYPE;
 
@@ -276,7 +275,7 @@ export interface Web3AuthOptions {
    * redirected after login. Redirect Uri for OAuth is baseUrl/redirectPathName.
    *
    *
-   * @defaultValue redirect
+   * @defaultValue `"redirect"`
    *
    * @remarks
    * At verifier's interface (where you obtain client id), please use baseUrl/redirectPathName
@@ -307,15 +306,16 @@ export interface Web3AuthOptions {
    *
    */
   redirectPathName?: string;
+
+  /**
+   * @defaultValue `false`
+   * Disables the cloud factor key, enabling the one key semi custodial flow.
+   * Recommended for Non Custodial Flow.
+   */
+  disableCloudFactorKey?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
-
-export type FactorKeyCloudMetadata = {
-  share: ShareStore;
-  // tssShare: BN;
-  // tssIndex: number;
-};
 
 export interface SessionData {
   oAuthKey: string;

@@ -23,6 +23,7 @@ import { Client, utils as tssUtils } from "@toruslabs/tss-client";
 import { CHAIN_NAMESPACES, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
+import bowser from "bowser";
 
 import {
   CURVE,
@@ -38,11 +39,12 @@ import {
   VALID_SHARE_INDICES,
   WEB3AUTH_NETWORK,
 } from "./constants";
-import { BrowserStorage } from "./helper/browserStorage";
+import { BrowserStorage, storeWebBrowserFactor } from "./helper/browserStorage";
 import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
   CreateFactorParams,
+  EnableMFAParams,
   ICoreKit,
   IdTokenLoginParams,
   IFactorKey,
@@ -55,7 +57,7 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { Point } from "./point";
-import { addFactorAndRefresh, deleteFactorAndRefresh, generateFactorKey, generateTSSEndpoints, parseToken } from "./utils";
+import { addFactorAndRefresh, deleteFactorAndRefresh, generateFactorKey, generateTSSEndpoints, getCloudPrivateKey, parseToken } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = {};
@@ -102,6 +104,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.storageKey) options.storageKey = "local";
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
+    if (!options.redirectPathName) options.redirectPathName = "redirect";
+    if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
+    if (!options.disableCloudFactorKey) options.disableCloudFactorKey = false;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -227,6 +232,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.rehydrateSession();
       if (this.state.factorKey) await this.setupProvider();
     }
+
+    if (window.location.hash.includes("#state")) {
+      this.handleRedirectResult();
+    }
   }
 
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
@@ -324,7 +333,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async handleRedirectResult(): Promise<void> {
+  private async handleRedirectResult(): Promise<void> {
     this.checkReady();
 
     try {
@@ -370,8 +379,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async inputFactorKey(factorKey: BN): Promise<void> {
     this.checkReady();
     try {
-      const metadataShare = await this.checkIfFactorKeyValid(factorKey);
-      await this.tKey.inputShareStoreSafe(metadataShare, true);
+      const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
+      await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
 
       // Finalize initialization.
       await this.tKey.reconstructKey();
@@ -396,6 +405,38 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       };
     } catch (err: unknown) {
       log.error("state error", err);
+      throw new Error((err as Error).message);
+    }
+  }
+
+  public async enableMFA(enableMFAParams: EnableMFAParams): Promise<string> {
+    this.checkReady();
+
+    const cloudFactorKey = getCloudPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
+    if (!(await this.checkIfFactorKeyValid(cloudFactorKey))) {
+      throw new Error("MFA already enabled");
+    }
+
+    try {
+      const browserInfo = bowser.parse(navigator.userAgent);
+      const browserName = `${browserInfo.browser.name}`;
+      const browserData = {
+        browserName,
+        browserVersion: browserInfo.browser.version,
+        deviceName: browserInfo.os.name,
+      };
+      const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
+      storeWebBrowserFactor(deviceFactorKey, this);
+      await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
+
+      const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
+
+      const cloudFactorPub = getPubKeyPoint(cloudFactorKey);
+      this.deleteFactor(cloudFactorPub, cloudFactorKey);
+
+      return backupFactorKey;
+    } catch (err: unknown) {
+      log.error("error enabling MFA", err);
       throw new Error((err as Error).message);
     }
   }
@@ -504,7 +545,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  private async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
     if (!this.state.signatures) throw new Error("signatures not present");
 
     const tssKeyBN = new BN(tssKey, "hex");
@@ -536,10 +579,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
     let factorKey: BN;
+    if (this.options.disableCloudFactorKey) {
+      factorKey = generateFactorKey().private;
+    } else {
+      factorKey = getCloudPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId, this.verifier, this.verifierId);
+    }
     if (!existingUser) {
-      // Generate new factor key if not provided.
-      factorKey = new BN(generatePrivate());
-
       // Generate and device share and initialize tkey with it.
       const deviceTSSShare = new BN(generatePrivate());
       const deviceTSSIndex = TssShareType.DEVICE;
@@ -552,9 +597,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       // Store factor description.
       await this.backupShareWithFactorKey(factorKey);
-      await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.DeviceShare);
-    } else {
+      if (this.options.disableCloudFactorKey) {
+        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.Other);
+      } else {
+        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.CloudShare);
+      }
+    } else if (await this.checkIfFactorKeyValid(factorKey)) {
       // Initialize tkey with existing share.
+      const factorPub = getPubKeyPoint(factorKey);
+      const { tssIndex, tssShare } = await this.tKey.getTSSShare(factorKey);
+      await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare: tssShare, deviceTSSIndex: tssIndex });
+      await this.tKey.reconstructKey();
+      await this.finalizeTkey(factorKey);
+    } else {
       await this.tKey.initialize({ neverInitializeNewKey: true });
     }
     this.authLoggedIn = true;
@@ -597,9 +652,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
       this.torusSp.verifierType = result.userInfo.aggregateVerifier ? "aggregate" : "normal";
-      const deviceShare = await this.checkIfFactorKeyValid(factorKey);
+      const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
       await this.tKey.initialize({ neverInitializeNewKey: true });
-      await this.tKey.inputShareStoreSafe(deviceShare, true);
+      await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
       await this.tKey.reconstructKey();
 
       this.updateState({
@@ -649,7 +704,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return false;
   }
 
-  private async checkIfFactorKeyValid(factorKey: BN): Promise<ShareStore> {
+  private async checkIfFactorKeyValid(factorKey: BN): Promise<boolean> {
+    this.checkReady();
+    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey });
+    if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
+      return false;
+    }
+    return true;
+  }
+
+  private async getFactorKeyMetadata(factorKey: BN): Promise<ShareStore> {
     this.checkReady();
     const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey });
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
