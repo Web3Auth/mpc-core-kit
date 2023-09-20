@@ -28,9 +28,9 @@ export interface SubVerifierDetailsParams extends BaseLoginParams {
 }
 
 export interface AggregateVerifierLoginParams extends BaseLoginParams {
-  aggregateVerifierIdentifier?: string;
+  aggregateVerifierIdentifier: string;
+  subVerifierDetailsArray: SubVerifierDetails[];
   aggregateVerifierType?: AGGREGATE_VERIFIER_TYPE;
-  subVerifierDetailsArray?: SubVerifierDetails[];
 }
 
 export interface IFactorKey {
