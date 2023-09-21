@@ -841,7 +841,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async setupProvider(): Promise<void> {
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
-    const { tssShareIndex, tssPubKey } = this.state;
+    let { tssShareIndex, tssPubKey } = this.state;
     const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
       verifier: "test-verifier",
       verifierId: "test@example.com",
@@ -853,6 +853,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (!tssPubKey || !torusNodeTSSEndpoints) {
       throw new Error("tssPubKey or torusNodeTSSEndpoints not available");
+    }
+
+    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
+      tssPubKey = tssPubKey.subarray(1);
     }
 
     const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
