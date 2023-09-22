@@ -593,6 +593,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       let factorKey: BN;
       if (this.options.disableHashedFactorKey) {
         factorKey = generateFactorKey().private;
+        // delete previous hashed factorKey if present
+        const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
+        await this.deleteShareWithFactorKey(hashedFactorKey);
       } else {
         factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
       }
@@ -615,10 +618,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else {
       await this.tKey.initialize({ neverInitializeNewKey: true });
       const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
-      if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
+      if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
         // Initialize tkey with existing hashed share if available.
         const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
-        await this.tKey.inputShareStoreSafe(factorKeyMetadata);
+        await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
         await this.tKey.reconstructKey();
         await this.finalizeTkey(hashedFactorKey);
       }
