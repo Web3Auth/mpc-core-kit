@@ -76,8 +76,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
-  private authLoggedIn = false;
-
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
@@ -146,12 +144,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   get status(): COREKIT_STATUS {
-    if (this.authLoggedIn) {
-      if (!this.tkey.privKey) return COREKIT_STATUS.REQUIRED_SHARE;
-      if (!this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
-      return COREKIT_STATUS.LOGGED_IN;
-    }
-    if (this.ready) return COREKIT_STATUS.INITIALIZED;
+    try {
+      if (this.tKey.privKey && this.state.factorKey) return COREKIT_STATUS.LOGGED_IN;
+      try {
+        if (this.tKey.getKeyDetails().requiredShares > 0) return COREKIT_STATUS.REQUIRED_SHARE;
+      } catch {}
+      if (this.tKey) return COREKIT_STATUS.INITIALIZED;
+    } catch (e) {}
     return COREKIT_STATUS.NOT_INITIALIZED;
   }
 
@@ -623,7 +622,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.finalizeTkey(hashedFactorKey);
       }
     }
-    this.authLoggedIn = true;
   }
 
   private async finalizeTkey(factorKey: BN) {
