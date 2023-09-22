@@ -618,7 +618,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else {
       await this.tKey.initialize({ neverInitializeNewKey: true });
       const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
-      if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
+      if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
         // Initialize tkey with existing hashed share if available.
         const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
         await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
