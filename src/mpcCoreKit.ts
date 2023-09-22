@@ -145,11 +145,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   get status(): COREKIT_STATUS {
     try {
-      if (this.tKey.privKey && this.state.factorKey) return COREKIT_STATUS.LOGGED_IN;
+      // will throw if tkey undefined
+      const { tKey } = this;
+      if (tKey.privKey && this.state.factorKey) return COREKIT_STATUS.LOGGED_IN;
       try {
-        if (this.tKey.getKeyDetails().requiredShares > 0) return COREKIT_STATUS.REQUIRED_SHARE;
+        if (tKey.getKeyDetails().requiredShares > 0) return COREKIT_STATUS.REQUIRED_SHARE;
       } catch {}
-      if (this.tKey) return COREKIT_STATUS.INITIALIZED;
+      return COREKIT_STATUS.INITIALIZED;
     } catch (e) {}
     return COREKIT_STATUS.NOT_INITIALIZED;
   }
