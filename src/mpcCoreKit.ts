@@ -76,8 +76,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
-  private authLoggedIn = false;
-
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
@@ -146,12 +144,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   get status(): COREKIT_STATUS {
-    if (this.authLoggedIn) {
-      if (!this.tkey.privKey) return COREKIT_STATUS.REQUIRED_SHARE;
-      if (!this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
+    try {
+      // metadata will be present if tkey is initialized (1 share)
+      // if 2 shares are present, then privKey will be present after metadatakey(tkey) reconstruction
+      const { tkey } = this;
+      if (!tkey) return COREKIT_STATUS.NOT_INITIALIZED;
+      if (!tkey.metadata) return COREKIT_STATUS.INITIALIZED;
+      if (!tkey.privKey || !this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
       return COREKIT_STATUS.LOGGED_IN;
-    }
-    if (this.ready) return COREKIT_STATUS.INITIALIZED;
+    } catch (e) {}
     return COREKIT_STATUS.NOT_INITIALIZED;
   }
 
@@ -626,7 +627,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.finalizeTkey(hashedFactorKey);
       }
     }
-    this.authLoggedIn = true;
   }
 
   private async finalizeTkey(factorKey: BN) {
