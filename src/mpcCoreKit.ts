@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey-mpc/common-types";
-import ThresholdKey, { CoreError } from "@tkey-mpc/core";
+import ThresholdKey, { CoreError, lagrangeInterpolation } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
@@ -175,6 +175,39 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
+  public async recoverTssKey(factorKey: string[]) {
+    this.checkReady();
+    const factorKeyBN = new BN(factorKey[0], "hex");
+
+    const shareStore0 = await this.getFactorKeyMetadata(factorKeyBN);
+    await this.tKey.initialize({ withShare: shareStore0 });
+
+    for (let i = 1; i < factorKey.length; i++) {
+      const factorKeyBNInput = new BN(factorKey[i], "hex");
+      const shareStore = await this.getFactorKeyMetadata(factorKeyBNInput);
+      await this.tKey.inputShareStoreSafe(shareStore, true);
+    }
+    await this.tKey.reconstructKey();
+
+    const tssShares: BN[] = [];
+    const tssIndexes: number[] = [];
+    const tssIndexesBN: BN[] = [];
+    for (let i = 0; i < factorKey.length; i++) {
+      const factorKeyBNInput = new BN(factorKey[i], "hex");
+      const { tssIndex, tssShare } = await this.tKey.getTSSShare(factorKeyBNInput);
+      if (tssIndexes.includes(tssIndex)) {
+        await this.init();
+        throw new Error("Duplicate TSS Index");
+      }
+      tssIndexes.push(tssIndex);
+      tssIndexesBN.push(new BN(tssIndex));
+      tssShares.push(tssShare);
+    }
+
+    const finalKey = lagrangeInterpolation(tssShares, tssIndexesBN);
+    return finalKey.toString("hex");
+  }
+
   public async init(): Promise<void> {
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
@@ -226,12 +259,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (this.state.factorKey) await this.setupProvider();
     }
 
-    if (window.location.hash.includes("#state")) {
+    if (window?.location.hash.includes("#state")) {
       await this.handleRedirectResult();
     }
   }
 
-  public async loginWithOauth(params: OauthLoginParams): Promise<void> {
+  public async loginWithOauth(params: OauthLoginParams, importTssKey?: string): Promise<void> {
     this.checkReady();
 
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
@@ -266,7 +299,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         });
       }
 
-      await this.setupTkey();
+      await this.setupTkey(importTssKey);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -276,7 +309,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void> {
+  public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams, importTssKey?: string): Promise<void> {
     this.checkReady();
 
     const { verifier, verifierId, idToken } = idTokenLoginParams;
@@ -316,7 +349,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
 
-      await this.setupTkey();
+      await this.setupTkey(importTssKey);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -561,7 +594,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.state.signatures) throw new Error("signatures not present");
 
     const tssKeyBN = new BN(tssKey, "hex");
-    this.tKey.importTssKey({ tag: this.tKey.tssTag, importKey: tssKeyBN, factorPub, newTSSIndex }, { authSignatures: this.state.signatures });
+    await this.tKey.importTssKey({ tag: this.tKey.tssTag, importKey: tssKeyBN, factorPub, newTSSIndex }, { authSignatures: this.state.signatures });
   }
 
   public async _UNSAFE_exportTssKey(): Promise<string> {
@@ -583,12 +616,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tssNonce;
   }
 
-  private async setupTkey(): Promise<void> {
+  private async setupTkey(importTssKey?: string): Promise<void> {
     if (!this.state.oAuthKey) {
       throw new Error("user not logged in");
     }
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
-
     if (!existingUser) {
       // Generate or use hash factor and initialize tkey with it.
       let factorKey: BN;
@@ -600,10 +632,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
       }
-      const deviceTSSShare = new BN(generatePrivate());
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
-      await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
+      if (importTssKey) {
+        const deviceTSSShare = new BN(generatePrivate());
+        await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
+      } else {
+        await this.tKey.initialize();
+        await this.importTssKey(importTssKey, factorPub, deviceTSSIndex);
+      }
 
       // Finalize initialization.
       await this.tKey.reconstructKey();
@@ -617,6 +654,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
       }
     } else {
+      if (importTssKey) throw new Error("Cannot import tss key for existing user");
       await this.tKey.initialize({ neverInitializeNewKey: true });
       const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
       if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
