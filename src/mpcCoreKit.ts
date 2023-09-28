@@ -24,7 +24,7 @@ import {
   FactorKeyTypeShareDescription,
   FIELD_ELEMENT_HEX_LEN,
   MAX_FACTORS,
-  SCALAR_HEX_LEN,
+  SCALAR_LEN,
   SOCIAL_TKEY_INDEX,
   TssShareType,
   VALID_SHARE_INDICES,
@@ -779,7 +779,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     factorEncs[factorPubID] = {
       tssIndex: this.state.tssShareIndex,
       type: "direct",
-      userEnc: await encrypt(Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false), Buffer.from(tssShare.toString(16, SCALAR_HEX_LEN), "hex")),
+      userEnc: await encrypt(Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false), tssShare.toArrayLike(Buffer, "be", SCALAR_LEN)),
       serverEncs: [],
     };
     this.tKey.metadata.addTSSData({
@@ -882,8 +882,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       const participatingServerDKGIndexes = [1, 2, 3];
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
-      const denormalisedShare = dklsCoeff.mul(tssShare as BN).umod(CURVE.curve.n);
-      const share = Buffer.from(denormalisedShare.toString(16, SCALAR_HEX_LEN), "hex").toString("base64");
+      const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
+      const share = denormalisedShare.toArrayLike(Buffer, "be", SCALAR_LEN).toString("base64");
 
       if (!currentSession) {
         throw new Error(`sessionAuth does not exist ${currentSession}`);
@@ -920,7 +920,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         recoveryParam += 27;
       }
       await client.cleanup(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
-      return { v: recoveryParam, r: r.toArrayLike(Buffer, "be", SCALAR_HEX_LEN), s: s.toArrayLike(Buffer, "be", SCALAR_HEX_LEN) };
+      return { v: recoveryParam, r: r.toArrayLike(Buffer, "be", SCALAR_LEN), s: s.toArrayLike(Buffer, "be", SCALAR_LEN) };
     };
 
     const getPublic: () => Promise<Buffer> = async () => {
