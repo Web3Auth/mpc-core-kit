@@ -4,6 +4,26 @@ import { FIELD_ELEMENT_HEX_LEN } from "../constants";
 import { ICoreKit, IStorage, TkeyLocalStoreData } from "../interfaces";
 import { storageAvailable } from "../utils";
 
+export class MockStorage implements IStorage {
+  private _store: Record<string, string> = {};
+
+  getItem(key: string): string | null {
+    return this._store[key] || null;
+  }
+
+  setItem(key: string, value: string): void {
+    this._store[key] = value;
+  }
+
+  removeItem(key: string): void {
+    delete this._store[key];
+  }
+
+  clear(): void {
+    this._store = {};
+  }
+}
+
 export class BrowserStorage {
   // eslint-disable-next-line no-use-before-define
   private static instance: BrowserStorage;
@@ -12,7 +32,7 @@ export class BrowserStorage {
 
   private _storeKey: string;
 
-  private constructor(storeKey: string, storage: IStorage) {
+  constructor(storeKey: string, storage: IStorage) {
     this.storage = storage;
     this._storeKey = storeKey;
     try {
@@ -24,16 +44,18 @@ export class BrowserStorage {
     }
   }
 
-  static getInstance(key: string, storageKey: "session" | "local" = "local"): BrowserStorage {
+  static getInstance(key: string, storageKey: "session" | "local" | "mock" = "local"): BrowserStorage {
     if (!this.instance) {
-      let storage: Storage | undefined;
+      let storage: IStorage | undefined;
       if (storageKey === "local" && storageAvailable("localStorage")) {
         storage = localStorage;
       }
       if (storageKey === "session" && storageAvailable("sessionStorage")) {
         storage = sessionStorage;
       }
-
+      if (storageKey === "mock") {
+        storage = new MockStorage();
+      }
       if (!storage) {
         throw new Error("No valid storage available");
       }

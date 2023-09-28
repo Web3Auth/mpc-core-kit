@@ -261,7 +261,7 @@ export interface Web3AuthOptions {
    *
    * @defaultValue `'local'`
    */
-  storageKey?: "session" | "local";
+  storageKey?: "session" | "local" | "mock";
 
   /**
    * @defaultValue 86400

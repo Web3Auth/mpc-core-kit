@@ -226,7 +226,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (this.state.factorKey) await this.setupProvider();
     }
 
-    if (window.location.hash.includes("#state")) {
+    if (window?.location.hash.includes("#state")) {
       await this.handleRedirectResult();
     }
   }
