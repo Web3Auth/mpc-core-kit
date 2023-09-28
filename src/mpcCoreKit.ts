@@ -464,7 +464,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.backupShareWithFactorKey(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
       if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
-      return factorKey.toString("hex").padStart(64, "0");
+      return factorKey.toArrayLike(Buffer, "be", SCALAR_LEN).toString("hex");
     } catch (error) {
       log.error("error creating factor", error);
       throw error;
@@ -476,15 +476,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.tKey.metadata.factorPubs) throw new Error("Factor pubs not present");
     const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
     if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
-    if (
-      Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex") ===
-      Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey)).toBufferSEC1(true).toString("hex")
-    ) {
+    const fpp = Point.fromTkeyPoint(factorPub);
+    const stateFpp = Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey));
+    if (fpp.equals(stateFpp)) {
       throw new Error("Cannot delete current active factor");
     }
 
     await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, this.signatures);
-    const factorPubHex = Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex");
+    const factorPubHex = fpp.toBufferSEC1(true).toString("hex");
     const allDesc = this.tKey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
@@ -498,7 +497,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const factorKeyBN = new BN(factorKey, "hex");
       const derivedFactorPub = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN));
       // only delete if factorPub matches
-      if (derivedFactorPub.toBufferSEC1(true).toString("hex") === factorPubHex) {
+      if (derivedFactorPub.equals(fpp)) {
         await this.deleteShareWithFactorKey(factorKeyBN);
       }
     }

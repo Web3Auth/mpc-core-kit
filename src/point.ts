@@ -75,4 +75,13 @@ export class Point {
 
     return Buffer.from(this.p.encode("hex", compressed), "hex");
   }
+
+  /**
+   * Checks for point equality between `this` and `p`.
+   * @param p - The point to compare to.
+   * @returns True if `this == p`. False otherwise.
+   */
+  public equals(p: Point): boolean {
+    return this.p.eq(p.p);
+  }
 }
