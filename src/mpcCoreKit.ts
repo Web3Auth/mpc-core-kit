@@ -912,9 +912,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       client.precompute(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
       await client.ready();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { r, s, recoveryParam } = await client.sign(tss as any, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
+      let { r, s, recoveryParam } = await client.sign(tss as any, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
         signatures: this.signatures,
       });
+
+      if (recoveryParam < 27) {
+        recoveryParam += 27;
+      }
       await client.cleanup(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
       return { v: recoveryParam, r: r.toArrayLike(Buffer, "be", SCALAR_HEX_LEN), s: s.toArrayLike(Buffer, "be", SCALAR_HEX_LEN) };
     };
