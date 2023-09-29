@@ -59,7 +59,7 @@ export enum TssShareType {
 
 export const VALID_SHARE_INDICES = [TssShareType.DEVICE, TssShareType.RECOVERY];
 
-export const SCALAR_HEX_LEN = 32 * 2; // Length of secp256k1 scalar in hex form.
+export const SCALAR_LEN = 32; // Length of secp256k1 scalar in bytes.
 export const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
 export const CURVE = new EllipticCurve("secp256k1");
 
