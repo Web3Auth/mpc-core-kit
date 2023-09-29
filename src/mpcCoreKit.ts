@@ -440,10 +440,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async createFactor(createFactorParams: CreateFactorParams): Promise<string> {
+  public async createFactor(params: CreateFactorParams): Promise<string> {
     this.checkReady();
 
-    let { shareType, factorKey, shareDescription, additionalMetadata } = createFactorParams;
+    let { shareType, factorKey, shareDescription, additionalMetadata } = params;
 
     if (!VALID_SHARE_INDICES.includes(shareType)) {
       throw new Error(`invalid share type: must be one of ${VALID_SHARE_INDICES}`);
