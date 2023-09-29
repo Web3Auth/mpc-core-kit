@@ -431,7 +431,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
-      await this.deleteShareWithFactorKey(hashedFactorKey);
+      await this.deleteMetadataShareBackup(hashedFactorKey);
 
       return backupFactorKey;
     } catch (err: unknown) {
@@ -461,7 +461,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       const factorPub = getPubKeyPoint(factorKey);
       await this.copyOrCreateShare(shareType, factorPub);
-      await this.backupShareWithFactorKey(factorKey);
+      await this.backupMetadataShare(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
       if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
       return factorKey.toArrayLike(Buffer, "be", SCALAR_LEN).toString("hex");
@@ -498,7 +498,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const derivedFactorPub = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN));
       // only delete if factorPub matches
       if (derivedFactorPub.equals(fpp)) {
-        await this.deleteShareWithFactorKey(factorKeyBN);
+        await this.deleteMetadataShareBackup(factorKeyBN);
       }
     }
     await this.tKey._syncShareMetadata();
@@ -595,7 +595,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         factorKey = generateFactorKey().private;
         // delete previous hashed factorKey if present
         const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
-        await this.deleteShareWithFactorKey(hashedFactorKey);
+        await this.deleteMetadataShareBackup(hashedFactorKey);
       } else {
         factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
       }
@@ -609,7 +609,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.finalizeTkey(factorKey);
 
       // Store factor description.
-      await this.backupShareWithFactorKey(factorKey);
+      await this.backupMetadataShare(factorKey);
       if (this.options.disableHashedFactorKey) {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.Other);
       } else {
@@ -808,12 +808,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  private async deleteShareWithFactorKey(factorKey: BN): Promise<void> {
+  private async deleteMetadataShareBackup(factorKey: BN): Promise<void> {
     await this.tKey.addLocalMetadataTransitions({ input: [{ message: SHARE_DELETED, dateAdded: Date.now() }], privKey: [factorKey] });
     if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
   }
 
-  private async backupShareWithFactorKey(factorKey: BN) {
+  private async backupMetadataShare(factorKey: BN) {
     const metadataShare = await this.getMetadataShare();
 
     // Set metadata for factor key backup
