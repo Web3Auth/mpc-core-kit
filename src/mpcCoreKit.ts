@@ -16,6 +16,7 @@ import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
 import bowser from "bowser";
 
+// import { name, version } from "../package.json";
 import {
   CURVE,
   DEFAULT_CHAIN_CONFIG,
@@ -77,6 +78,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private ready = false;
 
   constructor(options: Web3AuthOptions) {
+    // log.info("======================================================");
+    // log.info(`WEB3AUTH SDK : ${name}:${version}`);
+
+    // log.info("======================================================");
+
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
       throw new Error("You must specify a eip155 chain config.");
@@ -180,14 +186,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const factorKeyBN = new BN(factorKey[0], "hex");
 
     const shareStore0 = await this.getFactorKeyMetadata(factorKeyBN);
+    // eslint-disable-next-line no-console
+    console.log("shareStore0", shareStore0);
     await this.tKey.initialize({ withShare: shareStore0 });
 
-    for (let i = 1; i < factorKey.length; i++) {
-      const factorKeyBNInput = new BN(factorKey[i], "hex");
-      const shareStore = await this.getFactorKeyMetadata(factorKeyBNInput);
-      await this.tKey.inputShareStoreSafe(shareStore, true);
-    }
-    await this.tKey.reconstructKey();
+    // for (let i = 1; i < factorKey.length; i++) {
+    //   const factorKeyBNInput = new BN(factorKey[i], "hex");
+    //   const shareStore = await this.getFactorKeyMetadata(factorKeyBNInput);
+    //   // eslint-disable-next-line no-console
+    //   console.log("shareStore", shareStore);
+    //   await this.tKey.inputShareStoreSafe(shareStore, true);
+    // }
+    // await this.tKey.reconstructKey();
+    // hack for now
+    this.tkey.privKey = new BN(factorKey[1], "hex");
 
     const tssShares: BN[] = [];
     const tssIndexes: number[] = [];
@@ -634,7 +646,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
-      if (importTssKey) {
+      if (!importTssKey) {
         const deviceTSSShare = new BN(generatePrivate());
         await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
       } else {
