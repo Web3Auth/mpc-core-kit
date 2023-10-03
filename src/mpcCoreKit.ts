@@ -186,19 +186,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const factorKeyBN = new BN(factorKey[0], "hex");
 
     const shareStore0 = await this.getFactorKeyMetadata(factorKeyBN);
-    // eslint-disable-next-line no-console
-    console.log("shareStore0", shareStore0);
     await this.tKey.initialize({ withShare: shareStore0 });
 
-    // for (let i = 1; i < factorKey.length; i++) {
-    //   const factorKeyBNInput = new BN(factorKey[i], "hex");
-    //   const shareStore = await this.getFactorKeyMetadata(factorKeyBNInput);
-    //   // eslint-disable-next-line no-console
-    //   console.log("shareStore", shareStore);
-    //   await this.tKey.inputShareStoreSafe(shareStore, true);
-    // }
-    // await this.tKey.reconstructKey();
-    // hack for now
     this.tkey.privKey = new BN(factorKey[1], "hex");
 
     const tssShares: BN[] = [];
@@ -217,6 +206,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     const finalKey = lagrangeInterpolation(tssShares, tssIndexesBN);
+    await this.init();
     return finalKey.toString("hex");
   }
 
