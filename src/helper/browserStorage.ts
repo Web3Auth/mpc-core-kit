@@ -68,6 +68,12 @@ export class BrowserStorage {
     store[key] = value;
     this.storage.setItem(this._storeKey, JSON.stringify(store));
   }
+
+  remove(key: string): void {
+    const store = JSON.parse(this.storage.getItem(this._storeKey) || "{}");
+    delete store[key];
+    this.storage.setItem(this._storeKey, JSON.stringify(store));
+  }
 }
 
 export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit, storageKey: "local" | "session" = "local"): Promise<void> {
