@@ -3,14 +3,12 @@
 import assert from "node:assert";
 import { after, afterEach, describe, it } from "node:test";
 
-import { getPubKeyPoint } from "@tkey-mpc/common-types";
 import { UX_MODE } from "@toruslabs/customauth";
-import BN from "bn.js";
 
 import { IdTokenLoginParams, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { mockLogin } from "./setup";
 
-require("./setup");
+// require("./setup");
 
 const coreKitInstance = new Web3AuthMPCCoreKit({
   web3AuthClientId: "torus-key-test",
@@ -22,8 +20,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit({
 
 describe("import recover tss key", function () {
   it("should work", async function () {
-    console.log("test started");
-    const email = "testing000080000000099@example.com";
+    const email = "testing00008000000000099@example.com";
 
     const { idToken, parsedToken } = await mockLogin(email);
 
@@ -34,25 +31,23 @@ describe("import recover tss key", function () {
     } as IdTokenLoginParams;
     await coreKitInstance.init();
     await coreKitInstance.loginWithJWT(idTokenLoginParams);
-    console.log(coreKitInstance.state.oAuthKey);
 
-    // const factorKeyDevice = await coreKitInstance.createFactor({
-    //   shareType: TssShareType.DEVICE,
-    // });
+    const factorKeyDevice = await coreKitInstance.createFactor({
+      shareType: TssShareType.DEVICE,
+    });
 
-    // const factorKeyRecovery = await coreKitInstance.createFactor({
-    //   shareType: TssShareType.RECOVERY,
-    // });
+    const factorKeyRecovery = await coreKitInstance.createFactor({
+      shareType: TssShareType.RECOVERY,
+    });
 
-    const recoveredTssKey = await coreKitInstance._UNSAFE_exportTssKey();
     // recover key
     // reinitalize corekit
-    // await coreKitInstance.logout();
-    // const recoveredTssKey = await coreKitInstance.recoverTssKey([factorKeyDevice, factorKeyRecovery]);
+    await coreKitInstance.logout();
+    const recoveredTssKey = await coreKitInstance.recoverTssKey([factorKeyDevice, factorKeyRecovery]);
 
     console.log(recoveredTssKey);
     // reinitialize corekit
-    const newEmail = "randomen000000000ew";
+    const newEmail = "randomen0000000000000ew";
     const newLogin = await mockLogin(newEmail);
 
     const newIdTokenLoginParams = {
@@ -74,21 +69,9 @@ describe("import recover tss key", function () {
 
     const exportedTssKey = await coreKitInstance2._UNSAFE_exportTssKey();
 
-    console.log(exportedTssKey);
-    console.log(recoveredTssKey);
-
-    // assert.strictEqual(exportedTssKey, recoveredTssKey);
+    assert.strictEqual(exportedTssKey, recoveredTssKey);
   });
 
-  // it("should be ok", function () {
-  //   assert.strictEqual(2, 2);
-  // });
-
-  // describe("a nested thing", function () {
-  //   it("should work", function () {
-  //     assert.strictEqual(3, 3);
-  //   });
-  // });
   afterEach(function () {
     return console.log("finished running recovery test");
   });
