@@ -428,13 +428,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       storeWebBrowserFactor(deviceFactorKey, this);
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
 
-      const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
-
       const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
       await this.deleteShareWithFactorKey(hashedFactorKey);
 
-      return backupFactorKey;
+      // only create recovery share if factorKey is provided
+      if (enableMFAParams?.factorKey) {
+        const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
+        return backupFactorKey;
+      }
     } catch (err: unknown) {
       log.error("error enabling MFA", err);
       throw new Error((err as Error).message);
