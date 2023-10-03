@@ -6,7 +6,7 @@ import { after, afterEach, describe, it } from "node:test";
 import { UX_MODE } from "@toruslabs/customauth";
 
 import { IdTokenLoginParams, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
-import { mockLogin } from "./setup";
+import { criticalResetAccount, mockLogin } from "./setup";
 
 // require("./setup");
 
@@ -20,7 +20,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit({
 
 describe("import recover tss key", function () {
   it("should work", async function () {
-    const email = "testing00008000000000099@example.com";
+    const email = "testing00001000000000099@example.com";
 
     const { idToken, parsedToken } = await mockLogin(email);
 
@@ -45,9 +45,9 @@ describe("import recover tss key", function () {
     await coreKitInstance.logout();
     const recoveredTssKey = await coreKitInstance.recoverTssKey([factorKeyDevice, factorKeyRecovery]);
 
-    console.log(recoveredTssKey);
+    criticalResetAccount(coreKitInstance);
     // reinitialize corekit
-    const newEmail = "randomen0000000000000ew";
+    const newEmail = "randomen1000000000000ew";
     const newLogin = await mockLogin(newEmail);
 
     const newIdTokenLoginParams = {
@@ -68,6 +68,7 @@ describe("import recover tss key", function () {
     await coreKitInstance2.loginWithJWT(newIdTokenLoginParams, recoveredTssKey);
 
     const exportedTssKey = await coreKitInstance2._UNSAFE_exportTssKey();
+    criticalResetAccount(coreKitInstance2);
 
     assert.strictEqual(exportedTssKey, recoveredTssKey);
   });
