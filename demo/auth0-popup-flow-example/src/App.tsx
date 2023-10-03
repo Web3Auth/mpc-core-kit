@@ -93,6 +93,8 @@ function App() {
           clientId: 'hUVVf4SEsZT7syOiL0gLU9hFEtm2gQ6O',
           jwtParams: {
             domain: 'https://web3auth.au.auth0.com',
+            // To skip the Auth0 modal, use connection
+            // connection: 'twitter' // name of connection on Auth0 dashboard
           }
         }
       } as SubVerifierDetailsParams;
