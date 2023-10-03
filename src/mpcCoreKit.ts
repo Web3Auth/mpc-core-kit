@@ -210,7 +210,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return finalKey.toString("hex");
   }
 
-  public async init(): Promise<void> {
+  public async init(params: { handleRedirectResult: boolean } = { handleRedirectResult: true }): Promise<void> {
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
@@ -253,17 +253,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else {
       await (this.tKey.serviceProvider as TorusServiceProvider).init({});
     }
-
     this.ready = true;
 
-    if (this.sessionManager.sessionId) {
+    // try handle redirect flow if enabled and return(redirect) from oauth login
+    if (params.handleRedirectResult && (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))) {
+      await this.handleRedirectResult();
+
+      // if not redirect flow try to rehydrate session if available
+    } else if (this.sessionManager.sessionId) {
       await this.rehydrateSession();
       if (this.state.factorKey) await this.setupProvider();
     }
-
-    if (window?.location.hash.includes("#state")) {
-      await this.handleRedirectResult();
-    }
+    // if not redirect flow or session rehydration, ask for factor key to login
   }
 
   public async loginWithOauth(params: OauthLoginParams, importTssKey?: string): Promise<void> {
