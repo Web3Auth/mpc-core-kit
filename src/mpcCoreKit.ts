@@ -408,7 +408,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tKey.getTSSPub();
   }
 
-  public async enableMFA(enableMFAParams: EnableMFAParams): Promise<string> {
+  public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
     const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
@@ -432,8 +432,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
       await this.deleteShareWithFactorKey(hashedFactorKey);
 
-      // only create recovery share if factorKey is provided
-      if (enableMFAParams?.factorKey) {
+      // only recovery factor = true
+      if (recoveryFactor) {
         const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
         return backupFactorKey;
       }
