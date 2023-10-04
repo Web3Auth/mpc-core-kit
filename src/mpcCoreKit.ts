@@ -24,7 +24,6 @@ import {
   FactorKeyTypeShareDescription,
   FIELD_ELEMENT_HEX_LEN,
   MAX_FACTORS,
-  SCALAR_LEN,
   SOCIAL_TKEY_INDEX,
   TssShareType,
   VALID_SHARE_INDICES,
@@ -49,7 +48,15 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { Point } from "./point";
-import { addFactorAndRefresh, deleteFactorAndRefresh, generateFactorKey, generateTSSEndpoints, getHashedPrivateKey, parseToken } from "./utils";
+import {
+  addFactorAndRefresh,
+  deleteFactorAndRefresh,
+  generateFactorKey,
+  generateTSSEndpoints,
+  getHashedPrivateKey,
+  parseToken,
+  scalarBNToBufferSEC1,
+} from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = {};
@@ -467,10 +474,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.backupMetadataShare(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
       if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
-      return factorKey
-        .toArrayLike(Buffer, "be", SCALAR_LEN)
-        .toString("hex")
-        .padStart(SCALAR_LEN * 2, "0");
+      return scalarBNToBufferSEC1(factorKey).toString("hex");
     } catch (error) {
       log.error("error creating factor", error);
       throw error;
@@ -784,7 +788,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     factorEncs[factorPubID] = {
       tssIndex: this.state.tssShareIndex,
       type: "direct",
-      userEnc: await encrypt(Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false), tssShare.toArrayLike(Buffer, "be", SCALAR_LEN)),
+      userEnc: await encrypt(Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false), scalarBNToBufferSEC1(tssShare)),
       serverEncs: [],
     };
     this.tKey.metadata.addTSSData({
@@ -888,7 +892,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const participatingServerDKGIndexes = [1, 2, 3];
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
       const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
-      const share = denormalisedShare.toArrayLike(Buffer, "be", SCALAR_LEN).toString("base64");
+      const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
 
       if (!currentSession) {
         throw new Error(`sessionAuth does not exist ${currentSession}`);
@@ -925,7 +929,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         recoveryParam += 27;
       }
       await client.cleanup(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
-      return { v: recoveryParam, r: r.toArrayLike(Buffer, "be", SCALAR_LEN), s: s.toArrayLike(Buffer, "be", SCALAR_LEN) };
+      return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
     };
 
     const getPublic: () => Promise<Buffer> = async () => {
