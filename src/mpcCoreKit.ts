@@ -175,7 +175,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  public async init(): Promise<void> {
+  public async init(params: { handleRedirectResult: boolean } = { handleRedirectResult: true }): Promise<void> {
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
@@ -218,17 +218,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else {
       await (this.tKey.serviceProvider as TorusServiceProvider).init({});
     }
-
     this.ready = true;
 
-    if (this.sessionManager.sessionId) {
+    // try handle redirect flow if enabled and return(redirect) from oauth login
+    if (params.handleRedirectResult && (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))) {
+      await this.handleRedirectResult();
+
+      // if not redirect flow try to rehydrate session if available
+    } else if (this.sessionManager.sessionId) {
       await this.rehydrateSession();
       if (this.state.factorKey) await this.setupProvider();
     }
-
-    if (window.location.hash.includes("#state")) {
-      await this.handleRedirectResult();
-    }
+    // if not redirect flow or session rehydration, ask for factor key to login
   }
 
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
@@ -407,7 +408,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tKey.getTSSPub();
   }
 
-  public async enableMFA(enableMFAParams: EnableMFAParams): Promise<string> {
+  public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
     const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
@@ -427,13 +428,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       storeWebBrowserFactor(deviceFactorKey, this);
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
 
-      const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
-
       const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
       await this.deleteMetadataShareBackup(hashedFactorKey);
 
-      return backupFactorKey;
+      // only recovery factor = true
+      if (recoveryFactor) {
+        const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
+        return backupFactorKey;
+      }
     } catch (err: unknown) {
       log.error("error enabling MFA", err);
       throw new Error((err as Error).message);

@@ -155,6 +155,7 @@ export interface ICoreKit {
   /**
    * The function used to initailise the state of MPCCoreKit
    * Also is useful to resume an existing session.
+   * @param params - handleRedirectResult: boolean - flag for handle the redirect result - Default is true.
    */
   init(): Promise<void>;
 
@@ -174,7 +175,9 @@ export interface ICoreKit {
    * Enable MFA for the user. Deletes the Cloud factor and generates a new
    * factor key and a backup factor key. Recommended for Non Custodial Flow.
    * Stores the factor key in browser storage and returns the backup factor key.
-   * @returns The backup factor key.
+   * @param enableMFAParams - Parameters for recovery factor for MFA.
+   * @param recoveryFactor - Default is true. If false, recovery factor will NOT be created.
+   * @returns The backup factor key if if recoveryFacort is true else empty string.
    */
   enableMFA(enableMFAParams: EnableMFAParams): Promise<string>;
 

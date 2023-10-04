@@ -131,8 +131,6 @@ export class TssSecurityQuestion {
     if (factorKeyPt.toBufferSEC1(true).toString("hex") !== store.factorPublicKey) {
       throw new Error("Invalid answer");
     }
-    // delete old factor key and device share
-    await mpcCoreKit.deleteFactor(factorKeyPt.toTkeyPoint(), factorKeyBN);
 
     // create new factor key
     const prenewHash = newAnswer + pubKey;
@@ -145,6 +143,14 @@ export class TssSecurityQuestion {
       shareType: parseInt(store.shareIndex) as TssShareType,
       shareDescription: FactorKeyTypeShareDescription.SecurityQuestions,
     });
+
+    // update mpcCoreKit state to use new factor key during change password if mpc factor key is security question factor
+    if (mpcCoreKit.state.factorKey.eq(factorKeyBN)) {
+      await mpcCoreKit.inputFactorKey(newAnswerBN);
+    }
+    // delete after create factor to prevent last key issue
+    // delete old factor key and device share
+    await mpcCoreKit.deleteFactor(factorKeyPt.toTkeyPoint(), factorKeyBN);
 
     store.factorPublicKey = newFactorPt.toBufferSEC1(true).toString("hex");
     store.question = newQuestion;
