@@ -451,6 +451,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  public getTssFactorPub = (): string[] => {
+    this.checkReady();
+    if (!this.state.factorKey) throw new Error("factorKey not present");
+    const factorPubsList = this.tKey.metadata.factorPubs[this.tKey.tssTag];
+    return factorPubsList.map((factorPub) => Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex"));
+  };
+
   public async createFactor(createFactorParams: CreateFactorParams): Promise<string> {
     this.checkReady();
 
@@ -469,8 +476,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       additionalMetadata = {};
     }
 
+    const factorPub = getPubKeyPoint(factorKey);
+
+    if (this.getTssFactorPub().includes(Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex"))) {
+      throw new Error("Factor already exists");
+    }
+
     try {
-      const factorPub = getPubKeyPoint(factorKey);
       await this.copyOrCreateShare(shareType, factorPub);
       await this.backupMetadataShare(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
