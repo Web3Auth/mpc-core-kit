@@ -197,10 +197,10 @@ export interface ICoreKit {
   /**
    * Creates a new factor for authentication. Generates and returns a new factor
    * key if no factor key is provided in `params`.
-   * @param params - Parameters for creating a new factor.
+   * @param createFactorParams - Parameters for creating a new factor.
    * @returns The factor key.
    */
-  createFactor(params: CreateFactorParams): Promise<string>;
+  createFactor(createFactorParams: CreateFactorParams): Promise<string>;
 
   /**
    * Deletes the factor identified by the given public key, including all
