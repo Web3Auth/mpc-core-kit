@@ -467,7 +467,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.backupMetadataShare(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
       if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
-      return factorKey.toArrayLike(Buffer, "be", SCALAR_LEN).toString("hex");
+      return factorKey
+        .toArrayLike(Buffer, "be", SCALAR_LEN)
+        .toString("hex")
+        .padStart(SCALAR_LEN * 2, "0");
     } catch (error) {
       log.error("error creating factor", error);
       throw error;
