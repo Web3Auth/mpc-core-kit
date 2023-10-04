@@ -421,6 +421,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
     if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
+      if (this.tKey.manualSync) throw new Error("CommitChanges are required before enabling MFA");
       throw new Error("MFA already enabled");
     }
 

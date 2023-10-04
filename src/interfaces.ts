@@ -179,6 +179,9 @@ export interface ICoreKit {
    * Enable MFA for the user. Deletes the Cloud factor and generates a new
    * factor key and a backup factor key. Recommended for Non Custodial Flow.
    * Stores the factor key in browser storage and returns the backup factor key.
+   *
+   * ** NOTE before enableMFA, you will need to commitChanges if manualSync is true.
+   *
    * @param enableMFAParams - Parameters for recovery factor for MFA.
    * @param recoveryFactor - Default is true. If false, recovery factor will NOT be created.
    * @returns The backup factor key if if recoveryFacort is true else empty string.
