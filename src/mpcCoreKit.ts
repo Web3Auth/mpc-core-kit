@@ -512,9 +512,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.deleteMetadataShareBackup(factorKeyBN);
       }
     }
-    await this.tKey._syncShareMetadata();
 
-    if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
+    if (!this.options.manualSync) await this.tKey._syncShareMetadata();
   }
 
   public async logout(): Promise<void> {
@@ -558,11 +557,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     try {
       await this.tKey._syncShareMetadata();
-      await this.tKey.syncLocalMetadataTransitions();
     } catch (error: unknown) {
       log.error("sync metadata error", error);
       throw error;
     }
+  }
+
+  public async setManualSync(manualSync: boolean): Promise<void> {
+    this.checkReady();
+    // sync local transistion to storage before allow changes
+    await this.tKey.syncLocalMetadataTransitions();
+    this.tKey.manualSync = manualSync;
   }
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -647,7 +652,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
     // Finalize setup.
-    await this.tKey.syncLocalMetadataTransitions();
+    if (!this.tKey.manualSync) await this.tKey.syncLocalMetadataTransitions();
     await this.setupProvider();
     await this.createSession();
   }
@@ -797,7 +802,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       factorPubs: updatedFactorPubs,
       factorEncs,
     });
-    await this.tkey?._syncShareMetadata();
+
+    if (!this.tKey.manualSync) await this.tKey._syncShareMetadata();
   }
 
   private async getMetadataShare(): Promise<ShareStore> {

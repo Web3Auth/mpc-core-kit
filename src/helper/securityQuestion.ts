@@ -101,7 +101,7 @@ export class TssSecurityQuestion {
     tkey.metadata.setGeneralStoreDomain(domainKey, storeData.toJSON());
 
     // check for auto commit
-    await tkey._syncShareMetadata();
+    if (!tkey.manualSync) await tkey._syncShareMetadata();
 
     return factorKeyBN.toString("hex").padStart(64, "0");
   }
@@ -157,7 +157,7 @@ export class TssSecurityQuestion {
     tkey.metadata.setGeneralStoreDomain(domainKey, store.toJSON());
 
     // check for auto commit
-    await tkey._syncShareMetadata();
+    if (!tkey.manualSync) await tkey._syncShareMetadata();
   }
 
   // Should we check with answer before deleting?
@@ -181,7 +181,7 @@ export class TssSecurityQuestion {
     }
     tkey.metadata.deleteGeneralStoreDomain(domainKey);
     // check for auto commit
-    await tkey._syncShareMetadata();
+    if (!tkey.manualSync) await tkey._syncShareMetadata();
   }
 
   async recoverFactor(mpcCoreKit: Web3AuthMPCCoreKit, answer: string): Promise<string> {
