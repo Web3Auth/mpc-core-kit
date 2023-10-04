@@ -1,14 +1,11 @@
-/* eslint-disable no-console */
-
 import assert from "node:assert";
 import { after, afterEach, describe, it } from "node:test";
 
 import { UX_MODE } from "@toruslabs/customauth";
+import { log } from "@web3auth/base";
 
 import { IdTokenLoginParams, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
-
-// require("./setup");
 
 const coreKitInstance = new Web3AuthMPCCoreKit({
   web3AuthClientId: "torus-key-test",
@@ -19,7 +16,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit({
 });
 
 describe("import recover tss key", function () {
-  it("should work", async function () {
+  it("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
     const email = "testing00001000000000099@example.com";
 
     const { idToken, parsedToken } = await mockLogin(email);
@@ -43,7 +40,7 @@ describe("import recover tss key", function () {
     // recover key
     // reinitalize corekit
     await coreKitInstance.logout();
-    const recoveredTssKey = await coreKitInstance.recoverTssKey([factorKeyDevice, factorKeyRecovery]);
+    const recoveredTssKey = await coreKitInstance._UNSAFE_recoverTssKey([factorKeyDevice, factorKeyRecovery]);
 
     criticalResetAccount(coreKitInstance);
     // reinitialize corekit
@@ -74,9 +71,9 @@ describe("import recover tss key", function () {
   });
 
   afterEach(function () {
-    return console.log("finished running recovery test");
+    return log.info("finished running recovery test");
   });
   after(function () {
-    return console.log("finished running recovery tests");
+    return log.info("finished running recovery tests");
   });
 });

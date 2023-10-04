@@ -181,7 +181,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  public async recoverTssKey(factorKey: string[]) {
+  public async _UNSAFE_recoverTssKey(factorKey: string[]) {
     this.checkReady();
     const factorKeyBN = new BN(factorKey[0], "hex");
 
