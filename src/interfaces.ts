@@ -18,6 +18,10 @@ export interface IStorage {
   setItem(key: string, value: string): void;
 }
 
+export interface InitParams {
+  handleRedirectResult: boolean;
+}
+
 export interface BaseLoginParams {
   // offset in seconds
   serverTimeOffset?: number;
@@ -155,9 +159,9 @@ export interface ICoreKit {
   /**
    * The function used to initailise the state of MPCCoreKit
    * Also is useful to resume an existing session.
-   * @param params - handleRedirectResult: boolean - flag for handle the redirect result - Default is true.
+   * @param initParams - Contains flag for handleRedirectResult. Default is true.
    */
-  init(): Promise<void>;
+  init(initParams?: InitParams): Promise<void>;
 
   /**
    * Login into the SDK in an implicit flow and initialize all relevant components.
@@ -172,16 +176,20 @@ export interface ICoreKit {
   loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
 
   /**
-   * Enable MFA for the user. Deletes the Cloud Factor and generates a new Factor Key.
-   * Recommended for Non Custodial Flow.
+   * Enable MFA for the user. Deletes the Cloud factor and generates a new
+   * factor key and a backup factor key. Recommended for Non Custodial Flow.
+   * Stores the factor key in browser storage and returns the backup factor key.
    * @param enableMFAParams - Parameters for recovery factor for MFA.
    * @param recoveryFactor - Default is true. If false, recovery factor will NOT be created.
+   * @returns The backup factor key if if recoveryFacort is true else empty string.
    */
-  enableMFA(enableMFAParams: EnableMFAParams): Promise<string>;
+  enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor?: boolean): Promise<string>;
 
   /**
    * Second step for login where the user inputs their factor key.
-   * @param factorKey: A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
+   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key
+   * Share. You can generate it using `generateFactorKey()` function or use an
+   * existing one.
    */
   inputFactorKey(factorKey: BN): Promise<void>;
 
@@ -191,10 +199,12 @@ export interface ICoreKit {
   getCurrentFactorKey(): IFactorKey;
 
   /**
-   * Creates a new factor for authentication.
-   * @param CreateFactorParams - Parameters for creating a new factor.
+   * Creates a new factor for authentication. Generates and returns a new factor
+   * key if no factor key is provided in `params`.
+   * @param createFactorParams - Parameters for creating a new factor.
+   * @returns The factor key.
    */
-  createFactor(CreateFactorParams: CreateFactorParams): Promise<string>;
+  createFactor(createFactorParams: CreateFactorParams): Promise<string>;
 
   /**
    * Deletes the factor identified by the given public key, including all

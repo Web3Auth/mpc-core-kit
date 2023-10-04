@@ -24,7 +24,6 @@ import {
   FactorKeyTypeShareDescription,
   FIELD_ELEMENT_HEX_LEN,
   MAX_FACTORS,
-  SCALAR_LEN,
   SOCIAL_TKEY_INDEX,
   TssShareType,
   VALID_SHARE_INDICES,
@@ -39,6 +38,7 @@ import {
   ICoreKit,
   IdTokenLoginParams,
   IFactorKey,
+  InitParams,
   MPCKeyDetails,
   OauthLoginParams,
   SessionData,
@@ -49,7 +49,15 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { Point } from "./point";
-import { addFactorAndRefresh, deleteFactorAndRefresh, generateFactorKey, generateTSSEndpoints, getHashedPrivateKey, parseToken } from "./utils";
+import {
+  addFactorAndRefresh,
+  deleteFactorAndRefresh,
+  generateFactorKey,
+  generateTSSEndpoints,
+  getHashedPrivateKey,
+  parseToken,
+  scalarBNToBufferSEC1,
+} from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = {};
@@ -175,7 +183,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  public async init(params: { handleRedirectResult: boolean } = { handleRedirectResult: true }): Promise<void> {
+  public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
@@ -430,7 +438,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
-      await this.deleteShareWithFactorKey(hashedFactorKey);
+      await this.deleteMetadataShareBackup(hashedFactorKey);
 
       // only recovery factor = true
       if (recoveryFactor) {
@@ -464,10 +472,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       const factorPub = getPubKeyPoint(factorKey);
       await this.copyOrCreateShare(shareType, factorPub);
-      await this.backupShareWithFactorKey(factorKey);
+      await this.backupMetadataShare(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
       if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
-      return factorKey.toString("hex").padStart(64, "0");
+      return scalarBNToBufferSEC1(factorKey).toString("hex");
     } catch (error) {
       log.error("error creating factor", error);
       throw error;
@@ -479,15 +487,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.tKey.metadata.factorPubs) throw new Error("Factor pubs not present");
     const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
     if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
-    if (
-      Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex") ===
-      Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey)).toBufferSEC1(true).toString("hex")
-    ) {
+    const fpp = Point.fromTkeyPoint(factorPub);
+    const stateFpp = Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey));
+    if (fpp.equals(stateFpp)) {
       throw new Error("Cannot delete current active factor");
     }
 
     await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, this.signatures);
-    const factorPubHex = Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex");
+    const factorPubHex = fpp.toBufferSEC1(true).toString("hex");
     const allDesc = this.tKey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
@@ -501,8 +508,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const factorKeyBN = new BN(factorKey, "hex");
       const derivedFactorPub = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN));
       // only delete if factorPub matches
-      if (derivedFactorPub.toBufferSEC1(true).toString("hex") === factorPubHex) {
-        await this.deleteShareWithFactorKey(factorKeyBN);
+      if (derivedFactorPub.equals(fpp)) {
+        await this.deleteMetadataShareBackup(factorKeyBN);
       }
     }
     await this.tKey._syncShareMetadata();
@@ -599,7 +606,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         factorKey = generateFactorKey().private;
         // delete previous hashed factorKey if present
         const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
-        await this.deleteShareWithFactorKey(hashedFactorKey);
+        await this.deleteMetadataShareBackup(hashedFactorKey);
       } else {
         factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
       }
@@ -613,7 +620,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.finalizeTkey(factorKey);
 
       // Store factor description.
-      await this.backupShareWithFactorKey(factorKey);
+      await this.backupMetadataShare(factorKey);
       if (this.options.disableHashedFactorKey) {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.Other);
       } else {
@@ -782,7 +789,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     factorEncs[factorPubID] = {
       tssIndex: this.state.tssShareIndex,
       type: "direct",
-      userEnc: await encrypt(Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false), tssShare.toArrayLike(Buffer, "be", SCALAR_LEN)),
+      userEnc: await encrypt(Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false), scalarBNToBufferSEC1(tssShare)),
       serverEncs: [],
     };
     this.tKey.metadata.addTSSData({
@@ -812,12 +819,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  private async deleteShareWithFactorKey(factorKey: BN): Promise<void> {
+  private async deleteMetadataShareBackup(factorKey: BN): Promise<void> {
     await this.tKey.addLocalMetadataTransitions({ input: [{ message: SHARE_DELETED, dateAdded: Date.now() }], privKey: [factorKey] });
     if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
   }
 
-  private async backupShareWithFactorKey(factorKey: BN) {
+  private async backupMetadataShare(factorKey: BN) {
     const metadataShare = await this.getMetadataShare();
 
     // Set metadata for factor key backup
@@ -886,7 +893,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const participatingServerDKGIndexes = [1, 2, 3];
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
       const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
-      const share = denormalisedShare.toArrayLike(Buffer, "be", SCALAR_LEN).toString("base64");
+      const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
 
       if (!currentSession) {
         throw new Error(`sessionAuth does not exist ${currentSession}`);
@@ -923,7 +930,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         recoveryParam += 27;
       }
       await client.cleanup(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
-      return { v: recoveryParam, r: r.toArrayLike(Buffer, "be", SCALAR_LEN), s: s.toArrayLike(Buffer, "be", SCALAR_LEN) };
+      return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
     };
 
     const getPublic: () => Promise<Buffer> = async () => {
