@@ -325,7 +325,7 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    await securityQuestion.deleteSecurityQuestion(coreKitInstance, false);
+    await securityQuestion.deleteSecurityQuestion(coreKitInstance);
     setQuestion(undefined);
 
   }
