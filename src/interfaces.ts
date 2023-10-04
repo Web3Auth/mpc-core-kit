@@ -18,6 +18,10 @@ export interface IStorage {
   setItem(key: string, value: string): void;
 }
 
+export interface InitParams {
+  handleRedirectResult: boolean;
+}
+
 export interface BaseLoginParams {
   // offset in seconds
   serverTimeOffset?: number;
@@ -155,9 +159,9 @@ export interface ICoreKit {
   /**
    * The function used to initailise the state of MPCCoreKit
    * Also is useful to resume an existing session.
-   * @param params - handleRedirectResult: boolean - flag for handle the redirect result - Default is true.
+   * @param initParams - Contains flag for handleRedirectResult. Default is true.
    */
-  init(): Promise<void>;
+  init(initParams?: InitParams): Promise<void>;
 
   /**
    * Login into the SDK in an implicit flow and initialize all relevant components.
@@ -179,7 +183,7 @@ export interface ICoreKit {
    * @param recoveryFactor - Default is true. If false, recovery factor will NOT be created.
    * @returns The backup factor key if if recoveryFacort is true else empty string.
    */
-  enableMFA(enableMFAParams: EnableMFAParams): Promise<string>;
+  enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor?: boolean): Promise<string>;
 
   /**
    * Second step for login where the user inputs their factor key.

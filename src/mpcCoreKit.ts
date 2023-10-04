@@ -38,6 +38,7 @@ import {
   ICoreKit,
   IdTokenLoginParams,
   IFactorKey,
+  InitParams,
   MPCKeyDetails,
   OauthLoginParams,
   SessionData,
@@ -182,7 +183,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  public async init(params: { handleRedirectResult: boolean } = { handleRedirectResult: true }): Promise<void> {
+  public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
