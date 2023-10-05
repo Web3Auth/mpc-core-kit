@@ -493,7 +493,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.copyOrCreateShare(shareType, factorPub);
       await this.backupMetadataShare(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
-      if (!this.options.manualSync) await this.tKey._syncShareMetadata();
+      if (!this.tKey.manualSync) await this.tKey._syncShareMetadata();
       return scalarBNToBufferSEC1(factorKey).toString("hex");
     } catch (error) {
       log.error("error creating factor", error);
@@ -532,7 +532,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
     }
 
-    if (!this.options.manualSync) await this.tKey._syncShareMetadata();
+    if (!this.tKey.manualSync) await this.tKey._syncShareMetadata();
   }
 
   public async logout(): Promise<void> {
@@ -590,6 +590,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.checkReady();
     // sync local transistion to storage before allow changes
     await this.tKey.syncLocalMetadataTransitions();
+    this.options.manualSync = manualSync;
     this.tKey.manualSync = manualSync;
   }
 
