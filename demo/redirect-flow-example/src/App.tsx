@@ -21,7 +21,8 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
   {
     web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
     web3AuthNetwork: selectedNetwork,
-    uxMode: 'redirect'
+    uxMode: 'redirect',
+    manualSync: true,
   }
 );
 
@@ -339,6 +340,13 @@ function App() {
     uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
   }
 
+  const commit = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    await coreKitInstance.commitChanges();
+  } 
+
   const loggedInView = (
     <>
       <h2 className="subtitle">Account Details</h2>
@@ -357,6 +365,10 @@ function App() {
 
         <button onClick={listFactors} className="card">
           List Factors
+        </button>
+
+        <button onClick={commit} className="card">
+          Commit Changes
         </button>
       </div>
       <div className="flex-container">

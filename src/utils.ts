@@ -74,7 +74,8 @@ async function refreshTssShares(
   factorPubs: Point[],
   tssIndices: number[],
   factorKeyForExistingTSSShare: BN,
-  signatures: string[]
+  signatures: string[],
+  updateMetadata = false
 ) {
   const { tssShare, tssIndex } = await tKey.getTSSShare(factorKeyForExistingTSSShare);
 
@@ -86,7 +87,7 @@ async function refreshTssShares(
   );
 
   const verifierNameVerifierId = tKey.serviceProvider.getVerifierNameVerifierId();
-  await tKey._refreshTSSShares(true, tssShare, tssIndex, factorPubs, tssIndices, verifierNameVerifierId, {
+  await tKey._refreshTSSShares(updateMetadata, tssShare, tssIndex, factorPubs, tssIndices, verifierNameVerifierId, {
     selectedServers: randomSelectedServers,
     serverEndpoints,
     serverPubKeys,
