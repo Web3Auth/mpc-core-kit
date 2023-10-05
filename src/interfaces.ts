@@ -20,6 +20,7 @@ export interface IStorage {
 
 export interface InitParams {
   handleRedirectResult: boolean;
+  rehydrate?: boolean; // default - true
 }
 
 export interface BaseLoginParams {
