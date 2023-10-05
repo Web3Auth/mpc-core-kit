@@ -381,8 +381,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async inputFactorKey(factorKey: BN): Promise<void> {
     this.checkReady();
     try {
-      const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
-      await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
+      // input tkey device share when required share > 0 ( or not reconstructed )
+      // assumption tkey shares will not changed
+      if (!this.tKey.privKey) {
+        const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
+        await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
+      }
 
       // Finalize initialization.
       await this.tKey.reconstructKey();
@@ -421,7 +425,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
     if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
-      if (this.tKey.manualSync) throw new Error("CommitChanges are required before enabling MFA");
+      if (this.tKey._localMetadataTransitions[0].length) throw new Error("CommitChanges are required before enabling MFA");
       throw new Error("MFA already enabled");
     }
 
@@ -446,6 +450,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
         return backupFactorKey;
       }
+      // update to undefined for next major release
+      return "";
     } catch (err: unknown) {
       log.error("error enabling MFA", err);
       throw new Error((err as Error).message);
@@ -487,7 +493,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.copyOrCreateShare(shareType, factorPub);
       await this.backupMetadataShare(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
-      if (!this.options.manualSync) await this.tKey.syncLocalMetadataTransitions();
+      if (!this.options.manualSync) await this.tKey._syncShareMetadata();
       return scalarBNToBufferSEC1(factorKey).toString("hex");
     } catch (error) {
       log.error("error creating factor", error);
@@ -569,7 +575,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.state.factorKey) throw new Error("factorKey not present");
 
     try {
+      // in case for manualsync = true, _syncShareMetadata will not call syncLocalMetadataTransitions()
+      // it will not create a new LocalMetadataTransition
+      // manual call syncLocalMetadataTransitions() required to sync local transitions to storage
       await this.tKey._syncShareMetadata();
+      await this.tKey.syncLocalMetadataTransitions();
     } catch (error: unknown) {
       log.error("sync metadata error", error);
       throw error;
@@ -857,7 +867,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async addFactorDescription(
     factorKey: BN,
     shareDescription: FactorKeyTypeShareDescription,
-    additionalMetadata: Record<string, string> = {}
+    additionalMetadata: Record<string, string> = {},
+    updateMetadata = true
   ) {
     const { tssIndex } = await this.tKey.getTSSShare(factorKey);
     const tkeyPoint = getPubKeyPoint(factorKey);
@@ -868,7 +879,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       ...additionalMetadata,
       tssShareIndex: tssIndex,
     };
-    await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), true);
+    await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
   }
 
   private async setupProvider(): Promise<void> {
