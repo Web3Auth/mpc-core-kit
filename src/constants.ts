@@ -32,6 +32,8 @@ export enum FactorKeyTypeShareDescription {
   SeedPhrase = "seedPhrase",
   PasswordShare = "passwordShare",
   SocialShare = "socialShare",
+  MobileSMS = "mobileSMS",
+  AuthenticatorApp = "authenticatorApp",
   Other = "Other",
 }
 

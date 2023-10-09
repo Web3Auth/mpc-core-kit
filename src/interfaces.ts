@@ -72,11 +72,23 @@ export interface EnableMFAParams {
   additionalMetadata?: Record<string, string>;
 }
 
-export interface CreateFactorParams extends EnableMFAParams {
+export interface CreateFactorParams {
   /**
    * Setting the Type of Share - Device or Recovery.
    **/
   shareType: TssShareType;
+  /**
+   * A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
+   */
+  factorKey?: BN;
+  /**
+   * Setting the Description of Share - Security Questions, Device Share, Seed Phrase, Password Share, Social Share, Other. Default is Other.
+   */
+  shareDescription?: FactorKeyTypeShareDescription;
+  /**
+   * Additional metadata information you want to be stored alongside this factor for easy identification.
+   */
+  additionalMetadata?: Record<string, string>;
 }
 
 export interface IdTokenLoginParams {
