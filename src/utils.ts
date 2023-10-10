@@ -4,7 +4,7 @@ import { generatePrivate } from "@toruslabs/eccrypto";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
-import { VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -74,7 +74,8 @@ async function refreshTssShares(
   factorPubs: Point[],
   tssIndices: number[],
   factorKeyForExistingTSSShare: BN,
-  signatures: string[]
+  signatures: string[],
+  updateMetadata = false
 ) {
   const { tssShare, tssIndex } = await tKey.getTSSShare(factorKeyForExistingTSSShare);
 
@@ -86,7 +87,7 @@ async function refreshTssShares(
   );
 
   const verifierNameVerifierId = tKey.serviceProvider.getVerifierNameVerifierId();
-  await tKey._refreshTSSShares(true, tssShare, tssIndex, factorPubs, tssIndices, verifierNameVerifierId, {
+  await tKey._refreshTSSShares(updateMetadata, tssShare, tssIndex, factorPubs, tssIndices, verifierNameVerifierId, {
     selectedServers: randomSelectedServers,
     serverEndpoints,
     serverPubKeys,
@@ -148,3 +149,13 @@ export const getHashedPrivateKey = (postboxKey: string, clientId: string): BN =>
   hashUid = hashUid.replace("0x", "");
   return new BN(hashUid, "hex");
 };
+
+/**
+ * Converts a elliptic curve scalar represented by a BN to a byte buffer in SEC1
+ * format (i.e., padded to maximum length).
+ * @param s - The scalar of type BN.
+ * @returns The SEC1 encoded representation of the scalar.
+ */
+export function scalarBNToBufferSEC1(s: BN): Buffer {
+  return s.toArrayLike(Buffer, "be", SCALAR_LEN);
+}

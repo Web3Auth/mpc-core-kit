@@ -21,8 +21,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
   {
     web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
     web3AuthNetwork: selectedNetwork,
-    uxMode: 'redirect',
-    manualSync: true,
+    uxMode: 'redirect'
   }
 );
 
@@ -101,11 +100,15 @@ function App() {
         throw new Error('initiated to login');
       }
       const verifierConfig = {
-        subVerifierDetails: {
-          typeOfLogin: 'google',
-          verifier: 'w3a-google-demo',
-          clientId:
-            '519228911939-cri01h55lsjbsia1k7ll6qpalrus75ps.apps.googleusercontent.com',
+        subVerifierDetails: { 
+          typeOfLogin: 'jwt',
+          verifier: 'w3a-auth0-demo',
+          clientId: 'hUVVf4SEsZT7syOiL0gLU9hFEtm2gQ6O',
+          jwtParams: {
+            domain: 'https://web3auth.au.auth0.com',
+            // To skip the Auth0 modal, use connection
+            // connection: 'twitter' // name of connection on Auth0 dashboard
+          }
         }
       } as SubVerifierDetailsParams;
 
@@ -340,13 +343,6 @@ function App() {
     uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
   }
 
-  const commit = async () => {
-    if (!coreKitInstance) {
-      throw new Error("coreKitInstance is not set");
-    }
-    await coreKitInstance.commitChanges();
-  } 
-
   const loggedInView = (
     <>
       <h2 className="subtitle">Account Details</h2>
@@ -365,10 +361,6 @@ function App() {
 
         <button onClick={listFactors} className="card">
           List Factors
-        </button>
-
-        <button onClick={commit} className="card">
-          Commit Changes
         </button>
       </div>
       <div className="flex-container">
@@ -519,7 +511,7 @@ function App() {
         <a target="_blank" href="https://web3auth.io/docs/guides/mpc" rel="noreferrer">
           Web3Auth MPC Core Kit 
         </a> {" "}
-        Redirect Flow Example
+        Auth0 Redirect Flow Example
       </h1>
 
       <div className="grid">{provider ? loggedInView : unloggedInView}</div>

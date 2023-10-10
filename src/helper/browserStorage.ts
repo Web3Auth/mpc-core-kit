@@ -111,7 +111,7 @@ export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit,
   );
 }
 
-export async function getWebBrowserFactor(mpcCoreKit: ICoreKit, storageKey: "local" | "session" = "local"): Promise<string> {
+export async function getWebBrowserFactor(mpcCoreKit: ICoreKit, storageKey: "local" | "session" = "local"): Promise<string | undefined> {
   const metadata = mpcCoreKit.tKey.getMetadata();
   const currentStorage = BrowserStorage.getInstance("mpc_corekit_store", storageKey);
 

@@ -1,7 +1,7 @@
 # Web3Auth MPC Core Kit Beta
 
-[![npm version](https://img.shields.io/npm/v/@web3auth/no-modal?label=%22%22)](https://www.npmjs.com/package/@web3auth/no-modal/v/latest)
-[![minzip](https://img.shields.io/bundlephobia/minzip/@web3auth/no-modal?label=%22%22)](https://bundlephobia.com/result?p=@web3auth/no-modal@latest)
+[![npm version](https://img.shields.io/npm/v/@web3auth/mpc-core-kit?label=%22%22)](https://www.npmjs.com/package/@web3auth/mpc-core-kit/v/latest)
+[![minzip](https://img.shields.io/bundlephobia/minzip/@web3auth/mpc-core-kit?label=%22%22)](https://bundlephobia.com/result?p=@web3auth/mpc-core-kit@latest)
 
 > Web3Auth is where passwordless auth meets non-custodial key infrastructure for Web3 apps and wallets. By aggregating OAuth (Google, Twitter, Discord) logins, different wallets and innovative Multi Party Computation (MPC) - Web3Auth provides a seamless login experience to every user on your application.
 
@@ -25,7 +25,7 @@ npm install --save @web3auth/mpc-core-kit
 
 Hop on to the [Web3Auth Dashboard](https://dashboard.web3auth.io/) and create a new project. Use the Client ID of the project to start your integration.
 
-![Web3Auth Dashboard](https://web3auth.io/docs/assets/images/project_plug_n_play-89c39ec42ad993107bb2485b1ce64b89.png)
+![Web3Auth Dashboard](https://github-production-user-asset-6210df.s3.amazonaws.com/6962565/272779464-043f6383-e671-4aa5-80fb-ec87c569e5ab.png)
 
 ### Initialize Web3Auth for your preferred blockchain
 
@@ -48,19 +48,32 @@ await web3auth.init();
 
 Once you're done initialising, just create a button that triggers login for your preferred social channel for the user on their request. You can further use the returned provider for making RPC calls to the blockchain.
 
+
 ```js
-const web3authProvider = await web3auth.connect({ 
-    subVerifierDetails: { 
-        verifier: "torus-test-health",
-        typeOfLogin: 'jwt',
-        clientId: "torus-key-test",
-        jwtParams: {
-            verifierIdField: "email",
-            id_token: token
+      const verifierConfig = {
+        subVerifierDetails: {
+          typeOfLogin: 'google',
+          verifier: 'w3a-google-demo',
+          clientId:
+            '519228911939-cri01h55lsjbsia1k7ll6qpalrus75ps.apps.googleusercontent.com',
         }
-    }
-})
+      } as SubVerifierDetailsParams;
+
+      await coreKitInstance.loginWithOauth(verifierConfig);
 ```
+
+For JWT(idToken) login
+```js
+    const idTokenLoginParams = {
+        verifier: "torus-test-health",
+        verifierId: parsedToken.email,
+        idToken,
+    } as IdTokenLoginParams;
+
+    await coreKitInstance.loginWithJWT(idTokenLoginParams);
+```
+
+
 
 ## 🩹 Examples
 

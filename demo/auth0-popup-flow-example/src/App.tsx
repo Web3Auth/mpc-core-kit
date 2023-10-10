@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
@@ -21,8 +21,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
   {
     web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
     web3AuthNetwork: selectedNetwork,
-    uxMode: 'redirect',
-    manualSync: true,
+    uxMode: 'popup'
   }
 );
 
@@ -48,19 +47,8 @@ function App() {
         setProvider(coreKitInstance.provider);
       }
 
-      if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
-        uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
-      }
-
       setCoreKitStatus(coreKitInstance.status);
 
-      try {
-        let result = securityQuestion.getQuestion(coreKitInstance!);
-        setQuestion(result);
-      } catch (e) {
-        setQuestion(undefined);
-        uiConsole(e);
-      }
     };
     init();
   }, []);
@@ -71,7 +59,6 @@ function App() {
       setWeb3(web3);
     }
   }, [provider])
-
   
   const keyDetails = async () => {
     if (!coreKitInstance) {
@@ -96,26 +83,47 @@ function App() {
 
   const login = async () => {
     try {
-      // Triggering Login using Service Provider ==> opens the popup
       if (!coreKitInstance) {
         throw new Error('initiated to login');
       }
       const verifierConfig = {
-        subVerifierDetails: {
-          typeOfLogin: 'google',
-          verifier: 'w3a-google-demo',
-          clientId:
-            '519228911939-cri01h55lsjbsia1k7ll6qpalrus75ps.apps.googleusercontent.com',
+        subVerifierDetails: { 
+          typeOfLogin: 'jwt',
+          verifier: 'w3a-auth0-demo',
+          clientId: 'hUVVf4SEsZT7syOiL0gLU9hFEtm2gQ6O',
+          jwtParams: {
+            domain: 'https://web3auth.au.auth0.com',
+            // To skip the Auth0 modal, use connection
+            // connection: 'twitter' // name of connection on Auth0 dashboard
+          }
         }
       } as SubVerifierDetailsParams;
 
       await coreKitInstance.loginWithOauth(verifierConfig);
+      
+
+      try {
+        let result = securityQuestion.getQuestion(coreKitInstance!);
+        setQuestion(result);
+      } catch (e) {
+        setQuestion(undefined);
+        uiConsole(e);
+      }
+
+      if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
+        uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
+      }
+
+      if (coreKitInstance.provider) {
+        setProvider(coreKitInstance.provider);
+      }
+
       setCoreKitStatus(coreKitInstance.status);
 
     } catch (error: unknown) {
-      console.error(error);
+      uiConsole(error);
     }
-  };
+  }
 
   const getDeviceShare = async () => {
     const factorKey = await getWebBrowserFactor(coreKitInstance!);
@@ -179,12 +187,7 @@ function App() {
       shareType: exportTssShareType,
       factorKey: factorKey.private
     });
-    let mnemonic = keyToMnemonic(factorKey.private.toString('hex'));
-    let key = mnemonicToKey(mnemonic);
-
     uiConsole("Export factor key: ", factorKey);
-    console.log("menmonic : ", mnemonic);
-    console.log("key: ", key);  
   }
 
   const deleteFactor = async (): Promise<void> => {
@@ -335,17 +338,10 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     const factorKey = await coreKitInstance.enableMFA({});
-    const factorKeyMnemonic = await keyToMnemonic(factorKey);
+    const factorKeyMnemonic = keyToMnemonic(factorKey);
 
     uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
   }
-
-  const commit = async () => {
-    if (!coreKitInstance) {
-      throw new Error("coreKitInstance is not set");
-    }
-    await coreKitInstance.commitChanges();
-  } 
 
   const loggedInView = (
     <>
@@ -365,10 +361,6 @@ function App() {
 
         <button onClick={listFactors} className="card">
           List Factors
-        </button>
-
-        <button onClick={commit} className="card">
-          Commit Changes
         </button>
       </div>
       <div className="flex-container">
@@ -484,7 +476,7 @@ function App() {
       <button onClick={() => login()} className="card">
         Login
       </button>
-      <div className={coreKitStatus=== COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv" } >
+      <div className={coreKitStatus === COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv" } >
 
         <button onClick={() => getDeviceShare()} className="card">
           Get Device Share
@@ -519,7 +511,7 @@ function App() {
         <a target="_blank" href="https://web3auth.io/docs/guides/mpc" rel="noreferrer">
           Web3Auth MPC Core Kit 
         </a> {" "}
-        Redirect Flow Example
+        Auth0 Popup Flow Example
       </h1>
 
       <div className="grid">{provider ? loggedInView : unloggedInView}</div>
