@@ -1,5 +1,3 @@
-/* eslint-disable no-console */
-
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 
@@ -8,9 +6,8 @@ if (global.navigator === undefined) {
   global.navigator = { userAgent: "test" };
 }
 global.window = undefined;
-console.log(navigator);
-
-console.log("before all");
+// console.log(navigator);
+// console.log("before all");
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {

@@ -219,6 +219,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
+    this.resetState();
+
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
