@@ -63,5 +63,8 @@ export const mockLogin = async (email: string) => {
     algorithm: alg,
   };
 
-  return jwt.sign(payload, jwtPrivateKey, algo);
+  const token = jwt.sign(payload, jwtPrivateKey, algo);
+  const idToken = token;
+  const parsedToken = parseToken(idToken);
+  return { idToken, parsedToken };
 };
