@@ -4,6 +4,8 @@ import { FIELD_ELEMENT_HEX_LEN } from "../constants";
 import { ICoreKit, IStorage, TkeyLocalStoreData } from "../interfaces";
 import { storageAvailable } from "../utils";
 
+export type SupportedStorageType = "local" | "session" | "mock";
+
 export class MockStorage implements IStorage {
   private _store: Record<string, string> = {};
 
@@ -44,7 +46,7 @@ export class BrowserStorage {
     }
   }
 
-  static getInstance(key: string, storageKey: "session" | "local" | "mock" = "local"): BrowserStorage {
+  static getInstance(key: string, storageKey: SupportedStorageType = "local"): BrowserStorage {
     if (!this.instance) {
       let storage: IStorage | undefined;
       if (storageKey === "local" && storageAvailable("localStorage")) {
@@ -98,7 +100,7 @@ export class BrowserStorage {
   }
 }
 
-export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit, storageKey: "local" | "session" = "local"): Promise<void> {
+export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit, storageKey: SupportedStorageType = "local"): Promise<void> {
   const metadata = mpcCoreKit.tKey.getMetadata();
   const currentStorage = BrowserStorage.getInstance("mpc_corekit_store", storageKey);
 
@@ -111,7 +113,7 @@ export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit,
   );
 }
 
-export async function getWebBrowserFactor(mpcCoreKit: ICoreKit, storageKey: "local" | "session" = "local"): Promise<string | undefined> {
+export async function getWebBrowserFactor(mpcCoreKit: ICoreKit, storageKey: SupportedStorageType = "local"): Promise<string | undefined> {
   const metadata = mpcCoreKit.tKey.getMetadata();
   const currentStorage = BrowserStorage.getInstance("mpc_corekit_store", storageKey);
 

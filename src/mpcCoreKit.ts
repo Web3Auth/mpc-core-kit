@@ -573,10 +573,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async logout(): Promise<void> {
-    if (!this.sessionManager.sessionId) {
-      throw new Error("User is not logged in.");
+    if (this.sessionManager.sessionId) {
+      // throw new Error("User is not logged in.");
+      await this.sessionManager.invalidateSession();
     }
-    await this.sessionManager.invalidateSession();
     this.currentStorage.set("sessionId", "");
     this.resetState();
     await this.init();

@@ -1,13 +1,13 @@
+import { UX_MODE } from "@toruslabs/customauth";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 
-import { parseToken, Web3AuthMPCCoreKit } from "../src";
+import { parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 if (global.navigator === undefined) {
-  global.navigator = { userAgent: "test" };
+  const nav = global.navigator;
+  global.navigator = { ...nav, userAgent: "test" };
 }
 global.window = undefined;
-// console.log(navigator);
-// console.log("before all");
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -64,4 +64,35 @@ export const mockLogin = async (email: string) => {
   const idToken = token;
   const parsedToken = parseToken(idToken);
   return { idToken, parsedToken };
+};
+
+export const newCoreKitLogInInstance = async ({
+  network,
+  manualSync,
+  email,
+}: {
+  network: WEB3AUTH_NETWORK_TYPE;
+  manualSync: boolean;
+  email: string;
+}) => {
+  const instance = new Web3AuthMPCCoreKit({
+    web3AuthClientId: "torus-key-test",
+    web3AuthNetwork: network,
+    baseUrl: "http://localhost:3000",
+    uxMode: UX_MODE.REDIRECT,
+    storageKey: "mock",
+    manualSync,
+  });
+
+  const { idToken, parsedToken } = await mockLogin(email);
+  await instance.init();
+  try {
+    await instance.loginWithJWT({
+      verifier: "torus-test-health",
+      verifierId: parsedToken.email,
+      idToken,
+    });
+  } catch (error) {}
+
+  return instance;
 };

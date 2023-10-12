@@ -1,10 +1,11 @@
 /* eslint-disable mocha/handle-done-callback */
+import assert from "node:assert";
 import test from "node:test";
 
 import { UX_MODE } from "@toruslabs/customauth";
 import BN from "bn.js";
 
-import { COREKIT_STATUS, Point, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
+import { COREKIT_STATUS, getWebBrowserFactor, Point, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
 
 type FactorTestVariable = {
@@ -13,68 +14,95 @@ type FactorTestVariable = {
 };
 
 //   const { types } = factor;
-export const FactorManipulationTest = async (
-  coreKitInstance: Web3AuthMPCCoreKit,
-  newInstance: () => Promise<Web3AuthMPCCoreKit>,
-  testVariable: FactorTestVariable
-) => {
+export const FactorManipulationTest = async (newInstance: () => Promise<Web3AuthMPCCoreKit>, testVariable: FactorTestVariable) => {
   test(`#Factor manipulation - ${testVariable.types} `, async function (t) {
-    await test.before(async function () {
-      if (coreKitInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(coreKitInstance);
+    await t.before(async function () {
+      const coreKitInstance = await newInstance();
+      await criticalResetAccount(coreKitInstance);
+      await coreKitInstance.logout();
     });
-    // create factor
+
     await t.test("should able to create factor", async function () {
-      const factorKey1 = await coreKitInstance.createFactor({
-        shareType: testVariable.types,
-      });
-      const factorKey2 = await coreKitInstance.createFactor({
-        shareType: testVariable.types,
-      });
-
-      // get current Factor ( default is hash factor)
+      const coreKitInstance = await newInstance();
       const firstFactor = coreKitInstance.getCurrentFactorKey();
-
-      if (testVariable.manualSync) {
-        await coreKitInstance.commitChanges();
-      }
-
-      console.log("firstFactor", factorKey1);
-      // replace active factor key
-      await coreKitInstance.inputFactorKey(new BN(factorKey1, "hex"));
-
-      // delete hash factor factor
-      const pt = Point.fromPrivateKey(firstFactor.factorKey);
-      await coreKitInstance.deleteFactor(pt.toTkeyPoint());
-      // try deleted input factor on second instance
-
-      // delete active factor key
+      // try delete hash factor factor
       try {
-        const activePt = Point.fromPrivateKey(factorKey1);
-        await coreKitInstance.deleteFactor(activePt.toTkeyPoint());
+        const pt = Point.fromPrivateKey(firstFactor.factorKey);
+        await coreKitInstance.deleteFactor(pt.toTkeyPoint());
         throw new Error("should not reach here");
       } catch {}
 
-      // delete deleted factor key
-      try {
-        const activePt = Point.fromPrivateKey(factorKey1);
-        await coreKitInstance.deleteFactor(activePt.toTkeyPoint());
-        throw new Error("should not reach here");
-      } catch {}
+      // create factor
+      const factorKey1 = await coreKitInstance.createFactor({
+        shareType: TssShareType.DEVICE,
+      });
+
+      const factorKey2 = await coreKitInstance.createFactor({
+        shareType: TssShareType.RECOVERY,
+      });
 
       // sync
       if (testVariable.manualSync) {
         await coreKitInstance.commitChanges();
       }
+      // clear session prevent rehydration
+      await coreKitInstance.logout();
 
-      // newInstance
+      // new instance
       const instance2 = await newInstance();
-      console.log(instance2.state);
+      assert.strictEqual(instance2.getTssFactorPub().length, 3);
 
-      // input factor to second instance
-      await instance2.inputFactorKey(new BN(factorKey1));
+      // try inputFactor ( set as active factor )
 
-      // instance
-      const tssShare = await instance2.tKey.getTSSShare(new BN(factorKey1));
+      // delete factor
+      const pt = Point.fromPrivateKey(factorKey1);
+      await instance2.deleteFactor(pt.toTkeyPoint());
+
+      // delete factor
+      const pt2 = Point.fromPrivateKey(factorKey2);
+      await instance2.deleteFactor(pt2.toTkeyPoint());
+
+      if (testVariable.manualSync) {
+        await instance2.commitChanges();
+      }
+
+      // new instance
+      const instance3 = await newInstance();
+      assert.strictEqual(instance3.getTssFactorPub().length, 1);
+    });
+
+    // enable mfa
+
+    await t.test("enable MFA", async function () {
+      const instance = await newInstance();
+      const recoverFactor = await instance.enableMFA({});
+
+      const browserFactor = await getWebBrowserFactor(instance, "mock");
+
+      if (testVariable.manualSync) {
+        await instance.commitChanges();
+      }
+
+      // to prevent rehydration ( rehydrate session id store in BrowserStorage)
+      await instance.logout();
+
+      // new instance
+      const instance2 = await newInstance();
+      // try {
+      //   checkLogin(instance2);
+      // }
+
+      // login with mfa factor
+      await instance2.inputFactorKey(new BN(recoverFactor, "hex"));
+      assert.strictEqual(instance2.status, COREKIT_STATUS.LOGGED_IN);
+      await instance2.logout();
+
+      // new instance
+      const instance3 = await newInstance();
+      assert.strictEqual(instance3.status, COREKIT_STATUS.REQUIRED_SHARE);
+
+      await instance3.inputFactorKey(new BN(browserFactor, "hex"));
+      assert.strictEqual(instance3.status, COREKIT_STATUS.LOGGED_IN);
     });
   });
 };
@@ -84,7 +112,7 @@ const variable: FactorTestVariable[] = [
   { types: TssShareType.RECOVERY, manualSync: true },
 ];
 
-const email = "testmail";
+const email = "testmail99";
 variable.forEach(async (testVariable) => {
   const newCoreKitLogInInstance = async () => {
     const instance = new Web3AuthMPCCoreKit({
@@ -109,7 +137,5 @@ variable.forEach(async (testVariable) => {
     return instance;
   };
 
-  const coreKitInstance = await newCoreKitLogInInstance();
-
-  FactorManipulationTest(coreKitInstance, newCoreKitLogInInstance, testVariable);
+  await FactorManipulationTest(newCoreKitLogInInstance, testVariable);
 });
