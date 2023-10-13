@@ -921,7 +921,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // setup mock shares, sockets and tss wasm files.
       const [sockets] = await Promise.all([tssUtils.setupSockets(tssWSEndpoints, randomSessionNonce), tss.default(tssImportUrl)]);
 
-      const participatingServerDKGIndexes = [1, 2, 3];
+      const { nodeIndexes } = await (this.tKey.serviceProvider as TorusServiceProvider).getTSSPubKey(
+        this.tKey.tssTag,
+        this.tKey.metadata.tssNonces[this.tKey.tssTag]
+      );
+      const participatingServerDKGIndexes = nodeIndexes;
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
       const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
       const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
