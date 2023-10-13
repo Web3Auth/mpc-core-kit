@@ -912,7 +912,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const tss = await import("@toruslabs/tss-lib");
       // 1. setup
       // generate endpoints for servers
-      const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex);
+      const { nodeIndexes } = await (this.tKey.serviceProvider as TorusServiceProvider).getTSSPubKey(
+        this.tKey.tssTag,
+        this.tKey.metadata.tssNonces[this.tKey.tssTag]
+      );
+      const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
       const randomSessionNonce = keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
       const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
       // session is needed for authentication to the web3auth infrastructure holding the factor 1
@@ -921,10 +925,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // setup mock shares, sockets and tss wasm files.
       const [sockets] = await Promise.all([tssUtils.setupSockets(tssWSEndpoints, randomSessionNonce), tss.default(tssImportUrl)]);
 
-      const { nodeIndexes } = await (this.tKey.serviceProvider as TorusServiceProvider).getTSSPubKey(
-        this.tKey.tssTag,
-        this.tKey.metadata.tssNonces[this.tKey.tssTag]
-      );
       const participatingServerDKGIndexes = nodeIndexes;
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
       const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
