@@ -294,7 +294,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       let loginResponse: TorusKey;
       if (!idTokenLoginParams.subVerifier) {
         // single verifier login.
-        loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).directWeb.getTorusKey(
+        loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).customAuthInstance.getTorusKey(
           verifier,
           verifierId,
           { verifier_id: verifierId },
@@ -307,7 +307,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         (this.tKey.serviceProvider as TorusServiceProvider).verifierType = "normal";
       } else {
         // aggregate verifier login
-        loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).directWeb.getAggregateTorusKey(verifier, verifierId, [
+        loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).customAuthInstance.getAggregateTorusKey(verifier, verifierId, [
           { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
         ]);
         (this.tKey.serviceProvider as TorusServiceProvider).verifierType = "aggregate";
@@ -339,7 +339,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.checkReady();
 
     try {
-      const result = await this.torusSp.directWeb.getRedirectResult();
+      const result = await this.torusSp.customAuthInstance.getRedirectResult();
 
       if (result.method === TORUS_METHOD.TRIGGER_LOGIN) {
         const data = result.result as TorusLoginResponse;
@@ -921,7 +921,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // setup mock shares, sockets and tss wasm files.
       const [sockets] = await Promise.all([tssUtils.setupSockets(tssWSEndpoints, randomSessionNonce), tss.default(tssImportUrl)]);
 
-      const participatingServerDKGIndexes = [1, 2, 3];
+      const { nodeIndexes } = await (this.tKey.serviceProvider as TorusServiceProvider).getTSSPubKey(
+        this.tKey.tssTag,
+        this.tKey.metadata.tssNonces[this.tKey.tssTag]
+      );
+      const participatingServerDKGIndexes = nodeIndexes;
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
       const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
       const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
