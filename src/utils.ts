@@ -12,10 +12,11 @@ export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   return { private: factorKey, pub: factorPub };
 };
 
-export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number) => {
+export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number, nodeIndexes: number[]) => {
   const endpoints: string[] = [];
   const tssWSEndpoints: string[] = [];
   const partyIndexes: number[] = [];
+
   for (let i = 0; i < parties; i++) {
     partyIndexes.push(i);
     if (i === clientIndex) {
@@ -24,8 +25,9 @@ export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       tssWSEndpoints.push(null as any);
     } else {
-      endpoints.push(tssNodeEndpoints[i]);
-      tssWSEndpoints.push(new URL(tssNodeEndpoints[i]).origin);
+      const targetNodeIndex = nodeIndexes[i] - 1;
+      endpoints.push(tssNodeEndpoints[targetNodeIndex]);
+      tssWSEndpoints.push(new URL(tssNodeEndpoints[targetNodeIndex]).origin);
     }
   }
   return { endpoints, tssWSEndpoints, partyIndexes };

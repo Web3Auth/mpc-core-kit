@@ -1,6 +1,6 @@
 {
   "name": "@web3auth/mpc-core-kit",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "MPC CoreKit SDK for web3Auth",
   "keywords": [
     "web3Auth/mpc-core-kit",
@@ -39,7 +39,7 @@
     "@tkey-mpc/common-types": "^9.0.2",
     "@tkey-mpc/core": "^9.0.2",
     "@tkey-mpc/security-questions": "^9.0.2",
-    "@tkey-mpc/service-provider-torus": "^9.0.2",
+    "@tkey-mpc/service-provider-torus": "^9.0.3",
     "@tkey-mpc/share-serialization": "^9.0.2",
     "@tkey-mpc/storage-layer-torus": "^9.0.2",
     "@toruslabs/constants": "^13.0.1",
