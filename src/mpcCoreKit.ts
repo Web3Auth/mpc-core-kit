@@ -613,7 +613,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       selectedServers: [],
     });
 
-    return exportTssKey.toString("hex");
+    return exportTssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
   }
 
   private getTssNonce(): number {
