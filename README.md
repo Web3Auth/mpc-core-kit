@@ -34,10 +34,22 @@ Web3Auth needs to initialise as soon as your app loads up to enable the user to 
 ```js
 import { Web3AuthMPCCoreKit } from "@web3auth/mpc-core-kit";
 
+const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
+  chainNamespace: CHAIN_NAMESPACES.EIP155,
+  chainId: "0x5",
+  rpcTarget: "https://rpc.ankr.com/eth_goerli",
+  displayName: "Goerli Testnet",
+  blockExplorer: "https://goerli.etherscan.io",
+  ticker: "ETH",
+  tickerName: "Ethereum",
+  decimals: 18,
+};
+
 //Initialize within your constructor
 const web3auth = new Web3AuthMPCCoreKit({
     web3AuthClientId: 'YOUR_CLIENT_ID',
     web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET
+    chainConfig: DEFAULT_CHAIN_CONFIG
 });
 
 
