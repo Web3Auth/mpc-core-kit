@@ -189,6 +189,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
+  // an option for user to recover/port out their account incase the oauth provider or storage/service provider is down
+  // not recommended developer to use this function in normal use case as it will reduce the secure element of the TssKey MPC
   public async _UNSAFE_recoverTssKey(factorKey: string[]) {
     this.checkReady();
     const factorKeyBN = new BN(factorKey[0], "hex");
@@ -218,6 +220,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return finalKey.toString("hex");
   }
 
+  // Initialize handle the routine of initializing the tkey, session and provider if required
+  // should reset instance state if called
+  // Should provide option to skip handleRedirectFlow and rehydrateSession
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
     this.resetState();
 
@@ -277,6 +282,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
+  // Login in with Oauth flow where it will popup / redirect to Oauth Login
+  // if importTssKey is provided during first time login, the key will be use as the tss key
   public async loginWithOauth(params: OauthLoginParams, importTssKey?: string): Promise<void> {
     this.checkReady();
 
@@ -322,6 +329,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  // Option for developer to login with JWT token where developer handle the oauth login flow themselve
+  // if importTssKey is provided during first time login, the key will be use as the tss key
   public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams, importTssKey?: string): Promise<void> {
     this.checkReady();
 
@@ -372,6 +381,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  // handle redirect result after return from the oauth redirect login
+  // should be public where developer can call this function after redirect on their terms.
   private async handleRedirectResult(): Promise<void> {
     this.checkReady();
 
@@ -415,6 +426,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  // Incase of the instance/ device do not have access to the device factor key,
+  // this function will allow developer to import the factor key (either device/backup) to the instance
   public async inputFactorKey(factorKey: BN): Promise<void> {
     this.checkReady();
     try {
@@ -457,6 +470,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tKey.getTSSPub();
   }
 
+  // MPC core kit is defaulted with Oauth Factor and Hash Factor (which derived from the postboxkey) which equavalent of 1 out of 1 factor
+  // enableMFA will remove the Hash Factor and replace it with Device Factor (which random generated) and stored in device storage and backup factor (by default)
+  // This make the instance to be 2 out of 3 factors
+  // setting recoveryFactor to false will resultant 2 out of 2 factors as some developer want to control the flow
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
@@ -502,6 +519,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return factorPubsList.map((factorPub) => Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex"));
   };
 
+  // Create Factor will create a factor key that point to the tss share and a metadataKey device share.
+  // Very time the tss share is changed, the factor key will automatically point to the latest tss share.
+  // The metadataKey's share is required to reconsturct the metatdataKey which is required to update any changes of the metadata to storage layer
   public async createFactor(createFactorParams: CreateFactorParams): Promise<string> {
     this.checkReady();
 
@@ -572,6 +592,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.tKey.manualSync) await this.tKey._syncShareMetadata();
   }
 
+  // logout will invalidate the session and reset the instance state
   public async logout(): Promise<void> {
     if (this.sessionManager.sessionId) {
       // throw new Error("User is not logged in.");
@@ -607,6 +628,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return keyDetails;
   }
 
+  // In case of manualSync mode, any operation that changed the metadata ( like createFactor, deleteFactor and etc ) will not be sync to storage layer.
+  // This function will sync the metadata to storage layer
   public async commitChanges(): Promise<void> {
     this.checkReady();
     if (!this.state.factorKey) throw new Error("factorKey not present");
@@ -631,8 +654,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tKey.manualSync = manualSync;
   }
 
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
+  // allow user to import their key as the tss key for mpc
+  // not recommended developer to use this function in normal use case as it will reduce the secure element of the TssKey MPC
   private async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
     if (!this.state.signatures) throw new Error("signatures not present");
 
@@ -640,6 +663,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.tKey.importTssKey({ tag: this.tKey.tssTag, importKey: tssKeyBN, factorPub, newTSSIndex }, { authSignatures: this.state.signatures });
   }
 
+  // an option for user to port out
+  // not recommended developer to use this function in normal use case as it will reduce the secure element of the TssKey MPC
   public async _UNSAFE_exportTssKey(): Promise<string> {
     if (!this.state.factorKey) throw new Error("factorKey not present");
     if (!this.state.signatures) throw new Error("signatures not present");
@@ -896,6 +921,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
   }
 
+  // backup only the share store as other data will be available in the metadata once tkey is reconstructed
   private async backupMetadataShare(factorKey: BN) {
     const metadataShare = await this.getMetadataShare();
 
@@ -925,6 +951,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
   }
 
+  // we should make the provider to be more generalised
   private async setupProvider(): Promise<void> {
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
     let { tssShareIndex, tssPubKey } = this.state;
