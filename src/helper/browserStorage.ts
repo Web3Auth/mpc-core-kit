@@ -34,7 +34,7 @@ export class BrowserStorage {
 
   private _storeKey: string;
 
-  constructor(storeKey: string, storage: IStorage) {
+  private constructor(storeKey: string, storage: IStorage) {
     this.storage = storage;
     this._storeKey = storeKey;
     try {
