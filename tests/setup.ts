@@ -1,13 +1,7 @@
-import { UX_MODE } from "@toruslabs/customauth";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 
 import { parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
-if (global.navigator === undefined) {
-  const nav = global.navigator;
-  global.navigator = { ...nav, userAgent: "test" };
-}
-global.window = undefined;
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -79,8 +73,8 @@ export const newCoreKitLogInInstance = async ({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
-    uxMode: UX_MODE.REDIRECT,
-    storageKey: "mock",
+    uxMode: "nodejs",
+    storageKey: "memory",
     manualSync,
   });
 

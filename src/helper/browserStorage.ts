@@ -4,9 +4,9 @@ import { FIELD_ELEMENT_HEX_LEN } from "../constants";
 import { ICoreKit, IStorage, TkeyLocalStoreData } from "../interfaces";
 import { storageAvailable } from "../utils";
 
-export type SupportedStorageType = "local" | "session" | "mock";
+export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
 
-export class MockStorage implements IStorage {
+export class MemoryStorage implements IStorage {
   private _store: Record<string, string> = {};
 
   getItem(key: string): string | null {
@@ -51,13 +51,14 @@ export class BrowserStorage {
       let storage: IStorage | undefined;
       if (storageKey === "local" && storageAvailable("localStorage")) {
         storage = localStorage;
-      }
-      if (storageKey === "session" && storageAvailable("sessionStorage")) {
+      } else if (storageKey === "session" && storageAvailable("sessionStorage")) {
         storage = sessionStorage;
+      } else if (storageKey === "memory") {
+        storage = new MemoryStorage();
+      } else if (typeof storageKey === "object") {
+        storage = storageKey;
       }
-      if (storageKey === "mock") {
-        storage = new MockStorage();
-      }
+
       if (!storage) {
         throw new Error("No valid storage available");
       }

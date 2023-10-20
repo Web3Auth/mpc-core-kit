@@ -2,7 +2,6 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import { UX_MODE } from "@toruslabs/customauth";
 import { log } from "@web3auth/base";
 
 import { IdTokenLoginParams, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
@@ -38,8 +37,8 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         web3AuthClientId: "torus-key-test",
         web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
         baseUrl: "http://localhost:3000",
-        uxMode: UX_MODE.REDIRECT,
-        storageKey: "mock",
+        uxMode: "nodejs",
+        storageKey: "memory",
         manualSync: testVariable.manualSync,
       });
 
@@ -74,8 +73,8 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         web3AuthClientId: "torus-key-test",
         web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
         baseUrl: "http://localhost:3000",
-        uxMode: UX_MODE.REDIRECT,
-        storageKey: "mock",
+        uxMode: "nodejs",
+        storageKey: "memory",
       });
 
       await coreKitInstance2.init();

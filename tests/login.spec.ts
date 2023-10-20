@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import { UX_MODE, UX_MODE_TYPE } from "@toruslabs/customauth";
+import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import BN from "bn.js";
 
 import { COREKIT_STATUS, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
@@ -10,7 +10,7 @@ import { criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
-  uxMode: UX_MODE_TYPE;
+  uxMode: UX_MODE_TYPE | "nodejs";
   manualSync?: boolean;
 
   email: string;
@@ -18,10 +18,10 @@ type TestVariable = {
 
 const defaultTestEmail = "testEmail1";
 const variable: TestVariable[] = [
-  { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: UX_MODE.REDIRECT, email: defaultTestEmail },
+  { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: "nodejs", email: defaultTestEmail },
   // { web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET, uxMode: UX_MODE.REDIRECT, email: defaultTestEmail },
 
-  { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: UX_MODE.REDIRECT, manualSync: true, email: defaultTestEmail },
+  { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: "nodejs", manualSync: true, email: defaultTestEmail },
   // { web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET, uxMode: UX_MODE.REDIRECT, manualSync: true, email: defaultTestEmail },
 ];
 
@@ -40,7 +40,7 @@ variable.forEach((testVariable) => {
     web3AuthNetwork,
     baseUrl: "http://localhost:3000",
     uxMode,
-    storageKey: "mock",
+    storageKey: "memory",
     manualSync,
   });
 
@@ -62,7 +62,7 @@ variable.forEach((testVariable) => {
     await t.test("#Login ", async function () {
       // mocklogin
       const { idToken, parsedToken } = await mockLogin(email);
-      await coreKitInstance.init();
+      await coreKitInstance.init({ handleRedirectResult: false });
       await coreKitInstance.loginWithJWT({
         verifier: "torus-test-health",
         verifierId: parsedToken.email,
@@ -78,7 +78,7 @@ variable.forEach((testVariable) => {
       // await coreKitInstance.init({ rehydrate: false });
 
       // rehydrate
-      await coreKitInstance.init();
+      await coreKitInstance.init({ handleRedirectResult: false });
       await checkLogin(coreKitInstance);
 
       // logout

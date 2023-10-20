@@ -13,6 +13,8 @@ import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+
+export type CoreKitMode = UX_MODE_TYPE | "nodejs";
 export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -277,7 +279,7 @@ export interface Web3AuthOptions {
    *
    * @defaultValue `'local'`
    */
-  storageKey?: "session" | "local" | "mock";
+  storageKey?: "session" | "local" | "memory" | IStorage;
 
   /**
    * @defaultValue 86400
@@ -287,7 +289,7 @@ export interface Web3AuthOptions {
   /**
    * @defaultValue `'POPUP'`
    */
-  uxMode?: UX_MODE_TYPE;
+  uxMode?: CoreKitMode;
 
   /**
    * @defaultValue `false`

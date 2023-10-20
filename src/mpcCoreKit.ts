@@ -98,6 +98,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
+    if (options.uxMode === "nodejs" && ["local", "session"].includes(options.storageKey.toString())) {
+      throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
+    }
 
     if (options.enableLogging) {
       log.enableAll();
@@ -232,7 +235,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
-        uxMode: this.options.uxMode,
+        uxMode: this.options.uxMode === "nodejs" ? UX_MODE.REDIRECT : this.options.uxMode,
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
@@ -260,13 +263,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (this.isRedirectMode) {
       await (this.tKey.serviceProvider as TorusServiceProvider).init({ skipSw: true, skipPrefetch: true });
-    } else {
+    } else if (this.options.uxMode === UX_MODE.POPUP) {
       await (this.tKey.serviceProvider as TorusServiceProvider).init({});
     }
     this.ready = true;
 
     // try handle redirect flow if enabled and return(redirect) from oauth login
-    if (params.handleRedirectResult && (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))) {
+    if (
+      params.handleRedirectResult &&
+      this.options.uxMode === UX_MODE.REDIRECT &&
+      (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))
+    ) {
       await this.handleRedirectResult();
 
       // if not redirect flow try to rehydrate session if available
@@ -466,33 +473,43 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("MFA already enabled");
     }
 
-    try {
+    let browserData;
+
+    if (this.options.uxMode === "nodejs") {
+      browserData = {
+        browserName: "Node Env",
+        browserVersion: "",
+        deviceName: "nodejs",
+      };
+    } else {
       const browserInfo = bowser.parse(navigator.userAgent);
       const browserName = `${browserInfo.browser.name}`;
-      const browserData = {
+      browserData = {
         browserName,
         browserVersion: browserInfo.browser.version,
         deviceName: browserInfo.os.name,
       };
-      const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
-      storeWebBrowserFactor(deviceFactorKey, this);
-      await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
-
-      const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
-      await this.deleteFactor(hashedFactorPub, hashedFactorKey);
-      await this.deleteMetadataShareBackup(hashedFactorKey);
-
-      // only recovery factor = true
-      if (recoveryFactor) {
-        const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
-        return backupFactorKey;
-      }
-      // update to undefined for next major release
-      return "";
-    } catch (err: unknown) {
-      log.error("error enabling MFA", err);
-      throw new Error((err as Error).message);
     }
+
+    const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
+    storeWebBrowserFactor(deviceFactorKey, this);
+    await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
+
+    const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
+    await this.deleteFactor(hashedFactorPub, hashedFactorKey);
+    await this.deleteMetadataShareBackup(hashedFactorKey);
+
+    // only recovery factor = true
+    if (recoveryFactor) {
+      const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
+      return backupFactorKey;
+    }
+    // update to undefined for next major release
+    return "";
+    // } catch (err: unknown) {
+    //   log.error("error enabling MFA", err);
+    //   throw new Error((err as Error).message);
+    // }
   }
 
   public getTssFactorPub = (): string[] => {
@@ -579,7 +596,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     this.currentStorage.set("sessionId", "");
     this.resetState();
-    await this.init();
+    await this.init({ handleRedirectResult: false });
   }
 
   public getUserInfo(): UserInfo {

@@ -4,7 +4,7 @@ import assert from "node:assert";
 import test from "node:test";
 
 // import { getPubKeyPoint } from "@tkey-mpc/common-types";
-import { UX_MODE, UX_MODE_TYPE } from "@toruslabs/customauth";
+import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import BN from "bn.js";
 
 import { COREKIT_STATUS, TssSecurityQuestion, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
@@ -12,7 +12,7 @@ import { criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
-  uxMode: UX_MODE_TYPE;
+  uxMode: UX_MODE_TYPE | "nodejs";
   manualSync?: boolean;
 };
 
@@ -99,7 +99,7 @@ const variable: TestVariable[] = [
   // { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: UX_MODE.REDIRECT },
   // { web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET, uxMode: UX_MODE.REDIRECT },
 
-  { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: UX_MODE.REDIRECT, manualSync: true },
+  { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: "nodejs", manualSync: true },
   // { web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET, uxMode: UX_MODE.REDIRECT, manualSync: true },
 ];
 
@@ -111,13 +111,13 @@ variable.forEach(async (testVariable) => {
       web3AuthClientId: "torus-key-test",
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
-      uxMode: UX_MODE.REDIRECT,
-      storageKey: "mock",
+      uxMode: "nodejs",
+      storageKey: "memory",
       manualSync: testVariable.manualSync,
     });
 
     const { idToken, parsedToken } = await mockLogin(email);
-    await instance.init();
+    await instance.init({ handleRedirectResult: false });
     try {
       await instance.loginWithJWT({
         verifier: "torus-test-health",
