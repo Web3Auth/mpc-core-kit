@@ -11,6 +11,7 @@ import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, utils as tssUtils } from "@toruslabs/tss-client";
+import * as TssLib from "@toruslabs/tss-lib";
 import { CHAIN_NAMESPACES, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
@@ -968,7 +969,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const sign = async (msgHash: Buffer) => {
       const parties = 4;
       const clientIndex = parties - 1;
-      const tss = await import("@toruslabs/tss-lib");
       // 1. setup
       // generate endpoints for servers
       const { nodeIndexes } = await (this.tKey.serviceProvider as TorusServiceProvider).getTSSPubKey(
@@ -981,8 +981,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // session is needed for authentication to the web3auth infrastructure holding the factor 1
       const currentSession = `${sessionId}${randomSessionNonce}`;
 
+      let tss: typeof TssLib;
+      if (this.options.uxMode === "nodejs") {
+        tss = this.options.tssLib as typeof TssLib;
+      } else {
+        tss = TssLib;
+        await tss.default(tssImportUrl);
+      }
       // setup mock shares, sockets and tss wasm files.
-      const [sockets] = await Promise.all([tssUtils.setupSockets(tssWSEndpoints, randomSessionNonce), tss.default(tssImportUrl)]);
+      const [sockets] = await Promise.all([tssUtils.setupSockets(tssWSEndpoints, randomSessionNonce)]);
 
       const participatingServerDKGIndexes = nodeIndexes;
       const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);

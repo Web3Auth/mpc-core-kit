@@ -340,6 +340,14 @@ export interface Web3AuthOptions {
    * Recommended for Non Custodial Flow.
    */
   disableHashedFactorKey?: boolean;
+
+  /**
+   * @defaultValue `null`
+   * Overwrite tss-lib for nodejs.
+   * Required for nodejs mode.
+   * Do not use this option for non nodejs mode.
+   */
+  tssLib?: unknown;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
