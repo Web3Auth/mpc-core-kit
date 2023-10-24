@@ -103,6 +103,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
     }
 
+    if (options.uxMode === "nodejs" && !options.tssLib) {
+      throw new Error(`nodejs mode requires tssLib`);
+    }
+
     if (options.enableLogging) {
       log.enableAll();
       this.enableLogging = true;
