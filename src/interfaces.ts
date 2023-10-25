@@ -338,6 +338,13 @@ export interface Web3AuthOptions {
    * Recommended for Non Custodial Flow.
    */
   disableHashedFactorKey?: boolean;
+
+  /**
+   * @defaultValue `Web3AuthOptions.web3AuthClientId`
+   * Overwrites the clientId used for hashing the factor key.
+   * Do not use this unless you know what you are doing.
+   */
+  finalHashClientId?: string;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
