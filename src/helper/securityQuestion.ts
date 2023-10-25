@@ -3,7 +3,8 @@ import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, VALID_SHARE_INDICES } from "../constants";
-import type { Web3AuthMPCCoreKit } from "../mpcCoreKit";
+import { ICoreKit } from "../interfaces";
+// import type { Web3AuthMPCCoreKit } from "../mpcCoreKit";
 import { Point } from "../point";
 
 export class TssSecurityQuestionStore {
@@ -34,7 +35,7 @@ export class TssSecurityQuestionStore {
 }
 
 export interface setSecurityQuestionParams {
-  mpcCoreKit: Web3AuthMPCCoreKit;
+  mpcCoreKit: ICoreKit;
   question: string;
   answer: string;
   shareType?: TssShareType;
@@ -43,11 +44,15 @@ export interface setSecurityQuestionParams {
 }
 
 export interface changeSecurityQuestionParams {
-  mpcCoreKit: Web3AuthMPCCoreKit;
+  mpcCoreKit: ICoreKit;
   newQuestion: string;
   newAnswer: string;
   answer: string;
 }
+
+// Idea using hash of answer + pubKey as security question factor key factor key
+// opposed to use the hash to encrypt random factor key as both are equally secure
+// but this way we can use the hash to recover the factor key and reduce the api call and storage
 
 export class TssSecurityQuestion {
   storeDomainName = "tssSecurityQuestion";
@@ -160,8 +165,9 @@ export class TssSecurityQuestion {
     if (!tkey.manualSync) await tkey._syncShareMetadata();
   }
 
-  // Should we check with answer before deleting?
-  async deleteSecurityQuestion(mpcCoreKit: Web3AuthMPCCoreKit, deleteFactorKey = true) {
+  // provide option to delete security question incase user forgot the password
+  // option to not delete the factor key if user only want to remove the question but not the factor key
+  async deleteSecurityQuestion(mpcCoreKit: ICoreKit, deleteFactorKey = true) {
     if (!mpcCoreKit.tKey) {
       throw new Error("Tkey not initialized, call init first.");
     }
@@ -184,7 +190,7 @@ export class TssSecurityQuestion {
     if (!tkey.manualSync) await tkey._syncShareMetadata();
   }
 
-  async recoverFactor(mpcCoreKit: Web3AuthMPCCoreKit, answer: string): Promise<string> {
+  async recoverFactor(mpcCoreKit: ICoreKit, answer: string): Promise<string> {
     if (!mpcCoreKit.tKey) {
       throw new Error("Tkey not initialized, call init first.");
     }
@@ -217,7 +223,7 @@ export class TssSecurityQuestion {
     return hash;
   }
 
-  getQuestion(mpcCoreKit: Web3AuthMPCCoreKit): string {
+  getQuestion(mpcCoreKit: ICoreKit): string {
     if (!mpcCoreKit.tKey) {
       throw new Error("Tkey not initialized, call init first.");
     }

@@ -9,6 +9,7 @@ import type {
   UX_MODE_TYPE,
   WebAuthnExtraParams,
 } from "@toruslabs/customauth";
+import { BNString } from "@toruslabs/torus.js";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
@@ -216,7 +217,7 @@ export interface ICoreKit {
    * associated metadata.
    * @param factorPub - The public key of the factor to delete.
    */
-  deleteFactor(factorPub: TkeyPoint): Promise<void>;
+  deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void>;
 
   /**
    * Logs out the user, terminating the session.
