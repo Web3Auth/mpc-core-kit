@@ -2,6 +2,7 @@
 import assert from "node:assert";
 import test from "node:test";
 
+import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 
 import {
@@ -128,6 +129,7 @@ variable.forEach(async (testVariable) => {
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
+      tssLib: TssLib,
       storageKey: testVariable.storage,
       manualSync: testVariable.manualSync,
     });

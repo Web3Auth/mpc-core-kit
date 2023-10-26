@@ -1,3 +1,4 @@
+import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 
@@ -74,6 +75,7 @@ export const newCoreKitLogInInstance = async ({
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
+    tssLib: TssLib,
     storageKey: "memory",
     manualSync,
   });

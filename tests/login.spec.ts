@@ -3,8 +3,10 @@ import assert from "node:assert";
 import test from "node:test";
 
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
+import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 
+// import { ec } from "elliptic";
 import { COREKIT_STATUS, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
 
@@ -40,6 +42,7 @@ variable.forEach((testVariable) => {
     web3AuthNetwork,
     baseUrl: "http://localhost:3000",
     uxMode,
+    tssLib: TssLib,
     storageKey: "memory",
     manualSync,
   });
@@ -103,5 +106,14 @@ variable.forEach((testVariable) => {
       // get key details
       await checkLogin(coreKitInstance);
     });
+
+    // await t.test("#able to sign", async function () {
+    //   const msg = "hello world";
+    //   const msgBuffer = Buffer.from(msg);
+    //   const signature = await coreKitInstance.sign(msgBuffer);
+
+    //   // const EC = new ec("secp256k1");
+    //   // EC.recoverPubKey(msgBuffer, signature);
+    // });
   });
 });

@@ -5,6 +5,7 @@ import test from "node:test";
 
 // import { getPubKeyPoint } from "@tkey-mpc/common-types";
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
+import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 
 import { COREKIT_STATUS, TssSecurityQuestion, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
@@ -112,6 +113,7 @@ variable.forEach(async (testVariable) => {
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
+      tssLib: TssLib,
       storageKey: "memory",
       manualSync: testVariable.manualSync,
     });
