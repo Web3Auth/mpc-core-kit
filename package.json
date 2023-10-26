@@ -51,6 +51,7 @@
     "@toruslabs/openlogin-session-manager": "^3.0.0",
     "@toruslabs/torus.js": "^11.0.6",
     "@toruslabs/tss-client": "^1.7.1",
+    "@toruslabs/tss-lib": "^1.7.1",
     "@web3auth-mpc/ethereum-provider": "^2.3.0",
     "@web3auth/base": "^7.0.1",
     "@web3auth/base-provider": "^7.0.1",

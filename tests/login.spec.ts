@@ -3,10 +3,11 @@ import assert from "node:assert";
 import test from "node:test";
 
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
+import { keccak256 } from "@toruslabs/metadata-helpers";
 import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
+import { ec as EC } from "elliptic";
 
-// import { ec } from "elliptic";
 import { COREKIT_STATUS, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
 
@@ -107,13 +108,17 @@ variable.forEach((testVariable) => {
       await checkLogin(coreKitInstance);
     });
 
-    // await t.test("#able to sign", async function () {
-    //   const msg = "hello world";
-    //   const msgBuffer = Buffer.from(msg);
-    //   const signature = await coreKitInstance.sign(msgBuffer);
+    await t.test("#able to sign", async function () {
+      const msg = "hello world";
+      const msgBuffer = Buffer.from(msg);
+      const msgHash = keccak256(msgBuffer);
+      const signature = await coreKitInstance.sign(msgHash);
 
-    //   // const EC = new ec("secp256k1");
-    //   // EC.recoverPubKey(msgBuffer, signature);
-    // });
+      const secp256k1 = new EC("secp256k1");
+      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v - 27);
+      const publicKeyPoint = coreKitInstance.getTssPublicKey();
+      assert.strictEqual(pubkey.x.toString("hex"), publicKeyPoint.x.toString("hex"));
+      assert.strictEqual(pubkey.y.toString("hex"), publicKeyPoint.y.toString("hex"));
+    });
   });
 });
