@@ -1,10 +1,11 @@
 import { getPubKeyPoint, Point, Point as TkeyPoint, randomSelection } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import { generatePrivate } from "@toruslabs/eccrypto";
-import { keccak256 } from "@toruslabs/torus.js";
+import { keccak256, StringifiedType } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
 import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import { UserInfo, Web3AuthState } from "./interfaces";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -160,4 +161,22 @@ export const getHashedPrivateKey = (postboxKey: string, clientId: string): BN =>
  */
 export function scalarBNToBufferSEC1(s: BN): Buffer {
   return s.toArrayLike(Buffer, "be", SCALAR_LEN);
+}
+
+export function Web3AuthStateFromJSON(result: StringifiedType): Web3AuthState {
+  if (!result.factorKey) throw new Error("factorKey not found in JSON");
+  if (!result.tssShareIndex) throw new Error("tssShareIndex not found in JSON");
+
+  // eslint-disable-next-line no-console
+  console.log(result.tssPubKey);
+  const factorKey = new BN(result.factorKey as string, "hex");
+  const tssPubKey = Buffer.from(result.tssPubKey as Buffer);
+  return {
+    factorKey,
+    oAuthKey: result.oAuthKey as string,
+    tssShareIndex: parseInt(result.tssShareIndex as string),
+    tssPubKey,
+    signatures: result.signatures as string[],
+    userInfo: result.userInfo as UserInfo,
+  };
 }

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey-mpc/common-types";
-import ThresholdKey, { CoreError, lagrangeInterpolation } from "@tkey-mpc/core";
+import ThresholdKey, { CoreError, lagrangeInterpolation, Metadata } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
@@ -11,7 +11,7 @@ import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, utils as tssUtils } from "@toruslabs/tss-client";
-import type * as TssLib from "@toruslabs/tss-lib/dkls";
+import type * as TssLib from "@toruslabs/tss-lib";
 import { CHAIN_NAMESPACES, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
@@ -59,6 +59,7 @@ import {
   getHashedPrivateKey,
   parseToken,
   scalarBNToBufferSEC1,
+  Web3AuthStateFromJSON,
 } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
@@ -511,10 +512,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     // update to undefined for next major release
     return "";
-    // } catch (err: unknown) {
-    //   log.error("error enabling MFA", err);
-    //   throw new Error((err as Error).message);
-    // }
   }
 
   public getTssFactorPub = (): string[] => {
@@ -873,6 +870,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async createSession() {
+    if (this.options.sessionTime === 0) {
+      log.info("sessionTime is 0, not creating session");
+      return;
+    }
+
     try {
       const sessionId = OpenloginSessionManager.generateRandomSessionKey();
       this.sessionManager.sessionId = sessionId;
@@ -1057,5 +1059,44 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _getSignatures(sessionData: TorusKey["sessionData"]["sessionTokenData"]): string[] {
     return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
+  }
+
+  public async serverSetup(oAuthKey: string, signatures: string[], verifier: string, verifierId: string, importTssKey?: string): Promise<void> {
+    (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(oAuthKey, "hex");
+    (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
+    (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
+
+    this.updateState({
+      oAuthKey,
+      userInfo: { verifier, verifierId } as UserInfo,
+      signatures,
+    });
+    await this.setupTkey(importTssKey);
+  }
+
+  public async serverSetupRehydrate({ state, tkeyJson }: { state: StringifiedType; tkeyJson: StringifiedType }) {
+    this.state = Web3AuthStateFromJSON(state);
+
+    const metadata = Metadata.fromJSON(tkeyJson.metadata);
+    this.tKey.metadata = metadata;
+
+    const { shares } = tkeyJson;
+    for (const key in shares) {
+      if (Object.prototype.hasOwnProperty.call(shares, key)) {
+        const shareStoreMapElement = shares[key];
+        for (const shareElementKey in shareStoreMapElement) {
+          if (Object.prototype.hasOwnProperty.call(shareStoreMapElement, shareElementKey)) {
+            const shareStore = shareStoreMapElement[shareElementKey];
+            shareStoreMapElement[shareElementKey] = ShareStore.fromJSON(shareStore);
+          }
+        }
+        this.tkey.shares[key] = shareStoreMapElement;
+      }
+    }
+    this.tkey.privKey = new BN(tkeyJson.privKey, "hex");
+
+    (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(this.state.oAuthKey, "hex");
+    (this.tKey.serviceProvider as TorusServiceProvider).verifierName = state.userInfo.verifier;
+    (this.tKey.serviceProvider as TorusServiceProvider).verifierId = state.userInfo.verifierId;
   }
 }
