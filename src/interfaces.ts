@@ -341,14 +341,14 @@ export interface Web3AuthOptions {
 
   /**
    * @defaultValue `Web3AuthOptions.web3AuthClientId`
-   * Overwrites the clientId used for hashing the factor key.
+   * Overwrites the clientId used as default nonce for hashing the hash factor key.
    *
    * If you want to aggregate the mfa status of client id 1 and client id 2  apps
    * set rootClientId to some common clientID, which can be either client id 1 or client id 2 or any other unique string
    * #PR 72
    * Do not use this unless you know what you are doing.
    */
-  rootClientId?: string;
+  hashedFactorNonce?: string;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
