@@ -105,7 +105,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.redirectPathName) options.redirectPathName = "redirect";
     if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
-    if (!options.finalHashClientId) options.finalHashClientId = options.web3AuthClientId;
+    if (!options.rootClientId) options.rootClientId = options.web3AuthClientId;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -424,7 +424,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
-    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.finalHashClientId);
+    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.rootClientId);
     if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
       if (this.tKey._localMetadataTransitions[0].length) throw new Error("CommitChanges are required before enabling MFA");
       throw new Error("MFA already enabled");
@@ -635,10 +635,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (this.options.disableHashedFactorKey) {
         factorKey = generateFactorKey().private;
         // delete previous hashed factorKey if present
-        const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.finalHashClientId);
+        const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.rootClientId);
         await this.deleteMetadataShareBackup(hashedFactorKey);
       } else {
-        factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.finalHashClientId);
+        factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.rootClientId);
       }
       const deviceTSSShare = new BN(generatePrivate());
       const deviceTSSIndex = TssShareType.DEVICE;
@@ -658,7 +658,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
     } else {
       await this.tKey.initialize({ neverInitializeNewKey: true });
-      const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.finalHashClientId);
+      const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.rootClientId);
       if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
         // Initialize tkey with existing hashed share if available.
         const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
