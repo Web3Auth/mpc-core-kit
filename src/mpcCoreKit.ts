@@ -7,6 +7,7 @@ import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
+import { post } from "@toruslabs/http-helpers";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
@@ -87,11 +88,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
-  constructor(options: Web3AuthOptions) {
+  private remoteClientUrl: string | undefined;
+
+  constructor(options: Web3AuthOptions, remoteClientUrl?: string) {
     // log.info("======================================================");
     // log.info(`WEB3AUTH SDK : ${name}:${version}`);
 
     // log.info("======================================================");
+
+    this.remoteClientUrl = remoteClientUrl.at(-1) === "/" ? remoteClientUrl.slice(0, -1) : remoteClientUrl;
 
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
@@ -657,7 +662,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("Cannot delete current active factor");
     }
 
-    await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, this.signatures);
+    await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, this.signatures, this.remoteClientUrl);
     const factorPubHex = fpp.toBufferSEC1(true).toString("hex");
     const allDesc = this.tKey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
@@ -955,7 +960,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!this.state.factorKey) throw new Error("factorKey not present");
 
       // Generate new share.
-      await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
+      await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures, this.remoteClientUrl);
 
       // Update local share.
       const { tssIndex } = await this.tKey.getTSSShare(this.state.factorKey);
@@ -1098,5 +1103,52 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(this.state.oAuthKey, "hex");
     (this.tKey.serviceProvider as TorusServiceProvider).verifierName = state.userInfo.verifier;
     (this.tKey.serviceProvider as TorusServiceProvider).verifierId = state.userInfo.verifierId;
+  }
+
+  public async remoteSign(msgHash: Buffer, factorPub: string) {
+    // PreSetup
+    const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
+      verifier: "test-verifier",
+      verifierId: "test@example.com",
+    });
+
+    const tssCommits = this.tKey.getTSSCommits();
+
+    const tssNonce = this.getTssNonce() || 0;
+
+    const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
+    const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
+
+    const parties = 4;
+    const clientIndex = parties - 1;
+
+    const { nodeIndexes } = await (this.tKey.serviceProvider as TorusServiceProvider).getTSSPubKey(
+      this.tKey.tssTag,
+      this.tKey.metadata.tssNonces[this.tKey.tssTag]
+    );
+
+    const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
+
+    const factor = TkeyPoint.fromCompressedPub(factorPub);
+    const factorEnc = this.tKey.getFactorEncs(factor);
+
+    const data = {
+      dataRequired: {
+        factorEnc,
+        sessionId,
+        tssNonce,
+        nodeIndexes,
+        tssCommits: tssCommits.map((commit) => commit.toJSON()),
+        signatures: this.signatures,
+        serverEndpoints: { endpoints, tssWSEndpoints, partyIndexes },
+      },
+      msgHash: msgHash.toString("hex"),
+    };
+
+    const result = await post(`${this.remoteClientUrl}/sign`, data);
+    // eslint-disable-next-line no-console
+    console.log(result);
+
+    return result;
   }
 }
