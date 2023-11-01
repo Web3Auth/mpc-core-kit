@@ -48,7 +48,7 @@
     "@toruslabs/fetch-node-details": "^13.0.1",
     "@toruslabs/fnd-base": "^13.0.1",
     "@toruslabs/http-helpers": "^5.0.0",
-    "@toruslabs/metadata-helpers": "^5.x",
+    "@toruslabs/metadata-helpers": "^4.x",
     "@toruslabs/openlogin-session-manager": "^3.0.0",
     "@toruslabs/torus.js": "^11.0.6",
     "@toruslabs/tss-client": "^1.7.1",
@@ -58,7 +58,8 @@
     "@web3auth/base-provider": "^7.0.1",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
-    "elliptic": "^6.5.4"
+    "elliptic": "^6.5.4",
+    "hi-base32": "^0.5.1"
   },
   "devDependencies": {
     "@babel/register": "^7.22.15",

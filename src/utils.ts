@@ -8,7 +8,6 @@ import BN from "bn.js";
 
 import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 import { UserInfo, Web3AuthState } from "./interfaces";
-import { Point } from "./point";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -139,15 +138,14 @@ export interface refreshRemoteTssReturnType {
  * @param tKey - Tkey instance to use.
  * @param factorPubs - Factor pub keys after refresh.
  * @param tssIndices - Target tss indices to generate new shares for.
- * @param factorKeyForExistingTSSShare - Factor key for existing TSS share.
+ * @param remoteFactorPub - Factor Pub for remote share.
  * @param signatures - Signatures for authentication against RSS servers.
  */
 export async function remoteRefreshTssShares(
   tKey: ThresholdKey,
   factorPubs: TkeyPoint[],
   tssIndices: number[],
-  // to replace with remoteFactorPub
-  factorKeyForExistingTSSShare: BN,
+  remoteFactorPub: TkeyPoint,
   signatures: string[],
   remoteClientUrl: string,
   updateMetadata = false
@@ -171,12 +169,10 @@ export async function remoteRefreshTssShares(
     finalSelectedServers = nodeIndexes.slice(0, Math.min(serverEndpoints.length, nodeIndexes.length));
   }
 
-  // TODO: replace with factorPub Key
-  const factorKeyStr = factorKeyForExistingTSSShare.toString("hex");
-  const point = Point.fromPrivateKey(factorKeyStr).toTkeyPoint();
+  const factorEnc = tKey.getFactorEncs(remoteFactorPub);
 
   const dataRequired = {
-    factorEnc: tKey.getFactorEncs(point),
+    factorEnc,
     factorPubs: factorPubs.map((pub) => pub.toJSON()),
     targetIndexes: tssIndices,
     verifierNameVerifierId,
@@ -193,10 +189,7 @@ export async function remoteRefreshTssShares(
     },
   };
 
-  const result = (await post(`${remoteClientUrl}/refresh_tss`, { dataRequired })) as refreshRemoteTssReturnType;
-
-  // eslint-disable-next-line no-console
-  console.log(result);
+  const result = (await post(`${remoteClientUrl}/api/mpc/refresh_tss`, { dataRequired })) as refreshRemoteTssReturnType;
 
   tKey.metadata.addTSSData({
     tssTag: result.tssTag,
@@ -217,6 +210,7 @@ export async function addFactorAndRefresh(
   newFactorTSSIndex: number,
   factorKeyForExistingTSSShare: BN,
   signatures: string[],
+  remoteFactorPub?: TkeyPoint,
   remoteRefreshUrl?: string
 ) {
   if (!tKey) {
@@ -238,7 +232,7 @@ export async function addFactorAndRefresh(
   if (!remoteRefreshUrl) {
     await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
   } else {
-    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures, remoteRefreshUrl);
+    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, remoteFactorPub, signatures, remoteRefreshUrl);
   }
 }
 
@@ -247,6 +241,7 @@ export async function deleteFactorAndRefresh(
   factorPubToDelete: TkeyPoint,
   factorKeyForExistingTSSShare: BN,
   signatures: string[],
+  remoteFactorPub?: TkeyPoint,
   remoteClientUrl?: string
 ) {
   if (!tKey) {
@@ -269,7 +264,7 @@ export async function deleteFactorAndRefresh(
   if (!remoteClientUrl) {
     await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
   } else {
-    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures, remoteClientUrl);
+    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, remoteFactorPub, signatures, remoteClientUrl);
   }
 }
 
