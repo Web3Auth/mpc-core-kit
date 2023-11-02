@@ -1,21 +1,51 @@
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { post } from "@toruslabs/http-helpers";
 import { keccak256 } from "@toruslabs/metadata-helpers";
+import { log } from "@web3auth/base";
 import BN from "bn.js";
 import type { ec } from "elliptic";
 import base32 from "hi-base32";
 
 import { CURVE } from "../../constants";
+import { IRemoteClientState, Web3AuthMPCCoreKit } from "../../index";
 
 export class AuthenticatorService {
   private authenticatorUrl: string;
 
-  // private remoteClient: boolean = false;
+  private coreKitInstance: Web3AuthMPCCoreKit;
 
-  constructor(params: { authenticatorUrl: string }) {
+  private authenticatorType: string = "authenticator";
+
+  private factorPub: string = "";
+
+  private tssIndex: number;
+
+  constructor(params: { authenticatorUrl: string; coreKitInstance: Web3AuthMPCCoreKit; authenticatorType?: string }) {
     const { authenticatorUrl } = params;
     this.authenticatorUrl = authenticatorUrl;
+    this.authenticatorType = params.authenticatorType || "authenticator";
+    this.coreKitInstance = params.coreKitInstance;
     // this.remoteClient = remoteClient || false;
+  }
+
+  getDescriptionsAndUpdate() {
+    const arrayOfDescriptions = Object.entries(this.coreKitInstance.getKeyDetails().shareDescriptions).map(([key, value]) => {
+      const parsedDescription = (value || [])[0] ? JSON.parse(value[0]) : {};
+      return {
+        key,
+        description: parsedDescription,
+      };
+    });
+
+    const shareDescriptionsMobile = arrayOfDescriptions.find(({ description }) => description.authenticator === this.authenticatorType);
+    log.info("shareDescriptionsMobile", shareDescriptionsMobile);
+
+    if (shareDescriptionsMobile) {
+      this.factorPub = shareDescriptionsMobile.key;
+      this.tssIndex = shareDescriptionsMobile.description.tssShareIndex;
+    }
+
+    return shareDescriptionsMobile;
   }
 
   generateSecretKey(): string {
@@ -44,7 +74,7 @@ export class AuthenticatorService {
     const resp = await post<{
       success: boolean;
       message: string;
-    }>(`${this.authenticatorUrl}/register`, data);
+    }>(`${this.authenticatorUrl}/api/v1/register`, data);
 
     return resp;
   }
@@ -64,7 +94,7 @@ export class AuthenticatorService {
       },
     };
 
-    await post(`${this.authenticatorUrl}/verify`, data);
+    await post(`${this.authenticatorUrl}/api/v1/verify`, data);
   }
 
   async verifyAuthenticatorRecovery(address: string, code: string): Promise<BN | undefined> {
@@ -73,19 +103,26 @@ export class AuthenticatorService {
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.authenticatorUrl}/verify`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.authenticatorUrl}/api/v1/verify`, verificationData);
     const { data } = response;
     return data ? new BN(data.factorKey, "hex") : undefined;
   }
 
-  async verifyAuthenticatorRemoteSetup(address: string, code: string): Promise<BN | undefined> {
+  async verifyRemoteSetup(address: string, code: string): Promise<IRemoteClientState & { tssShareIndex: string }> {
     const verificationData = {
       address,
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.authenticatorUrl}/verify`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.authenticatorUrl}/api/v1/verify_remote`, verificationData);
     const { data } = response;
-    return data ? new BN(data.factorKey, "hex") : undefined;
+
+    return {
+      tssShareIndex: this.tssIndex.toString(),
+      remoteClientUrl: this.authenticatorUrl,
+      remoteFactorPub: this.factorPub,
+      metadataShare: data.metadataShare,
+      remoteClientToken: data.signature,
+    };
   }
 }

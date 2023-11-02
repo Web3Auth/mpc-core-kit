@@ -122,7 +122,7 @@ export class SmsService {
     return data ? new BN(data.factorKey, "hex") : undefined;
   }
 
-  async verifySMSOTPRemote(address: string, code: string): Promise<IRemoteClientState & { tssShareIndex: string }> {
+  async verifyRemoteSetup(address: string, code: string): Promise<IRemoteClientState & { tssShareIndex: string }> {
     const verificationData = {
       address,
       code,
