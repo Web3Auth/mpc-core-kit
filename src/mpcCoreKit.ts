@@ -793,8 +793,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const sharestore = ShareStore.fromJSON(JSON.parse(metadataShare));
     this.tkey.inputShareStoreSafe(sharestore);
     await this.tKey.reconstructKey();
-    log.info(metadataShare);
-    log.info(remoteClientToken);
 
     // setup Tkey
     const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
@@ -1049,7 +1047,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         factorPub: newFactorPub,
       };
 
-      userEnc = (await post<{ data?: EncryptedMessage }>(`${this.state.remoteClient.remoteClientUrl}/api/mpc/copy_tss_share`, { dataRequired })).data;
+      userEnc = (
+        await post<{ data?: EncryptedMessage }>(
+          `${this.state.remoteClient.remoteClientUrl}/api/mpc/copy_tss_share`,
+          { dataRequired },
+          {
+            headers: {
+              Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`,
+            },
+          }
+        )
+      ).data;
     } else {
       const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
       userEnc = await encrypt(Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false), scalarBNToBufferSEC1(tssShare));
@@ -1235,7 +1243,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/mpc/sign`, data, {
       headers: {
-        token: this.state.remoteClient.remoteClientToken,
+        Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`,
       },
     });
     const { r, s, v } = result.data as { v: string; r: string; s: string };

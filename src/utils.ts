@@ -188,7 +188,17 @@ export async function remoteRefreshTssShares(
     },
   };
 
-  const result = (await post<{ data: refreshRemoteTssReturnType }>(`${remoteClient.remoteClientUrl}/api/mpc/refresh_tss`, { dataRequired })).data;
+  const result = (
+    await post<{ data: refreshRemoteTssReturnType }>(
+      `${remoteClient.remoteClientUrl}/api/mpc/refresh_tss`,
+      { dataRequired },
+      {
+        headers: {
+          Authorization: `Bearer ${remoteClient.remoteClientToken}`,
+        },
+      }
+    )
+  ).data;
 
   tKey.metadata.addTSSData({
     tssTag: result.tssTag,
