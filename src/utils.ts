@@ -296,8 +296,6 @@ export function Web3AuthStateFromJSON(result: StringifiedType): Web3AuthState {
   if (!result.factorKey) throw new Error("factorKey not found in JSON");
   if (!result.tssShareIndex) throw new Error("tssShareIndex not found in JSON");
 
-  // eslint-disable-next-line no-console
-  console.log(result.tssPubKey);
   const factorKey = new BN(result.factorKey as string, "hex");
   const tssPubKey = Buffer.from(result.tssPubKey as Buffer);
   return {

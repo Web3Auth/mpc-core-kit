@@ -259,8 +259,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
     });
 
-    // eslint-disable-next-line no-console
-    console.log("nodeDetails", nodeDetails.torusNodeEndpoints);
     this.storageLayer = new TorusStorageLayer({
       hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
       enableLogging: this.enableLogging,

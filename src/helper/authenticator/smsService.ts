@@ -9,7 +9,7 @@ import { IRemoteClientState } from "../../interfaces";
 import { Web3AuthMPCCoreKit } from "../../mpcCoreKit";
 
 export class SmsService {
-  private smsbackendUrl: string;
+  private backendUrl: string;
 
   private coreKitInstance: Web3AuthMPCCoreKit;
 
@@ -19,9 +19,9 @@ export class SmsService {
 
   private tssIndex: number;
 
-  constructor(params: { smsbackendUrl: string; coreKitInstance: Web3AuthMPCCoreKit; authenticatorType?: string }) {
-    const { smsbackendUrl } = params;
-    this.smsbackendUrl = smsbackendUrl;
+  constructor(params: { backendUrl: string; coreKitInstance: Web3AuthMPCCoreKit; authenticatorType?: string }) {
+    const { backendUrl } = params;
+    this.backendUrl = backendUrl;
     this.authenticatorType = params.authenticatorType || "sms";
     this.coreKitInstance = params.coreKitInstance;
     this.getDescriptionsAndUpdate();
@@ -65,13 +65,11 @@ export class SmsService {
       number,
     };
 
-    // eslint-disable-next-line no-console
-    console.log(data);
     await post<{
       success: boolean;
       id_token?: string;
       message: string;
-    }>(`${this.smsbackendUrl}/api/v1/register`, data);
+    }>(`${this.backendUrl}/api/v1/register`, data);
 
     // this is to send sms to the user instantly after registration.
     const startData = {
@@ -79,7 +77,7 @@ export class SmsService {
     };
 
     // Sends the user sms.
-    const resp2 = await post<{ success: boolean; code?: string }>(`${this.smsbackendUrl}/api/v1/start`, startData);
+    const resp2 = await post<{ success: boolean; code?: string }>(`${this.backendUrl}/api/v1/start`, startData);
     // if (resp2.status !== 200) throw new Error("Error sending sms");
     return resp2.code;
   }
@@ -98,14 +96,14 @@ export class SmsService {
       },
     };
 
-    await post(`${this.smsbackendUrl}/api/v1/verify`, data);
+    await post(`${this.backendUrl}/api/v1/verify`, data);
   }
 
   async requestSMSOTP(address: string): Promise<string | undefined> {
     const startData = {
       address,
     };
-    const resp2 = await post<{ success?: boolean; code?: string }>(`${this.smsbackendUrl}/api/v1/start`, startData);
+    const resp2 = await post<{ success?: boolean; code?: string }>(`${this.backendUrl}/api/v1/start`, startData);
     // eslint-disable-next-line no-console
     console.log(resp2);
     return resp2.code;
@@ -117,7 +115,7 @@ export class SmsService {
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.smsbackendUrl}/api/v1/verify`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.backendUrl}/api/v1/verify`, verificationData);
     const { data } = response;
     return data ? new BN(data.factorKey, "hex") : undefined;
   }
@@ -128,12 +126,12 @@ export class SmsService {
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.smsbackendUrl}/api/v1/verify_remote`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.backendUrl}/api/v1/verify_remote`, verificationData);
     const { data } = response;
 
     return {
       tssShareIndex: this.tssIndex.toString(),
-      remoteClientUrl: this.smsbackendUrl,
+      remoteClientUrl: this.backendUrl,
       remoteFactorPub: this.factorPub,
       metadataShare: data.metadataShare,
       remoteClientToken: data.signature,

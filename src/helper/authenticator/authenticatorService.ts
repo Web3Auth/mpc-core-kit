@@ -10,7 +10,7 @@ import { CURVE } from "../../constants";
 import { IRemoteClientState, Web3AuthMPCCoreKit } from "../../index";
 
 export class AuthenticatorService {
-  private authenticatorUrl: string;
+  private backendUrl: string;
 
   private coreKitInstance: Web3AuthMPCCoreKit;
 
@@ -20,9 +20,9 @@ export class AuthenticatorService {
 
   private tssIndex: number;
 
-  constructor(params: { authenticatorUrl: string; coreKitInstance: Web3AuthMPCCoreKit; authenticatorType?: string }) {
-    const { authenticatorUrl } = params;
-    this.authenticatorUrl = authenticatorUrl;
+  constructor(params: { backendUrl: string; coreKitInstance: Web3AuthMPCCoreKit; authenticatorType?: string }) {
+    const { backendUrl } = params;
+    this.backendUrl = backendUrl;
     this.authenticatorType = params.authenticatorType || "authenticator";
     this.coreKitInstance = params.coreKitInstance;
     // this.remoteClient = remoteClient || false;
@@ -74,7 +74,7 @@ export class AuthenticatorService {
     const resp = await post<{
       success: boolean;
       message: string;
-    }>(`${this.authenticatorUrl}/api/v1/register`, data);
+    }>(`${this.backendUrl}/api/v1/register`, data);
 
     return resp;
   }
@@ -94,7 +94,7 @@ export class AuthenticatorService {
       },
     };
 
-    await post(`${this.authenticatorUrl}/api/v1/verify`, data);
+    await post(`${this.backendUrl}/api/v1/verify`, data);
   }
 
   async verifyAuthenticatorRecovery(address: string, code: string): Promise<BN | undefined> {
@@ -103,7 +103,7 @@ export class AuthenticatorService {
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.authenticatorUrl}/api/v1/verify`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.backendUrl}/api/v1/verify`, verificationData);
     const { data } = response;
     return data ? new BN(data.factorKey, "hex") : undefined;
   }
@@ -114,12 +114,12 @@ export class AuthenticatorService {
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.authenticatorUrl}/api/v1/verify_remote`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.backendUrl}/api/v1/verify_remote`, verificationData);
     const { data } = response;
 
     return {
       tssShareIndex: this.tssIndex.toString(),
-      remoteClientUrl: this.authenticatorUrl,
+      remoteClientUrl: this.backendUrl,
       remoteFactorPub: this.factorPub,
       metadataShare: data.metadataShare,
       remoteClientToken: data.signature,
