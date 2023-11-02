@@ -120,7 +120,7 @@ export interface IdTokenLoginParams {
 export interface IRemoteClientState {
   remoteFactorPub: string;
   remoteClientUrl: string;
-  signature: string;
+  remoteClientToken: string;
   metadataShare: string;
 }
 

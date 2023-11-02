@@ -1,16 +1,50 @@
 import { post } from "@toruslabs/http-helpers";
 import { keccak256 } from "@toruslabs/metadata-helpers";
+import { log } from "@web3auth/base";
 import BN from "bn.js";
 import type { ec } from "elliptic";
 
 import { CURVE } from "../../constants";
+import { IRemoteClientState } from "../../interfaces";
+import { Web3AuthMPCCoreKit } from "../../mpcCoreKit";
 
 export class SmsService {
   private smsbackendUrl: string;
 
-  constructor(params: { smsbackendUrl: string }) {
+  private coreKitInstance: Web3AuthMPCCoreKit;
+
+  private authenticatorType: string = "sms";
+
+  private factorPub: string = "";
+
+  private tssIndex: number;
+
+  constructor(params: { smsbackendUrl: string; coreKitInstance: Web3AuthMPCCoreKit; authenticatorType?: string }) {
     const { smsbackendUrl } = params;
     this.smsbackendUrl = smsbackendUrl;
+    this.authenticatorType = params.authenticatorType || "sms";
+    this.coreKitInstance = params.coreKitInstance;
+    this.getDescriptionsAndUpdate();
+  }
+
+  getDescriptionsAndUpdate() {
+    const arrayOfDescriptions = Object.entries(this.coreKitInstance.getKeyDetails().shareDescriptions).map(([key, value]) => {
+      const parsedDescription = (value || [])[0] ? JSON.parse(value[0]) : {};
+      return {
+        key,
+        description: parsedDescription,
+      };
+    });
+
+    const shareDescriptionsMobile = arrayOfDescriptions.find(({ description }) => description.authenticator === this.authenticatorType);
+    log.info("shareDescriptionsMobile", shareDescriptionsMobile);
+
+    if (shareDescriptionsMobile) {
+      this.factorPub = shareDescriptionsMobile.key;
+      this.tssIndex = shareDescriptionsMobile.description.tssShareIndex;
+    }
+
+    return shareDescriptionsMobile;
   }
 
   async registerSmsOTP(privKey: BN, number: string): Promise<string | undefined> {
@@ -31,11 +65,13 @@ export class SmsService {
       number,
     };
 
+    // eslint-disable-next-line no-console
+    console.log(data);
     await post<{
       success: boolean;
       id_token?: string;
       message: string;
-    }>(`${this.smsbackendUrl}/register`, data);
+    }>(`${this.smsbackendUrl}/api/v1/register`, data);
 
     // this is to send sms to the user instantly after registration.
     const startData = {
@@ -43,7 +79,7 @@ export class SmsService {
     };
 
     // Sends the user sms.
-    const resp2 = await post<{ success: boolean; code?: string }>(`${this.smsbackendUrl}/start`, startData);
+    const resp2 = await post<{ success: boolean; code?: string }>(`${this.smsbackendUrl}/api/v1/start`, startData);
     // if (resp2.status !== 200) throw new Error("Error sending sms");
     return resp2.code;
   }
@@ -62,14 +98,16 @@ export class SmsService {
       },
     };
 
-    await post(`${this.smsbackendUrl}/verify`, data);
+    await post(`${this.smsbackendUrl}/api/v1/verify`, data);
   }
 
   async requestSMSOTP(address: string): Promise<string | undefined> {
     const startData = {
       address,
     };
-    const resp2 = await post<{ success?: boolean; code?: string }>(`${this.smsbackendUrl}/start`, startData);
+    const resp2 = await post<{ success?: boolean; code?: string }>(`${this.smsbackendUrl}/api/v1/start`, startData);
+    // eslint-disable-next-line no-console
+    console.log(resp2);
     return resp2.code;
   }
 
@@ -79,19 +117,26 @@ export class SmsService {
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.smsbackendUrl}/verify`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.smsbackendUrl}/api/v1/verify`, verificationData);
     const { data } = response;
     return data ? new BN(data.factorKey, "hex") : undefined;
   }
 
-  async verifySMSOTPRemote(address: string, code: string): Promise<BN | undefined> {
+  async verifySMSOTPRemote(address: string, code: string): Promise<IRemoteClientState & { tssShareIndex: string }> {
     const verificationData = {
       address,
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.smsbackendUrl}/verify`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.smsbackendUrl}/api/v1/verify_remote`, verificationData);
     const { data } = response;
-    return data ? new BN(data.factorKey, "hex") : undefined;
+
+    return {
+      tssShareIndex: this.tssIndex.toString(),
+      remoteClientUrl: this.smsbackendUrl,
+      remoteFactorPub: this.factorPub,
+      metadataShare: data.metadataShare,
+      remoteClientToken: data.signature,
+    };
   }
 }

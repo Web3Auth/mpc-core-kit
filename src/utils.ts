@@ -7,7 +7,7 @@ import type { PointHex } from "@toruslabs/tss-client/dist/types/types";
 import BN from "bn.js";
 
 import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
-import { UserInfo, Web3AuthState } from "./interfaces";
+import { IRemoteClientState, UserInfo, Web3AuthState } from "./interfaces";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -145,9 +145,8 @@ export async function remoteRefreshTssShares(
   tKey: ThresholdKey,
   factorPubs: TkeyPoint[],
   tssIndices: number[],
-  remoteFactorPub: TkeyPoint,
   signatures: string[],
-  remoteClientUrl: string,
+  remoteClient: IRemoteClientState,
   updateMetadata = false
 ) {
   // const { tssShare, tssIndex } = await tKey.getTSSShare(factorKeyForExistingTSSShare);
@@ -169,7 +168,7 @@ export async function remoteRefreshTssShares(
     finalSelectedServers = nodeIndexes.slice(0, Math.min(serverEndpoints.length, nodeIndexes.length));
   }
 
-  const factorEnc = tKey.getFactorEncs(remoteFactorPub);
+  const factorEnc = tKey.getFactorEncs(TkeyPoint.fromCompressedPub(remoteClient.remoteFactorPub));
 
   const dataRequired = {
     factorEnc,
@@ -189,7 +188,7 @@ export async function remoteRefreshTssShares(
     },
   };
 
-  const result = (await post(`${remoteClientUrl}/api/mpc/refresh_tss`, { dataRequired })) as refreshRemoteTssReturnType;
+  const result = (await post<{ data: refreshRemoteTssReturnType }>(`${remoteClient.remoteClientUrl}/api/mpc/refresh_tss`, { dataRequired })).data;
 
   tKey.metadata.addTSSData({
     tssTag: result.tssTag,
@@ -210,8 +209,7 @@ export async function addFactorAndRefresh(
   newFactorTSSIndex: number,
   factorKeyForExistingTSSShare: BN,
   signatures: string[],
-  remoteFactorPub?: TkeyPoint,
-  remoteRefreshUrl?: string
+  remoteClient?: IRemoteClientState
 ) {
   if (!tKey) {
     throw new Error("tkey does not exist, cannot add factor pub");
@@ -229,10 +227,10 @@ export async function addFactorAndRefresh(
   const existingTSSIndexes = existingFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
   const updatedTSSIndexes = existingTSSIndexes.concat([newFactorTSSIndex]);
 
-  if (!remoteRefreshUrl) {
+  if (!remoteClient) {
     await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
   } else {
-    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, remoteFactorPub, signatures, remoteRefreshUrl);
+    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, signatures, remoteClient);
   }
 }
 
@@ -241,8 +239,7 @@ export async function deleteFactorAndRefresh(
   factorPubToDelete: TkeyPoint,
   factorKeyForExistingTSSShare: BN,
   signatures: string[],
-  remoteFactorPub?: TkeyPoint,
-  remoteClientUrl?: string
+  remoteClient?: IRemoteClientState
 ) {
   if (!tKey) {
     throw new Error("tkey does not exist, cannot add factor pub");
@@ -261,10 +258,10 @@ export async function deleteFactorAndRefresh(
   updatedFactorPubs.splice(factorIndex, 1);
   const updatedTSSIndexes = updatedFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
 
-  if (!remoteClientUrl) {
+  if (!remoteClient) {
     await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
   } else {
-    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, remoteFactorPub, signatures, remoteClientUrl);
+    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, signatures, remoteClient);
   }
 }
 
