@@ -130,7 +130,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.authorizationUrl) options.authorizationUrl = [];
-    if (!options.AllowNoAuthorizationForRemoteClient) options.AllowNoAuthorizationForRemoteClient = false;
+    if (!options.allowNoAuthorizationForRemoteClient) options.allowNoAuthorizationForRemoteClient = false;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -1170,7 +1170,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async getSigningSignatures(data: string): Promise<string[]> {
     if (!this.signatures) throw new Error("signatures not present");
     if (this.options.authorizationUrl.length === 0) {
-      if (this.state.remoteClient && !this.options.AllowNoAuthorizationForRemoteClient) {
+      if (this.state.remoteClient && !this.options.allowNoAuthorizationForRemoteClient) {
         throw new Error("remote client is present, authorizationUrl is required");
       }
       return this.signatures;

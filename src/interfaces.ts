@@ -370,7 +370,7 @@ export interface Web3AuthOptions {
    * Allow no authorization requirement for remote client setup.
    * if AuthorizationUrl is set, this option will be ignored.
    */
-  AllowNoAuthorizationForRemoteClient?: boolean;
+  allowNoAuthorizationForRemoteClient?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
