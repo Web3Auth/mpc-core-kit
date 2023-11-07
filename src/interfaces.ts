@@ -358,10 +358,18 @@ export interface Web3AuthOptions {
   tssLib?: unknown;
 
   /**
-   * @defaultValue `""`
-   * authorization before signing.
+   * @defaultValue `[]`
+   * Server hostUrl for authorization before signing or refresh.
+   * Will request for authorization every signing or refresh if being set.
+   * Required for remote client setup.
    */
-  authorizationUrl?: string;
+  authorizationUrl?: string[];
+
+  /**
+   * @defaultValue `false`
+   * disable authorization requirement for remote client setup.
+   */
+  disableAuthorizationForRemoteClient?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;

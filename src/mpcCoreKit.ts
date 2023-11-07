@@ -129,7 +129,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.redirectPathName) options.redirectPathName = "redirect";
     if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
-    if (!options.authorizationUrl) options.authorizationUrl = "";
+    if (!options.authorizationUrl) options.authorizationUrl = [];
+    if (!options.disableAuthorizationForRemoteClient) options.disableAuthorizationForRemoteClient = false;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -1168,21 +1169,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async getSigningSignatures(data: string): Promise<string[]> {
     if (!this.signatures) throw new Error("signatures not present");
-    if (!this.options.authorizationUrl) {
-      if (this.state.remoteClient) {
+    if (this.options.authorizationUrl.length === 0) {
+      if (this.state.remoteClient && !this.options.disableAuthorizationForRemoteClient) {
         throw new Error("remote client is present, authorizationUrl is required");
       }
       return this.signatures;
     }
-    const { sig } = await post<{ sig?: string[] }>(this.options.authorizationUrl, {
-      signatures: this.signatures,
-      verifier: this.verifier,
-      verifierID: this.verifierId,
-      clientID: this.options.web3AuthClientId,
-      data,
-    });
+    const sigPromise = this.options.authorizationUrl.map(async (url) => {
+      const { sig } = await post<{ sig?: string }>(url, {
+        signatures: this.signatures,
+        verifier: this.verifier,
+        verifierID: this.verifierId,
+        clientID: this.options.web3AuthClientId,
+        data,
+      });
 
-    return sig;
+      return sig;
+    });
+    return Promise.all(sigPromise);
   }
   // public async serverSetup(oAuthKey: string, signatures: string[], verifier: string, verifierId: string, importTssKey?: string): Promise<void> {
   //   (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(oAuthKey, "hex");
