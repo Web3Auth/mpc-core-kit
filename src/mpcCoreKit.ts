@@ -129,6 +129,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.redirectPathName) options.redirectPathName = "redirect";
     if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
+    if (!options.authorizationUrl) options.authorizationUrl = "";
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -640,8 +641,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`sessionAuth does not exist ${currentSession}`);
     }
 
-    if (!this.signatures) {
-      throw new Error(`Signature does not exist ${this.signatures}`);
+    const signatures = await this.getSigningSignatures();
+    if (!signatures) {
+      throw new Error(`Signature does not exist ${signatures}`);
     }
 
     const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKey.toString("base64"), true, tssImportUrl);
@@ -650,17 +652,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const serverIndex = participatingServerDKGIndexes[i];
       serverCoeffs[serverIndex] = tssUtils.getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
     }
-    client.precompute(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
+    client.precompute(tss, { signatures, server_coeffs: serverCoeffs });
     await client.ready();
 
     let { r, s, recoveryParam } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
-      signatures: this.signatures,
+      signatures,
     });
 
     if (recoveryParam < 27) {
       recoveryParam += 27;
     }
-    await client.cleanup(tss, { signatures: this.signatures, server_coeffs: serverCoeffs });
+    await client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
     return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
   };
 
@@ -671,6 +673,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
     const fpp = Point.fromTkeyPoint(factorPub);
 
+    const signatures = await this.getSigningSignatures();
     if (this.state.remoteClient) {
       const remoteStateFpp = this.state.remoteClient.remoteFactorPub;
       if (fpp.equals(Point.fromTkeyPoint(getPubKeyPoint(new BN(remoteStateFpp, "hex"))))) {
@@ -680,7 +683,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         this.tKey,
         factorPub,
         new BN(0), // not used in remoteClient
-        this.signatures,
+        signatures,
         this.state.remoteClient
       );
     } else {
@@ -688,7 +691,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (fpp.equals(stateFpp)) {
         throw new Error("Cannot delete current active factor");
       }
-      await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, this.signatures);
+      await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, signatures);
     }
 
     const factorPubHex = fpp.toBufferSEC1(true).toString("hex");
@@ -1031,12 +1034,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.tKey.metadata.factorPubs[this.tKey.tssTag].length >= MAX_FACTORS) {
       throw new Error("Maximum number of factors reached");
     }
+    const signatures = await this.getSigningSignatures();
     if (this.state.tssShareIndex !== newFactorTSSIndex) {
       // Generate new share.
       if (!this.state.remoteClient) {
-        await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
+        await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, signatures);
       } else {
-        await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures, this.state.remoteClient);
+        await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, signatures, this.state.remoteClient);
       }
       return;
     }
@@ -1162,6 +1166,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
   }
 
+  private async getSigningSignatures(): Promise<string[]> {
+    if (!this.signatures) throw new Error("signatures not present");
+    if (!this.options.authorizationUrl) {
+      if (this.state.remoteClient) {
+        throw new Error("remote client is present, authorizationUrl is required");
+      }
+      return this.signatures;
+    }
+    const { data } = await post<{ data?: string[] }>(this.options.authorizationUrl, { signatures: this.signatures });
+    return data;
+  }
   // public async serverSetup(oAuthKey: string, signatures: string[], verifier: string, verifierId: string, importTssKey?: string): Promise<void> {
   //   (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(oAuthKey, "hex");
   //   (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
@@ -1240,7 +1255,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         tssNonce,
         nodeIndexes: nodeIndexes.slice(0, parties - 1),
         tssCommits: tssCommits.map((commit) => commit.toJSON()),
-        signatures: this.signatures,
+        signatures: await this.getSigningSignatures(),
         serverEndpoints: { endpoints, tssWSEndpoints, partyIndexes },
       },
       msgHash: msgHash.toString("hex"),

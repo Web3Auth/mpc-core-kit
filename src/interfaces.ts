@@ -356,6 +356,12 @@ export interface Web3AuthOptions {
    * Do not use this option for non nodejs mode.
    */
   tssLib?: unknown;
+
+  /**
+   * @defaultValue `""`
+   * authorization before signing.
+   */
+  authorizationUrl?: string;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
