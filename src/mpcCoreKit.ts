@@ -911,17 +911,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       if (!this.sessionManager.sessionId) return {};
       const result = await this.sessionManager.authorizeSession();
-      const factorKey = new BN(result.factorKey, "hex");
-      if (!factorKey) {
-        throw new Error("Invalid factor key");
+      if (!result.factorKey && !result.remoteClient) throw new Error("factorKey not present");
+      let metadataShare;
+
+      if (result.factorKey) {
+        const factorKey = new BN(result.factorKey, "hex");
+        if (!factorKey) {
+          throw new Error("Invalid factor key");
+        }
+        metadataShare = await this.getFactorKeyMetadata(factorKey);
+      } else {
+        metadataShare = ShareStore.fromJSON(JSON.parse(result.remoteClient.metadataShare));
       }
       this.torusSp.postboxKey = new BN(result.oAuthKey, "hex");
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
       this.torusSp.verifierType = result.userInfo.aggregateVerifier ? "aggregate" : "normal";
-      const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
       await this.tKey.initialize({ neverInitializeNewKey: true });
-      await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
+      await this.tKey.inputShareStoreSafe(metadataShare, true);
       await this.tKey.reconstructKey();
 
       this.updateState({
