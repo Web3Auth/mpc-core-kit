@@ -653,8 +653,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const serverIndex = participatingServerDKGIndexes[i];
       serverCoeffs[serverIndex] = tssUtils.getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
     }
+
     client.precompute(tss, { signatures, server_coeffs: serverCoeffs });
-    await client.ready();
+
+    await client.ready().catch((err) => {
+      client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
+      throw err;
+    });
 
     let { r, s, recoveryParam } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
       signatures,
@@ -663,7 +668,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (recoveryParam < 27) {
       recoveryParam += 27;
     }
-    await client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
+    // skip await cleanup
+    client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
     return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
   };
 
