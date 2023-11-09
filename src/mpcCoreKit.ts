@@ -1194,44 +1194,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
     return Promise.all(sigPromise);
   }
-  // public async serverSetup(oAuthKey: string, signatures: string[], verifier: string, verifierId: string, importTssKey?: string): Promise<void> {
-  //   (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(oAuthKey, "hex");
-  //   (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
-  //   (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
-
-  //   this.updateState({
-  //     oAuthKey,
-  //     userInfo: { verifier, verifierId } as UserInfo,
-  //     signatures,
-  //   });
-  //   await this.setupTkey(importTssKey);
-  // }
-
-  // public async serverSetupRehydrate({ state, tkeyJson }: { state: StringifiedType; tkeyJson: StringifiedType }) {
-  //   this.state = Web3AuthStateFromJSON(state);
-
-  //   const metadata = Metadata.fromJSON(tkeyJson.metadata);
-  //   this.tKey.metadata = metadata;
-
-  //   const { shares } = tkeyJson;
-  //   for (const key in shares) {
-  //     if (Object.prototype.hasOwnProperty.call(shares, key)) {
-  //       const shareStoreMapElement = shares[key];
-  //       for (const shareElementKey in shareStoreMapElement) {
-  //         if (Object.prototype.hasOwnProperty.call(shareStoreMapElement, shareElementKey)) {
-  //           const shareStore = shareStoreMapElement[shareElementKey];
-  //           shareStoreMapElement[shareElementKey] = ShareStore.fromJSON(shareStore);
-  //         }
-  //       }
-  //       this.tkey.shares[key] = shareStoreMapElement;
-  //     }
-  //   }
-  //   this.tkey.privKey = new BN(tkeyJson.privKey, "hex");
-
-  //   (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(this.state.oAuthKey, "hex");
-  //   (this.tKey.serviceProvider as TorusServiceProvider).verifierName = state.userInfo.verifier;
-  //   (this.tKey.serviceProvider as TorusServiceProvider).verifierId = state.userInfo.verifierId;
-  // }
 
   public async remoteSign(msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> {
     if (!this.state.remoteClient.remoteClientUrl) throw new Error("remoteClientUrl not present");
