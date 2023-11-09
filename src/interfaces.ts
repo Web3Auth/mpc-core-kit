@@ -117,6 +117,13 @@ export interface IdTokenLoginParams {
   additionalParams?: ExtraParams;
 }
 
+export interface IRemoteClientState {
+  remoteFactorPub: string;
+  remoteClientUrl: string;
+  remoteClientToken: string;
+  metadataShare: string;
+}
+
 export interface Web3AuthState {
   oAuthKey?: string;
   signatures?: string[];
@@ -124,6 +131,7 @@ export interface Web3AuthState {
   tssShareIndex?: number;
   tssPubKey?: Buffer;
   factorKey?: BN;
+  remoteClient?: IRemoteClientState;
 }
 
 export interface ICoreKit {
@@ -359,6 +367,7 @@ export interface SessionData {
   tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
+  remoteClient?: IRemoteClientState;
 }
 
 export interface TkeyLocalStoreData {
