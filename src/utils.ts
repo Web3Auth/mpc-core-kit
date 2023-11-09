@@ -1,9 +1,8 @@
-import { FactorEnc, getPubKeyPoint, Point as TkeyPoint, randomSelection } from "@tkey-mpc/common-types";
+import { FactorEnc, getPubKeyPoint, Point as TkeyPoint, PointHex, randomSelection } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { post } from "@toruslabs/http-helpers";
 import { keccak256, StringifiedType } from "@toruslabs/torus.js";
-import type { PointHex } from "@toruslabs/tss-client/dist/types/types";
 import BN from "bn.js";
 
 import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";

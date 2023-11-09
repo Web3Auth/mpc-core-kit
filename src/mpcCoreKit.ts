@@ -20,7 +20,7 @@ import { post } from "@toruslabs/http-helpers";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
-import { Client, utils as tssUtils } from "@toruslabs/tss-client";
+import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type * as TssLib from "@toruslabs/tss-lib";
 import { CHAIN_NAMESPACES, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
@@ -631,10 +631,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await tss.default(tssImportUrl);
     }
     // setup mock shares, sockets and tss wasm files.
-    const [sockets] = await Promise.all([tssUtils.setupSockets(tssWSEndpoints, randomSessionNonce)]);
+    const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
 
     const participatingServerDKGIndexes = nodeIndexes;
-    const dklsCoeff = tssUtils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
+    const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
     const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
     const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
 
@@ -651,7 +651,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
       const serverIndex = participatingServerDKGIndexes[i];
-      serverCoeffs[serverIndex] = tssUtils.getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
+      serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
     }
 
     client.precompute(tss, { signatures, server_coeffs: serverCoeffs });
