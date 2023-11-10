@@ -617,7 +617,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.tKey.tssTag,
       this.tKey.metadata.tssNonces[this.tKey.tssTag]
     );
-    const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
+    const {
+      endpoints,
+      tssWSEndpoints,
+      partyIndexes,
+      nodeIndexesReturned: participatingServerDKGIndexes,
+    } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
     const randomSessionNonce = keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
     const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
     // session is needed for authentication to the web3auth infrastructure holding the factor 1
@@ -633,7 +638,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // setup mock shares, sockets and tss wasm files.
     const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
 
-    const participatingServerDKGIndexes = nodeIndexes;
     const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
     const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
     const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
@@ -1222,7 +1226,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (parties - 1 > nodeIndexes.length) {
       throw new Error(`Not enough nodes to perform TSS - parties :${parties}, nodeIndexes:${nodeIndexes.length}`);
     }
-    const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
+    const { endpoints, tssWSEndpoints, partyIndexes, nodeIndexesReturned } = generateTSSEndpoints(
+      torusNodeTSSEndpoints,
+      parties,
+      clientIndex,
+      nodeIndexes
+    );
 
     const factor = TkeyPoint.fromCompressedPub(this.state.remoteClient.remoteFactorPub);
     const factorEnc = this.tKey.getFactorEncs(factor);
@@ -1232,7 +1241,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         factorEnc,
         sessionId,
         tssNonce,
-        nodeIndexes: nodeIndexes.slice(0, parties - 1),
+        nodeIndexes: nodeIndexesReturned,
         tssCommits: tssCommits.map((commit) => commit.toJSON()),
         signatures: await this.getSigningSignatures(msgHash.toString("hex")),
         serverEndpoints: { endpoints, tssWSEndpoints, partyIndexes },
