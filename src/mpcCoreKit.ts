@@ -624,7 +624,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       nodeIndexesReturned: participatingServerDKGIndexes,
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
     const randomSessionNonce = keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
-    const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
+    const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v3/clientWasm`;
     // session is needed for authentication to the web3auth infrastructure holding the factor 1
     const currentSession = `${sessionId}${randomSessionNonce}`;
 
@@ -1069,7 +1069,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       userEnc = (
         await post<{ data?: EncryptedMessage }>(
-          `${this.state.remoteClient.remoteClientUrl}/api/v1/mpc/copy_tss_share`,
+          `${this.state.remoteClient.remoteClientUrl}/api/v3/mpc/copy_tss_share`,
           { dataRequired },
           {
             headers: {
@@ -1249,7 +1249,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       msgHash: msgHash.toString("hex"),
     };
 
-    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/v1/mpc/sign`, data, {
+    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/v3/mpc/sign`, data, {
       headers: {
         Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`,
       },

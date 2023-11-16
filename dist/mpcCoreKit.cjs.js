@@ -383,7 +383,7 @@ async function remoteRefreshTssShares(tKey, factorPubs, tssIndices, signatures, 
       authSignatures: signatures
     }
   };
-  const result = (await (0,http_helpers_namespaceObject.post)(`${remoteClient.remoteClientUrl}/api/v1/mpc/refresh_tss`, {
+  const result = (await (0,http_helpers_namespaceObject.post)(`${remoteClient.remoteClientUrl}/api/v3/mpc/refresh_tss`, {
     dataRequired
   }, {
     headers: {
@@ -980,7 +980,7 @@ class AuthenticatorService {
       },
       secretKey
     };
-    const resp = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/register`, data);
+    const resp = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/register`, data);
     return resp;
   }
   async addRecovery(address, code, factorKey) {
@@ -996,14 +996,14 @@ class AuthenticatorService {
         factorKey: factorKey.toString(16, 64)
       }
     };
-    await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/verify`, data);
+    await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/verify`, data);
   }
   async verifyRecovery(address, code) {
     const verificationData = {
       address,
       code
     };
-    const response = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/verify`, verificationData);
+    const response = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/verify`, verificationData);
     const {
       data
     } = response;
@@ -1014,7 +1014,7 @@ class AuthenticatorService {
       address,
       code
     };
-    const response = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/verify_remote`, verificationData);
+    const response = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/verify_remote`, verificationData);
     const {
       data
     } = response;
@@ -1087,7 +1087,7 @@ class SmsService {
       },
       number
     };
-    await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/register`, data);
+    await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/register`, data);
 
     // this is to send sms to the user instantly after registration.
     const startData = {
@@ -1095,7 +1095,7 @@ class SmsService {
     };
 
     // Sends the user sms.
-    const resp2 = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/start`, startData);
+    const resp2 = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/start`, startData);
     // if (resp2.status !== 200) throw new Error("Error sending sms");
     return resp2.code;
   }
@@ -1111,13 +1111,13 @@ class SmsService {
         factorKey: factorKey.toString(16, 64)
       }
     };
-    await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/verify`, data);
+    await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/verify`, data);
   }
   async requestOTP(address) {
     const startData = {
       address
     };
-    const resp2 = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/start`, startData);
+    const resp2 = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/start`, startData);
     // eslint-disable-next-line no-console
     console.log(resp2);
     return resp2.code;
@@ -1127,7 +1127,7 @@ class SmsService {
       address,
       code
     };
-    const response = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/verify`, verificationData);
+    const response = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/verify`, verificationData);
     const {
       data
     } = response;
@@ -1138,7 +1138,7 @@ class SmsService {
       address,
       code
     };
-    const response = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/verify_remote`, verificationData);
+    const response = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v3/verify_remote`, verificationData);
     const {
       data
     } = response;
@@ -1282,7 +1282,7 @@ class Web3AuthMPCCoreKit {
         nodeIndexesReturned: participatingServerDKGIndexes
       } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
       const randomSessionNonce = (0,metadata_helpers_namespaceObject.keccak256)(Buffer.from((0,eccrypto_namespaceObject.generatePrivate)().toString("hex") + Date.now(), "utf8")).toString("hex");
-      const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
+      const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v3/clientWasm`;
       // session is needed for authentication to the web3auth infrastructure holding the factor 1
       const currentSession = `${sessionId}${randomSessionNonce}`;
       let tss;
@@ -2178,7 +2178,7 @@ class Web3AuthMPCCoreKit {
         tssCommits,
         factorPub: newFactorPub
       };
-      userEnc = (await (0,http_helpers_namespaceObject.post)(`${this.state.remoteClient.remoteClientUrl}/api/v1/mpc/copy_tss_share`, {
+      userEnc = (await (0,http_helpers_namespaceObject.post)(`${this.state.remoteClient.remoteClientUrl}/api/v3/mpc/copy_tss_share`, {
         dataRequired
       }, {
         headers: {
@@ -2362,7 +2362,7 @@ class Web3AuthMPCCoreKit {
       },
       msgHash: msgHash.toString("hex")
     };
-    const result = await (0,http_helpers_namespaceObject.post)(`${this.state.remoteClient.remoteClientUrl}/api/v1/mpc/sign`, data, {
+    const result = await (0,http_helpers_namespaceObject.post)(`${this.state.remoteClient.remoteClientUrl}/api/v3/mpc/sign`, data, {
       headers: {
         Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`
       }

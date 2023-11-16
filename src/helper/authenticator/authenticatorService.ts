@@ -74,7 +74,7 @@ export class AuthenticatorService {
     const resp = await post<{
       success: boolean;
       message: string;
-    }>(`${this.backendUrl}/api/v1/register`, data);
+    }>(`${this.backendUrl}/api/v3/register`, data);
 
     return resp;
   }
@@ -94,7 +94,7 @@ export class AuthenticatorService {
       },
     };
 
-    await post(`${this.backendUrl}/api/v1/verify`, data);
+    await post(`${this.backendUrl}/api/v3/verify`, data);
   }
 
   async verifyRecovery(address: string, code: string): Promise<BN | undefined> {
@@ -103,7 +103,7 @@ export class AuthenticatorService {
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.backendUrl}/api/v1/verify`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.backendUrl}/api/v3/verify`, verificationData);
     const { data } = response;
     return data ? new BN(data.factorKey, "hex") : undefined;
   }
@@ -114,7 +114,7 @@ export class AuthenticatorService {
       code,
     };
 
-    const response = await post<{ data?: Record<string, string> }>(`${this.backendUrl}/api/v1/verify_remote`, verificationData);
+    const response = await post<{ data?: Record<string, string> }>(`${this.backendUrl}/api/v3/verify_remote`, verificationData);
     const { data } = response;
 
     return {
