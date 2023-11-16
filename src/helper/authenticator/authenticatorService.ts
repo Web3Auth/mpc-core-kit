@@ -79,7 +79,7 @@ export class AuthenticatorService {
     return resp;
   }
 
-  async addAuthenticatorRecovery(address: string, code: string, factorKey: BN) {
+  async addRecovery(address: string, code: string, factorKey: BN) {
     if (!factorKey) throw new Error("factorKey is not defined");
     if (!address) throw new Error("address is not defined");
     if (!code) throw new Error("code is not defined");
@@ -97,7 +97,7 @@ export class AuthenticatorService {
     await post(`${this.backendUrl}/api/v1/verify`, data);
   }
 
-  async verifyAuthenticatorRecovery(address: string, code: string): Promise<BN | undefined> {
+  async verifyRecovery(address: string, code: string): Promise<BN | undefined> {
     const verificationData = {
       address,
       code,
