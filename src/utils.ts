@@ -191,7 +191,7 @@ export async function remoteRefreshTssShares(
 
   const result = (
     await post<{ data: refreshRemoteTssReturnType }>(
-      `${remoteClient.remoteClientUrl}/api/v1/mpc/refresh_tss`,
+      `${remoteClient.remoteClientUrl}/api/v3/mpc/refresh_tss`,
       { dataRequired },
       {
         headers: {
