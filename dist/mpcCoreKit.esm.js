@@ -1023,7 +1023,7 @@ class Web3AuthMPCCoreKit {
         nodeIndexesReturned: participatingServerDKGIndexes
       } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
       const randomSessionNonce = keccak256$1(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
-      const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v3/clientWasm`;
+      const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
       // session is needed for authentication to the web3auth infrastructure holding the factor 1
       const currentSession = `${sessionId}${randomSessionNonce}`;
       let tss;
