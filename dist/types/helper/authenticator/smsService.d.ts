@@ -16,10 +16,10 @@ export declare class SmsService {
         key: string;
         description: any;
     };
-    registerSmsOTP(privKey: BN, number: string): Promise<string | undefined>;
+    register(privKey: BN, number: string): Promise<string | undefined>;
     addSmsRecovery(address: string, code: string, factorKey: BN): Promise<void>;
-    requestSMSOTP(address: string): Promise<string | undefined>;
-    verifySMSOTPRecovery(address: string, code: string): Promise<BN | undefined>;
+    requestOTP(address: string): Promise<string | undefined>;
+    verifyRecovery(address: string, code: string): Promise<BN | undefined>;
     verifyRemoteSetup(address: string, code: string): Promise<IRemoteClientState & {
         tssShareIndex: string;
     }>;

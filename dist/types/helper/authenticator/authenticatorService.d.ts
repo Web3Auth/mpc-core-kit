@@ -20,8 +20,8 @@ export declare class AuthenticatorService {
         success: boolean;
         message?: string;
     }>;
-    addAuthenticatorRecovery(address: string, code: string, factorKey: BN): Promise<void>;
-    verifyAuthenticatorRecovery(address: string, code: string): Promise<BN | undefined>;
+    addRecovery(address: string, code: string, factorKey: BN): Promise<void>;
+    verifyRecovery(address: string, code: string): Promise<BN | undefined>;
     verifyRemoteSetup(address: string, code: string): Promise<IRemoteClientState & {
         tssShareIndex: string;
     }>;

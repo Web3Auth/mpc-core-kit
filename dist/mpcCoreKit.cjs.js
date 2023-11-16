@@ -383,7 +383,7 @@ async function remoteRefreshTssShares(tKey, factorPubs, tssIndices, signatures, 
       authSignatures: signatures
     }
   };
-  const result = (await (0,http_helpers_namespaceObject.post)(`${remoteClient.remoteClientUrl}/api/mpc/refresh_tss`, {
+  const result = (await (0,http_helpers_namespaceObject.post)(`${remoteClient.remoteClientUrl}/api/v1/mpc/refresh_tss`, {
     dataRequired
   }, {
     headers: {
@@ -983,7 +983,7 @@ class AuthenticatorService {
     const resp = await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/register`, data);
     return resp;
   }
-  async addAuthenticatorRecovery(address, code, factorKey) {
+  async addRecovery(address, code, factorKey) {
     if (!factorKey) throw new Error("factorKey is not defined");
     if (!address) throw new Error("address is not defined");
     if (!code) throw new Error("code is not defined");
@@ -998,7 +998,7 @@ class AuthenticatorService {
     };
     await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/verify`, data);
   }
-  async verifyAuthenticatorRecovery(address, code) {
+  async verifyRecovery(address, code) {
     const verificationData = {
       address,
       code
@@ -1071,7 +1071,7 @@ class SmsService {
     }
     return shareDescriptionsMobile;
   }
-  async registerSmsOTP(privKey, number) {
+  async register(privKey, number) {
     const privKeyPair = CURVE.keyFromPrivate(privKey.toString(16, 64));
     const pubKey = privKeyPair.getPublic();
     const sig = CURVE.sign((0,metadata_helpers_namespaceObject.keccak256)(Buffer.from(number, "utf8")), Buffer.from(privKey.toString(16, 64), "hex"));
@@ -1113,7 +1113,7 @@ class SmsService {
     };
     await (0,http_helpers_namespaceObject.post)(`${this.backendUrl}/api/v1/verify`, data);
   }
-  async requestSMSOTP(address) {
+  async requestOTP(address) {
     const startData = {
       address
     };
@@ -1122,7 +1122,7 @@ class SmsService {
     console.log(resp2);
     return resp2.code;
   }
-  async verifySMSOTPRecovery(address, code) {
+  async verifyRecovery(address, code) {
     const verificationData = {
       address,
       code
@@ -2178,7 +2178,7 @@ class Web3AuthMPCCoreKit {
         tssCommits,
         factorPub: newFactorPub
       };
-      userEnc = (await (0,http_helpers_namespaceObject.post)(`${this.state.remoteClient.remoteClientUrl}/api/mpc/copy_tss_share`, {
+      userEnc = (await (0,http_helpers_namespaceObject.post)(`${this.state.remoteClient.remoteClientUrl}/api/v1/mpc/copy_tss_share`, {
         dataRequired
       }, {
         headers: {
@@ -2362,7 +2362,7 @@ class Web3AuthMPCCoreKit {
       },
       msgHash: msgHash.toString("hex")
     };
-    const result = await (0,http_helpers_namespaceObject.post)(`${this.state.remoteClient.remoteClientUrl}/api/mpc/sign`, data, {
+    const result = await (0,http_helpers_namespaceObject.post)(`${this.state.remoteClient.remoteClientUrl}/api/v1/mpc/sign`, data, {
       headers: {
         Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`
       }
