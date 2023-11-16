@@ -47,7 +47,7 @@ export class SmsService {
     return shareDescriptionsMobile;
   }
 
-  async registerSmsOTP(privKey: BN, number: string): Promise<string | undefined> {
+  async register(privKey: BN, number: string): Promise<string | undefined> {
     const privKeyPair: ec.KeyPair = CURVE.keyFromPrivate(privKey.toString(16, 64));
     const pubKey = privKeyPair.getPublic();
     const sig = CURVE.sign(keccak256(Buffer.from(number, "utf8")), Buffer.from(privKey.toString(16, 64), "hex"));
@@ -99,7 +99,7 @@ export class SmsService {
     await post(`${this.backendUrl}/api/v1/verify`, data);
   }
 
-  async requestSMSOTP(address: string): Promise<string | undefined> {
+  async requestOTP(address: string): Promise<string | undefined> {
     const startData = {
       address,
     };
@@ -109,7 +109,7 @@ export class SmsService {
     return resp2.code;
   }
 
-  async verifySMSOTPRecovery(address: string, code: string): Promise<BN | undefined> {
+  async verifyRecovery(address: string, code: string): Promise<BN | undefined> {
     const verificationData = {
       address,
       code,

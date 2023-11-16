@@ -1069,7 +1069,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       userEnc = (
         await post<{ data?: EncryptedMessage }>(
-          `${this.state.remoteClient.remoteClientUrl}/api/mpc/copy_tss_share`,
+          `${this.state.remoteClient.remoteClientUrl}/api/v1/mpc/copy_tss_share`,
           { dataRequired },
           {
             headers: {
@@ -1249,7 +1249,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       msgHash: msgHash.toString("hex"),
     };
 
-    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/mpc/sign`, data, {
+    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/v1/mpc/sign`, data, {
       headers: {
         Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`,
       },
