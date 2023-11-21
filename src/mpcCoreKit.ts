@@ -184,6 +184,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
+    // eslint-disable-next-line no-console
+    console.log("mpc-core-kit: init START");
+    // eslint-disable-next-line no-console
+    console.log("mpc-core-kit: init status", this.status);
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
@@ -232,11 +236,25 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (params.handleRedirectResult && (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))) {
       await this.handleRedirectResult();
 
+      // eslint-disable-next-line no-console
+      console.log("mpc-core-kit: redirectflow factorkey:", this.state.factorKey);
       // if not redirect flow try to rehydrate session if available
     } else if (this.sessionManager.sessionId) {
+      // eslint-disable-next-line no-console
+      console.log("mpc-core-kit sessionId:", this.sessionManager.sessionId);
       await this.rehydrateSession();
+      // eslint-disable-next-line no-console
+      console.log("mpc-core-kit factorkey:", this.state.factorKey);
       if (this.state.factorKey) await this.setupProvider();
     }
+
+    // eslint-disable-next-line no-console
+    console.log("mpc-core-kit provider:", this.provider);
+    // eslint-disable-next-line no-console
+    console.log("mpc-core-kit status:", this.status);
+
+    // eslint-disable-next-line no-console
+    console.log("mpc-core-kit: init END");
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
