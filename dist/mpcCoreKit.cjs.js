@@ -871,6 +871,7 @@ var external_bowser_default = /*#__PURE__*/__webpack_require__.n(external_bowser
 
 class Web3AuthMPCCoreKit {
   constructor(options) {
+    var _window;
     defineProperty_default()(this, "state", {});
     defineProperty_default()(this, "options", void 0);
     defineProperty_default()(this, "privKeyProvider", null);
@@ -896,7 +897,7 @@ class Web3AuthMPCCoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
-    if (options.uxMode === "nodejs" && ["local", "session"].includes(options.storageKey.toString())) {
+    if ((options.uxMode === "nodejs" || options.uxMode === "react-native") && ["local", "session"].includes(options.storageKey.toString())) {
       throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
     }
     if (options.enableLogging) {
@@ -909,7 +910,7 @@ class Web3AuthMPCCoreKit {
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = customauth_namespaceObject.UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
-    if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
+    if (!options.baseUrl) options.baseUrl = `${(_window = window) === null || _window === void 0 ? void 0 : _window.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
     this.options = options;
@@ -981,7 +982,7 @@ class Web3AuthMPCCoreKit {
     return this.options.uxMode === customauth_namespaceObject.UX_MODE.REDIRECT;
   }
   async init() {
-    var _window, _window2;
+    var _window2, _window3;
     let params = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {
       handleRedirectResult: true
     };
@@ -998,7 +999,7 @@ class Web3AuthMPCCoreKit {
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
-        uxMode: this.options.uxMode === "nodejs" ? customauth_namespaceObject.UX_MODE.REDIRECT : this.options.uxMode,
+        uxMode: this.options.uxMode === "nodejs" || this.options.uxMode === "react-native" ? customauth_namespaceObject.UX_MODE.REDIRECT : this.options.uxMode,
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true
@@ -1034,7 +1035,7 @@ class Web3AuthMPCCoreKit {
     this.ready = true;
 
     // try handle redirect flow if enabled and return(redirect) from oauth login
-    if (params.handleRedirectResult && this.options.uxMode === customauth_namespaceObject.UX_MODE.REDIRECT && ((_window = window) !== null && _window !== void 0 && _window.location.hash.includes("#state") || (_window2 = window) !== null && _window2 !== void 0 && _window2.location.hash.includes("#access_token"))) {
+    if (params.handleRedirectResult && this.options.uxMode === customauth_namespaceObject.UX_MODE.REDIRECT && ((_window2 = window) !== null && _window2 !== void 0 && _window2.location.hash.includes("#state") || (_window3 = window) !== null && _window3 !== void 0 && _window3.location.hash.includes("#access_token"))) {
       await this.handleRedirectResult();
 
       // if not redirect flow try to rehydrate session if available
@@ -1217,7 +1218,7 @@ class Web3AuthMPCCoreKit {
     }
     try {
       let browserData;
-      if (this.options.uxMode === "nodejs") {
+      if (this.options.uxMode === "nodejs" || this.options.uxMode === "react-native") {
         browserData = {
           browserName: "Node Env",
           browserVersion: "",
