@@ -301,8 +301,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
-  public async loginWithOauth(params: OauthLoginParams, importTssKey?: string): Promise<void> {
+  public async loginWithOauth(params: OauthLoginParams): Promise<void> {
     this.checkReady();
+    const { importTssKey } = params;
 
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
     try {
@@ -346,8 +347,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams, importTssKey?: string): Promise<void> {
+  public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void> {
     this.checkReady();
+    const { importTssKey } = idTokenLoginParams;
 
     const { verifier, verifierId, idToken } = idTokenLoginParams;
     try {

@@ -69,6 +69,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         verifier: "torus-test-health",
         verifierId: newLogin.parsedToken.email,
         idToken: newLogin.idToken,
+        importTssKey: recoveredTssKey,
       } as IdTokenLoginParams;
 
       const coreKitInstance2 = new Web3AuthMPCCoreKit({
@@ -81,7 +82,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       });
 
       await coreKitInstance2.init();
-      await coreKitInstance2.loginWithJWT(newIdTokenLoginParams, recoveredTssKey);
+      await coreKitInstance2.loginWithJWT(newIdTokenLoginParams);
 
       const exportedTssKey = await coreKitInstance2._UNSAFE_exportTssKey();
       criticalResetAccount(coreKitInstance2);
