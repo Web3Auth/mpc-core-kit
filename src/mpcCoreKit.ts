@@ -92,7 +92,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
-    if (options.uxMode === "nodejs" && ["local", "session"].includes(options.storageKey.toString())) {
+    if ((options.uxMode === "nodejs" || options.uxMode === "react-native") && ["local", "session"].includes(options.storageKey.toString())) {
       throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
     }
 
@@ -106,7 +106,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
-    if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
+    if (!options.baseUrl) options.baseUrl = `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
 
@@ -200,7 +200,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
-        uxMode: this.options.uxMode === "nodejs" ? UX_MODE.REDIRECT : this.options.uxMode,
+        uxMode: this.options.uxMode === "nodejs" || this.options.uxMode === "react-native" ? UX_MODE.REDIRECT : this.options.uxMode,
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
@@ -441,7 +441,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       let browserData;
 
-      if (this.options.uxMode === "nodejs") {
+      if (this.options.uxMode === "nodejs" || this.options.uxMode === "react-native") {
         browserData = {
           browserName: "Node Env",
           browserVersion: "",
