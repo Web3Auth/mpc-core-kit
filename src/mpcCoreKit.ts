@@ -92,6 +92,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
+    if (options.uxMode === "nodejs" && ["local", "session"].includes(options.storageKey.toString())) {
+      throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
+    }
 
     if (options.enableLogging) {
       log.enableAll();
@@ -185,6 +188,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
+    this.resetState();
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
@@ -196,7 +200,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
-        uxMode: this.options.uxMode,
+        uxMode: this.options.uxMode === "nodejs" ? UX_MODE.REDIRECT : this.options.uxMode,
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
@@ -224,13 +228,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (this.isRedirectMode) {
       await (this.tKey.serviceProvider as TorusServiceProvider).init({ skipSw: true, skipPrefetch: true });
-    } else {
+    } else if (this.options.uxMode === UX_MODE.POPUP) {
       await (this.tKey.serviceProvider as TorusServiceProvider).init({});
     }
     this.ready = true;
 
     // try handle redirect flow if enabled and return(redirect) from oauth login
-    if (params.handleRedirectResult && (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))) {
+    if (
+      params.handleRedirectResult &&
+      this.options.uxMode === UX_MODE.REDIRECT &&
+      (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))
+    ) {
       await this.handleRedirectResult();
 
       // if not redirect flow try to rehydrate session if available
@@ -431,13 +439,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     try {
-      const browserInfo = bowser.parse(navigator.userAgent);
-      const browserName = `${browserInfo.browser.name}`;
-      const browserData = {
-        browserName,
-        browserVersion: browserInfo.browser.version,
-        deviceName: browserInfo.os.name,
-      };
+      let browserData;
+
+      if (this.options.uxMode === "nodejs") {
+        browserData = {
+          browserName: "Node Env",
+          browserVersion: "",
+          deviceName: "nodejs",
+        };
+      } else {
+        // try {
+        const browserInfo = bowser.parse(navigator.userAgent);
+        const browserName = `${browserInfo.browser.name}`;
+        browserData = {
+          browserName,
+          browserVersion: browserInfo.browser.version,
+          deviceName: browserInfo.os.name,
+        };
+      }
       const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
       storeWebBrowserFactor(deviceFactorKey, this);
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
@@ -537,13 +556,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async logout(): Promise<void> {
-    if (!this.sessionManager.sessionId) {
-      throw new Error("User is not logged in.");
+    if (this.sessionManager.sessionId) {
+      // throw new Error("User is not logged in.");
+      await this.sessionManager.invalidateSession();
     }
-    await this.sessionManager.invalidateSession();
     this.currentStorage.set("sessionId", "");
     this.resetState();
-    await this.init();
+    await this.init({ handleRedirectResult: false });
   }
 
   public getUserInfo(): UserInfo {

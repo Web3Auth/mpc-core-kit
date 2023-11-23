@@ -1,8 +1,28 @@
 import BN from "bn.js";
 
 import { FIELD_ELEMENT_HEX_LEN } from "../constants";
-import { ICoreKit, IStorage, TkeyLocalStoreData } from "../interfaces";
+import { ICoreKit, IStorage, SupportedStorageType, TkeyLocalStoreData } from "../interfaces";
 import { storageAvailable } from "../utils";
+
+export class MemoryStorage implements IStorage {
+  private _store: Record<string, string> = {};
+
+  getItem(key: string): string | null {
+    return this._store[key] || null;
+  }
+
+  setItem(key: string, value: string): void {
+    this._store[key] = value;
+  }
+
+  removeItem(key: string): void {
+    delete this._store[key];
+  }
+
+  clear(): void {
+    this._store = {};
+  }
+}
 
 export class BrowserStorage {
   // eslint-disable-next-line no-use-before-define
@@ -24,14 +44,17 @@ export class BrowserStorage {
     }
   }
 
-  static getInstance(key: string, storageKey: "session" | "local" = "local"): BrowserStorage {
+  static getInstance(key: string, storageKey: SupportedStorageType = "local"): BrowserStorage {
     if (!this.instance) {
-      let storage: Storage | undefined;
+      let storage: IStorage | undefined;
       if (storageKey === "local" && storageAvailable("localStorage")) {
         storage = localStorage;
-      }
-      if (storageKey === "session" && storageAvailable("sessionStorage")) {
+      } else if (storageKey === "session" && storageAvailable("sessionStorage")) {
         storage = sessionStorage;
+      } else if (storageKey === "memory") {
+        storage = new MemoryStorage();
+      } else if (typeof storageKey === "object") {
+        storage = storageKey;
       }
 
       if (!storage) {
