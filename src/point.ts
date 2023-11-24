@@ -1,4 +1,5 @@
 import { Point as TkeyPoint } from "@tkey-mpc/common-types";
+import type { BNString } from "@toruslabs/torus.js";
 import BN from "bn.js";
 import { curve } from "elliptic";
 
@@ -19,6 +20,16 @@ export class Point {
    */
   constructor(p: EllipticPoint) {
     this.p = p;
+  }
+
+  /**
+   * Creates a new Point from a private Key.
+   * @param p - The TKey Point.
+   * @returns The Point encoded by `p`.
+   */
+  public static fromPrivateKey(privateKey: BNString): Point {
+    const ep = CURVE.keyFromPrivate(privateKey.toString("hex")).getPublic();
+    return new Point(ep);
   }
 
   /**

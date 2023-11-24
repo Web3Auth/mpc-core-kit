@@ -13,10 +13,15 @@ import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+
+export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
+
 export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
+
+export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
 
 export interface InitParams {
   /**
@@ -286,7 +291,7 @@ export interface Web3AuthOptions {
    *
    * @defaultValue `'local'`
    */
-  storageKey?: "session" | "local";
+  storageKey?: SupportedStorageType;
 
   /**
    * @defaultValue 86400
@@ -296,7 +301,7 @@ export interface Web3AuthOptions {
   /**
    * @defaultValue `'POPUP'`
    */
-  uxMode?: UX_MODE_TYPE;
+  uxMode?: CoreKitMode;
 
   /**
    * @defaultValue `false`
@@ -347,6 +352,14 @@ export interface Web3AuthOptions {
    * Recommended for Non Custodial Flow.
    */
   disableHashedFactorKey?: boolean;
+
+  /**
+   * @defaultValue `null`
+   * Overwrite tss-lib for nodejs.
+   * Required for nodejs mode.
+   * Do not use this option for non nodejs mode.
+   */
+  tssLib?: unknown;
 
   /**
    * @defaultValue `Web3AuthOptions.web3AuthClientId`
