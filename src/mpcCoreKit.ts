@@ -5,6 +5,7 @@ import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
+import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { keccak256 } from "@toruslabs/metadata-helpers";
@@ -34,6 +35,7 @@ import { BrowserStorage, storeWebBrowserFactor } from "./helper/browserStorage";
 import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
+  CoreKitMode,
   CreateFactorParams,
   EnableMFAParams,
   ICoreKit,
@@ -93,12 +95,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
-
-    if ((options.uxMode === "nodejs" || options.uxMode === "react-native") && ["local", "session"].includes(options.storageKey.toString())) {
+    const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
+    if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString())) {
       throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
     }
 
-    if ((options.uxMode === "nodejs" || options.uxMode === "react-native") && !options.tssLib) {
+    if (isNodejsOrRN && !options.tssLib) {
       throw new Error(`nodejs mode requires tssLib`);
     }
 
@@ -112,7 +114,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
-    if (!options.baseUrl) options.baseUrl = this.isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
+    if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
 
@@ -193,10 +195,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  private get isNodejsOrRN(): boolean {
-    return this.options.uxMode === "nodejs" || this.options.uxMode === "react-native";
-  }
-
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
     this.resetState();
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
@@ -210,7 +208,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl,
-        uxMode: this.options.uxMode === "nodejs" || this.options.uxMode === "react-native" ? UX_MODE.REDIRECT : this.options.uxMode,
+        uxMode: this.isNodejsOrRN(this.options.uxMode) ? UX_MODE.REDIRECT : (this.options.uxMode as UX_MODE_TYPE),
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
@@ -261,7 +259,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
     this.checkReady();
-    if (this.isNodejsOrRN) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
+    if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
 
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
     try {
@@ -452,7 +450,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       let browserData;
 
-      if (this.isNodejsOrRN) {
+      if (this.isNodejsOrRN(this.options.uxMode)) {
         browserData = {
           browserName: "Node Env",
           browserVersion: "",
@@ -591,7 +589,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const currentSession = `${sessionId}${randomSessionNonce}`;
 
     let tss: typeof TssLib;
-    if (this.isNodejsOrRN) {
+    if (this.isNodejsOrRN(this.options.uxMode)) {
       tss = this.options.tssLib as typeof TssLib;
     } else {
       tss = await import("@toruslabs/tss-lib");
@@ -1048,5 +1046,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.signatures) throw new Error("signatures not present");
     log.info("data", data);
     return this.signatures;
+  }
+
+  private isNodejsOrRN(params: CoreKitMode): boolean {
+    const mode = params;
+    return mode === "nodejs" || mode === "react-native";
   }
 }
