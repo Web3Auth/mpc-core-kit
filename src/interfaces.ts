@@ -24,7 +24,16 @@ export interface IStorage {
 export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
 
 export interface InitParams {
+  /**
+   * @defaultValue `true`
+   * handle the redirect result during init()
+   */
   handleRedirectResult: boolean;
+  /**
+   * @defaultValue `true`
+   * rehydrate the session during init()
+   */
+  rehydrate?: boolean;
 }
 
 export interface BaseLoginParams {
