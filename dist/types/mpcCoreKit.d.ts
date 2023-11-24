@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { BNString, Point as TkeyPoint } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import { SafeEventEmitterProvider } from "@web3auth/base";
@@ -39,6 +40,17 @@ export declare class Web3AuthMPCCoreKit implements ICoreKit {
     enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor?: boolean): Promise<string>;
     getTssFactorPub: () => string[];
     createFactor(createFactorParams: CreateFactorParams): Promise<string>;
+    getPublic: () => Promise<Buffer>;
+    sign: (msgHash: Buffer) => Promise<{
+        v: number;
+        r: Buffer;
+        s: Buffer;
+    }>;
+    localSign: (msgHash: Buffer) => Promise<{
+        v: number;
+        r: Buffer;
+        s: Buffer;
+    }>;
     deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void>;
     logout(): Promise<void>;
     getUserInfo(): UserInfo;
@@ -72,4 +84,5 @@ export declare class Web3AuthMPCCoreKit implements ICoreKit {
     private resetState;
     private _getOAuthKey;
     private _getSignatures;
+    private getSigningSignatures;
 }

@@ -10,6 +10,7 @@ export declare const generateTSSEndpoints: (tssNodeEndpoints: string[], parties:
     endpoints: string[];
     tssWSEndpoints: string[];
     partyIndexes: number[];
+    nodeIndexesReturned: number[];
 };
 export declare function storageAvailable(type: string): boolean;
 /**

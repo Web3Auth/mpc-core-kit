@@ -283,6 +283,13 @@ export interface Web3AuthOptions {
      */
     disableHashedFactorKey?: boolean;
     /**
+     * @defaultValue `null`
+     * Overwrite tss-lib for nodejs.
+     * Required for nodejs mode.
+     * Do not use this option for non nodejs mode.
+     */
+    tssLib?: unknown;
+    /**
      * @defaultValue `Web3AuthOptions.web3AuthClientId`
      * Overwrites the default value ( clientId ) used as nonce for hashing the hash factor key.
      *

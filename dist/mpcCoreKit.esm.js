@@ -15,7 +15,7 @@ import { UX_MODE, AGGREGATE_VERIFIER, TORUS_METHOD } from '@toruslabs/customauth
 import { NodeDetailManager } from '@toruslabs/fetch-node-details';
 import { keccak256 as keccak256$1 } from '@toruslabs/metadata-helpers';
 import { OpenloginSessionManager } from '@toruslabs/openlogin-session-manager';
-import { utils, Client } from '@toruslabs/tss-client';
+import { setupSockets, getDKLSCoeff, Client } from '@toruslabs/tss-client';
 import { EthereumSigningProvider } from '@web3auth-mpc/ethereum-provider';
 import bowser from 'bowser';
 
@@ -88,6 +88,7 @@ const generateTSSEndpoints = (tssNodeEndpoints, parties, clientIndex, nodeIndexe
   const endpoints = [];
   const tssWSEndpoints = [];
   const partyIndexes = [];
+  const nodeIndexesReturned = [];
   for (let i = 0; i < parties; i++) {
     partyIndexes.push(i);
     if (i === clientIndex) {
@@ -99,12 +100,14 @@ const generateTSSEndpoints = (tssNodeEndpoints, parties, clientIndex, nodeIndexe
       const targetNodeIndex = nodeIndexes[i] - 1;
       endpoints.push(tssNodeEndpoints[targetNodeIndex]);
       tssWSEndpoints.push(new URL(tssNodeEndpoints[targetNodeIndex]).origin);
+      nodeIndexesReturned.push(nodeIndexes[i]);
     }
   }
   return {
     endpoints,
     tssWSEndpoints,
-    partyIndexes
+    partyIndexes,
+    nodeIndexesReturned
   };
 };
 function storageAvailable(type) {
@@ -657,6 +660,121 @@ class Web3AuthMPCCoreKit {
       const factorPubsList = this.tKey.metadata.factorPubs[this.tKey.tssTag];
       return factorPubsList.map(factorPub => Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex"));
     });
+    // function for setting up provider
+    _defineProperty(this, "getPublic", async () => {
+      let {
+        tssPubKey
+      } = this.state;
+      if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
+        tssPubKey = tssPubKey.subarray(1);
+      }
+      return tssPubKey;
+    });
+    _defineProperty(this, "sign", async msgHash => {
+      // if (this.state.remoteClient) {
+      //   return this.remoteSign(msgHash);
+      // }
+      return this.localSign(msgHash);
+    });
+    _defineProperty(this, "localSign", async msgHash => {
+      // PreSetup
+      let {
+        tssShareIndex,
+        tssPubKey
+      } = this.state;
+      const {
+        torusNodeTSSEndpoints
+      } = await this.nodeDetailManager.getNodeDetails({
+        verifier: "test-verifier",
+        verifierId: "test@example.com"
+      });
+      if (!this.state.factorKey) throw new Error("factorKey not present");
+      const {
+        tssShare
+      } = await this.tKey.getTSSShare(this.state.factorKey);
+      const tssNonce = this.getTssNonce();
+      if (!tssPubKey || !torusNodeTSSEndpoints) {
+        throw new Error("tssPubKey or torusNodeTSSEndpoints not available");
+      }
+      if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
+        tssPubKey = tssPubKey.subarray(1);
+      }
+      const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
+      const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
+      const parties = 4;
+      const clientIndex = parties - 1;
+      // 1. setup
+      // generate endpoints for servers
+      const {
+        nodeIndexes
+      } = await this.tKey.serviceProvider.getTSSPubKey(this.tKey.tssTag, this.tKey.metadata.tssNonces[this.tKey.tssTag]);
+      const {
+        endpoints,
+        tssWSEndpoints,
+        partyIndexes,
+        nodeIndexesReturned: participatingServerDKGIndexes
+      } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
+      const randomSessionNonce = keccak256$1(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
+      const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
+      // session is needed for authentication to the web3auth infrastructure holding the factor 1
+      const currentSession = `${sessionId}${randomSessionNonce}`;
+      let tss;
+      if (this.options.uxMode === "nodejs") {
+        tss = this.options.tssLib;
+      } else {
+        tss = await import('@toruslabs/tss-lib');
+        await tss.default(tssImportUrl);
+      }
+      // setup mock shares, sockets and tss wasm files.
+      const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
+      const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex);
+      const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
+      const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
+      if (!currentSession) {
+        throw new Error(`sessionAuth does not exist ${currentSession}`);
+      }
+      const signatures = await this.getSigningSignatures(msgHash.toString("hex"));
+      if (!signatures) {
+        throw new Error(`Signature does not exist ${signatures}`);
+      }
+      const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKey.toString("base64"), true, tssImportUrl);
+      const serverCoeffs = {};
+      for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
+        const serverIndex = participatingServerDKGIndexes[i];
+        serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex, serverIndex).toString("hex");
+      }
+      client.precompute(tss, {
+        signatures,
+        server_coeffs: serverCoeffs
+      });
+      await client.ready().catch(err => {
+        client.cleanup(tss, {
+          signatures,
+          server_coeffs: serverCoeffs
+        });
+        throw err;
+      });
+      let {
+        r,
+        s,
+        recoveryParam
+      } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
+        signatures
+      });
+      if (recoveryParam < 27) {
+        recoveryParam += 27;
+      }
+      // skip await cleanup
+      client.cleanup(tss, {
+        signatures,
+        server_coeffs: serverCoeffs
+      });
+      return {
+        v: recoveryParam,
+        r: scalarBNToBufferSEC1(r),
+        s: scalarBNToBufferSEC1(s)
+      };
+    });
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
       throw new Error("You must specify a eip155 chain config.");
@@ -682,10 +800,10 @@ class Web3AuthMPCCoreKit {
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
     this.options = options;
     this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
-    const sessionId = this.currentStorage.get("sessionId");
+    const _sessionId = this.currentStorage.get("sessionId");
     this.sessionManager = new OpenloginSessionManager({
       sessionTime: this.options.sessionTime,
-      sessionId
+      sessionId: _sessionId
     });
     this.nodeDetailManager = new NodeDetailManager({
       network: this.options.web3AuthNetwork,
@@ -1469,98 +1587,9 @@ class Web3AuthMPCCoreKit {
         chainConfig: this.options.chainConfig
       }
     });
-    let {
-      tssShareIndex,
-      tssPubKey
-    } = this.state;
-    const {
-      torusNodeTSSEndpoints
-    } = await this.nodeDetailManager.getNodeDetails({
-      verifier: "test-verifier",
-      verifierId: "test@example.com"
-    });
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-    const {
-      tssShare
-    } = await this.tKey.getTSSShare(this.state.factorKey);
-    const tssNonce = this.getTssNonce();
-    if (!tssPubKey || !torusNodeTSSEndpoints) {
-      throw new Error("tssPubKey or torusNodeTSSEndpoints not available");
-    }
-    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
-      tssPubKey = tssPubKey.subarray(1);
-    }
-    const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
-    const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
-    const sign = async msgHash => {
-      const parties = 4;
-      const clientIndex = parties - 1;
-      const tss = await import('@toruslabs/tss-lib');
-      // 1. setup
-      // generate endpoints for servers
-      const {
-        nodeIndexes
-      } = await this.tKey.serviceProvider.getTSSPubKey(this.tKey.tssTag, this.tKey.metadata.tssNonces[this.tKey.tssTag]);
-      const {
-        endpoints,
-        tssWSEndpoints,
-        partyIndexes
-      } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
-      const randomSessionNonce = keccak256$1(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
-      const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
-      // session is needed for authentication to the web3auth infrastructure holding the factor 1
-      const currentSession = `${sessionId}${randomSessionNonce}`;
-
-      // setup mock shares, sockets and tss wasm files.
-      const [sockets] = await Promise.all([utils.setupSockets(tssWSEndpoints, randomSessionNonce), tss.default(tssImportUrl)]);
-      const participatingServerDKGIndexes = nodeIndexes;
-      const dklsCoeff = utils.getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex);
-      const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
-      const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
-      if (!currentSession) {
-        throw new Error(`sessionAuth does not exist ${currentSession}`);
-      }
-      if (!this.signatures) {
-        throw new Error(`Signature does not exist ${this.signatures}`);
-      }
-      const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKey.toString("base64"), true, tssImportUrl);
-      const serverCoeffs = {};
-      for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
-        const serverIndex = participatingServerDKGIndexes[i];
-        serverCoeffs[serverIndex] = utils.getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex, serverIndex).toString("hex");
-      }
-      client.precompute(tss, {
-        signatures: this.signatures,
-        server_coeffs: serverCoeffs
-      });
-      await client.ready();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let {
-        r,
-        s,
-        recoveryParam
-      } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
-        signatures: this.signatures
-      });
-      if (recoveryParam < 27) {
-        recoveryParam += 27;
-      }
-      await client.cleanup(tss, {
-        signatures: this.signatures,
-        server_coeffs: serverCoeffs
-      });
-      return {
-        v: recoveryParam,
-        r: scalarBNToBufferSEC1(r),
-        s: scalarBNToBufferSEC1(s)
-      };
-    };
-    const getPublic = async () => {
-      return tssPubKey;
-    };
     await signingProvider.setupProvider({
-      sign,
-      getPublic
+      sign: this.sign,
+      getPublic: this.getPublic
     });
     this.privKeyProvider = signingProvider;
   }
@@ -1579,6 +1608,11 @@ class Web3AuthMPCCoreKit {
       data: session.token,
       sig: session.signature
     }));
+  }
+  async getSigningSignatures(data) {
+    if (!this.signatures) throw new Error("signatures not present");
+    log.info("data", data);
+    return this.signatures;
   }
 }
 
