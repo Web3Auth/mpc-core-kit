@@ -185,6 +185,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
+    if (params.rehydrate === undefined) params.rehydrate = true;
+
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
@@ -234,7 +236,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.handleRedirectResult();
 
       // if not redirect flow try to rehydrate session if available
-    } else if (this.sessionManager.sessionId) {
+    } else if (params.rehydrate && this.sessionManager.sessionId) {
       await this.rehydrateSession();
       if (this.state.factorKey) await this.setupProvider();
     }
@@ -336,7 +338,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  private async handleRedirectResult(): Promise<void> {
+  public async handleRedirectResult(): Promise<void> {
     this.checkReady();
 
     try {
