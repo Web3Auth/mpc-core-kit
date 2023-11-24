@@ -16,6 +16,7 @@ export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number
   const endpoints: string[] = [];
   const tssWSEndpoints: string[] = [];
   const partyIndexes: number[] = [];
+  const nodeIndexesReturned: number[] = [];
 
   for (let i = 0; i < parties; i++) {
     partyIndexes.push(i);
@@ -28,9 +29,10 @@ export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number
       const targetNodeIndex = nodeIndexes[i] - 1;
       endpoints.push(tssNodeEndpoints[targetNodeIndex]);
       tssWSEndpoints.push(new URL(tssNodeEndpoints[targetNodeIndex]).origin);
+      nodeIndexesReturned.push(nodeIndexes[i]);
     }
   }
-  return { endpoints, tssWSEndpoints, partyIndexes };
+  return { endpoints, tssWSEndpoints, partyIndexes, nodeIndexesReturned };
 };
 
 export function storageAvailable(type: string): boolean {
