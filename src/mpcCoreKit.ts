@@ -98,7 +98,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
     }
 
-    if (options.uxMode === "nodejs" || options.uxMode === "react-native") {
+    if ((options.uxMode === "nodejs" || options.uxMode === "react-native") && !options.tssLib) {
       throw new Error(`nodejs mode requires tssLib`);
     }
 
