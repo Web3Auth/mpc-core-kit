@@ -157,6 +157,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     throw new Error("Not implemented");
   }
 
+  // this return oauthkey which is used by demo to reset account.
+  // this is not the same metadataKey from tkey.
+  // will be fixed in next major release
   get metadataKey(): string | null {
     return this.state?.oAuthKey ? this.state.oAuthKey : null;
   }
