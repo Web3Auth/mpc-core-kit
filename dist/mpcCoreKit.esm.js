@@ -719,7 +719,7 @@ class Web3AuthMPCCoreKit {
       // session is needed for authentication to the web3auth infrastructure holding the factor 1
       const currentSession = `${sessionId}${randomSessionNonce}`;
       let tss;
-      if (this.isNodejsOrRN) {
+      if (this.isNodejsOrRN(this.options.uxMode)) {
         tss = this.options.tssLib;
       } else {
         tss = await import('@toruslabs/tss-lib');
@@ -782,10 +782,11 @@ class Web3AuthMPCCoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
-    if ((options.uxMode === "nodejs" || options.uxMode === "react-native") && ["local", "session"].includes(options.storageKey.toString())) {
+    const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
+    if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString())) {
       throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
     }
-    if ((options.uxMode === "nodejs" || options.uxMode === "react-native") && !options.tssLib) {
+    if (isNodejsOrRN && !options.tssLib) {
       throw new Error(`nodejs mode requires tssLib`);
     }
     if (options.enableLogging) {
@@ -798,7 +799,7 @@ class Web3AuthMPCCoreKit {
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
-    if (!options.baseUrl) options.baseUrl = this.isNodejsOrRN ? "https://localhost" : `${(_window = window) === null || _window === void 0 ? void 0 : _window.location.origin}/serviceworker`;
+    if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${(_window = window) === null || _window === void 0 ? void 0 : _window.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
     this.options = options;
@@ -869,9 +870,6 @@ class Web3AuthMPCCoreKit {
   get isRedirectMode() {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
-  get isNodejsOrRN() {
-    return this.options.uxMode === "nodejs" || this.options.uxMode === "react-native";
-  }
   async init() {
     var _window2, _window3;
     let params = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : {
@@ -890,7 +888,7 @@ class Web3AuthMPCCoreKit {
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl,
-        uxMode: this.options.uxMode === "nodejs" || this.options.uxMode === "react-native" ? UX_MODE.REDIRECT : this.options.uxMode,
+        uxMode: this.isNodejsOrRN(this.options.uxMode) ? UX_MODE.REDIRECT : this.options.uxMode,
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true
@@ -939,7 +937,7 @@ class Web3AuthMPCCoreKit {
 
   async loginWithOauth(params) {
     this.checkReady();
-    if (this.isNodejsOrRN) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
+    if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
     const tkeyServiceProvider = this.tKey.serviceProvider;
     try {
       // oAuth login.
@@ -1110,7 +1108,7 @@ class Web3AuthMPCCoreKit {
     }
     try {
       let browserData;
-      if (this.isNodejsOrRN) {
+      if (this.isNodejsOrRN(this.options.uxMode)) {
         browserData = {
           browserName: "Node Env",
           browserVersion: "",
@@ -1620,6 +1618,10 @@ class Web3AuthMPCCoreKit {
     if (!this.signatures) throw new Error("signatures not present");
     log.info("data", data);
     return this.signatures;
+  }
+  isNodejsOrRN(params) {
+    const mode = params;
+    return mode === "nodejs" || mode === "react-native";
   }
 }
 

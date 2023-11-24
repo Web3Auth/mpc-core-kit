@@ -30,7 +30,6 @@ export declare class Web3AuthMPCCoreKit implements ICoreKit {
     private get verifier();
     private get verifierId();
     private get isRedirectMode();
-    private get isNodejsOrRN();
     init(params?: InitParams): Promise<void>;
     loginWithOauth(params: OauthLoginParams): Promise<void>;
     loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
@@ -86,4 +85,5 @@ export declare class Web3AuthMPCCoreKit implements ICoreKit {
     private _getOAuthKey;
     private _getSignatures;
     private getSigningSignatures;
+    private isNodejsOrRN;
 }
