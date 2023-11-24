@@ -95,13 +95,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
+
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
+
     if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString())) {
-      throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
+      throw new Error(`${options.uxMode} mode do not storage of type : ${options.storageKey}`);
     }
 
     if (isNodejsOrRN && !options.tssLib) {
-      throw new Error(`nodejs mode requires tssLib`);
+      throw new Error(`${options.uxMode} mode requires tssLib`);
     }
 
     if (options.enableLogging) {
