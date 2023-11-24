@@ -1017,10 +1017,10 @@ class Web3AuthMPCCoreKit {
     }
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
     if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString())) {
-      throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
+      throw new Error(`${options.uxMode} mode do not storage of type : ${options.storageKey}`);
     }
     if (isNodejsOrRN && !options.tssLib) {
-      throw new Error(`nodejs mode requires tssLib`);
+      throw new Error(`${options.uxMode} mode requires tssLib`);
     }
     if (options.enableLogging) {
       base_namespaceObject.log.enableAll();
@@ -1065,6 +1065,10 @@ class Web3AuthMPCCoreKit {
   set signatures(_) {
     throw new Error("Not implemented");
   }
+
+  // this return oauthkey which is used by demo to reset account.
+  // this is not the same metadataKey from tkey.
+  // will be fixed in next major release
   get metadataKey() {
     var _this$state2;
     return (_this$state2 = this.state) !== null && _this$state2 !== void 0 && _this$state2.oAuthKey ? this.state.oAuthKey : null;
