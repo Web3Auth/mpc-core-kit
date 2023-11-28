@@ -33,7 +33,7 @@ export declare class Web3AuthMPCCoreKit implements ICoreKit {
     init(params?: InitParams): Promise<void>;
     loginWithOauth(params: OauthLoginParams): Promise<void>;
     loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
-    private handleRedirectResult;
+    handleRedirectResult(): Promise<void>;
     inputFactorKey(factorKey: BN): Promise<void>;
     getCurrentFactorKey(): IFactorKey;
     getTssPublicKey(): TkeyPoint;

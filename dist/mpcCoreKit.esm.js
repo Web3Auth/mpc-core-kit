@@ -880,6 +880,7 @@ class Web3AuthMPCCoreKit {
       handleRedirectResult: true
     };
     this.resetState();
+    if (params.rehydrate === undefined) params.rehydrate = true;
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({
       verifier: "test-verifier",
       verifierId: "test@example.com"
@@ -932,7 +933,7 @@ class Web3AuthMPCCoreKit {
       await this.handleRedirectResult();
 
       // if not redirect flow try to rehydrate session if available
-    } else if (this.sessionManager.sessionId) {
+    } else if (params.rehydrate && this.sessionManager.sessionId) {
       await this.rehydrateSession();
       if (this.state.factorKey) await this.setupProvider();
     }
