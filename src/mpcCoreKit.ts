@@ -445,6 +445,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tKey.getTSSPub();
   }
 
+  public async isMFAEnabled(): Promise<boolean> {
+    if (!this.state.oAuthKey || !this.options.hashedFactorNonce) {
+      throw new Error("oAuthKey or hashedFactorNonce not present");
+    }
+
+    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
+    if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
+      return true;
+    }
+    return false;
+  }
+
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
