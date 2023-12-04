@@ -774,7 +774,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.state.oAuthKey) {
       throw new Error("user not logged in");
     }
-    this.updateState({ isMFAEnabled: true });
+    this.updateState({ isMFAEnabled: false });
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
 
     if (!existingUser) {
@@ -814,7 +814,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.tKey.reconstructKey();
         await this.finalizeTkey(hashedFactorKey);
       } else {
-        this.updateState({ isMFAEnabled: false });
+        this.updateState({ isMFAEnabled: true });
       }
     }
   }
