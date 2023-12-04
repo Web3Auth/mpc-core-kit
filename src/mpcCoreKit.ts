@@ -486,6 +486,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
       await this.deleteMetadataShareBackup(hashedFactorKey);
 
+      this.updateState({ isMFAEnabled: true });
+
       // only recovery factor = true
       if (recoveryFactor) {
         const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
@@ -857,15 +859,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
       await this.tKey.reconstructKey();
 
-      this.updateState({
-        factorKey: new BN(result.factorKey, "hex"),
-        oAuthKey: result.oAuthKey,
-        tssShareIndex: result.tssShareIndex,
-        tssPubKey: Buffer.from(result.tssPubKey.padStart(FIELD_ELEMENT_HEX_LEN, "0"), "hex"),
-        signatures: result.signatures,
-        userInfo: result.userInfo,
-        isMFAEnabled: result.isMFAEnabled,
-      });
+      this.updateState(
+        {
+          factorKey: new BN(result.factorKey, "hex"),
+          oAuthKey: result.oAuthKey,
+          tssShareIndex: result.tssShareIndex,
+          tssPubKey: Buffer.from(result.tssPubKey.padStart(FIELD_ELEMENT_HEX_LEN, "0"), "hex"),
+          signatures: result.signatures,
+          userInfo: result.userInfo,
+          isMFAEnabled: result.isMFAEnabled,
+        },
+        false
+      );
     } catch (err) {
       log.error("error trying to authorize session", err);
     }
@@ -875,26 +880,33 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       const sessionId = OpenloginSessionManager.generateRandomSessionKey();
       this.sessionManager.sessionId = sessionId;
-      const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey, isMFAEnabled } = this.state;
+      const { oAuthKey, factorKey, userInfo, tssPubKey } = this.state;
       if (!this.state.factorKey) throw new Error("factorKey not present");
       const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw new Error("User not logged in");
       }
-      const payload: SessionData = {
-        oAuthKey,
-        factorKey: factorKey?.toString("hex"),
-        tssShareIndex: tssShareIndex as number,
-        tssPubKey: Buffer.from(tssPubKey).toString("hex"),
-        signatures: this.signatures,
-        userInfo,
-        isMFAEnabled,
-      };
+      const payload: SessionData = this.createSessionData();
+
       await this.sessionManager.createSession(payload);
       this.currentStorage.set("sessionId", sessionId);
     } catch (err) {
       log.error("error creating session", err);
     }
+  }
+
+  private createSessionData(): SessionData {
+    const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey, isMFAEnabled } = this.state;
+    const payload: SessionData = {
+      oAuthKey,
+      factorKey: factorKey?.toString("hex"),
+      tssShareIndex: tssShareIndex as number,
+      tssPubKey: Buffer.from(tssPubKey).toString("hex"),
+      signatures: this.signatures,
+      userInfo,
+      isMFAEnabled,
+    };
+    return payload;
   }
 
   private async isMetadataPresent(privateKey: string) {
@@ -955,11 +967,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // Generate new share.
       await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
 
-      // Update local share.
-      const { tssIndex } = await this.tKey.getTSSShare(this.state.factorKey);
-      this.updateState({
-        tssShareIndex: tssIndex,
-      });
       return;
     }
 
@@ -1042,8 +1049,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.privKeyProvider = signingProvider;
   }
 
-  private updateState(newState: Partial<Web3AuthState>): void {
+  private updateState(newState: Partial<Web3AuthState>, updateSession = true): void {
     this.state = { ...this.state, ...newState };
+    if (this.sessionManager.sessionId && updateSession) {
+      const payload: SessionData = this.createSessionData();
+      this.sessionManager.updateSession(payload);
+    }
   }
 
   private resetState(): void {
