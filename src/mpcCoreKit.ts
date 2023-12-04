@@ -445,6 +445,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tKey.getTSSPub();
   }
 
+  public isMFAEnabled(): boolean {
+    this.checkReady();
+    return !!this.state.isMFAEnabled;
+  }
+
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
@@ -769,6 +774,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.state.oAuthKey) {
       throw new Error("user not logged in");
     }
+    this.updateState({ isMFAEnabled: true });
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
 
     if (!existingUser) {
@@ -807,6 +813,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
         await this.tKey.reconstructKey();
         await this.finalizeTkey(hashedFactorKey);
+      } else {
+        this.updateState({ isMFAEnabled: false });
       }
     }
   }
@@ -856,6 +864,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         tssPubKey: Buffer.from(result.tssPubKey.padStart(FIELD_ELEMENT_HEX_LEN, "0"), "hex"),
         signatures: result.signatures,
         userInfo: result.userInfo,
+        isMFAEnabled: result.isMFAEnabled,
       });
     } catch (err) {
       log.error("error trying to authorize session", err);
@@ -866,7 +875,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       const sessionId = OpenloginSessionManager.generateRandomSessionKey();
       this.sessionManager.sessionId = sessionId;
-      const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
+      const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey, isMFAEnabled } = this.state;
       if (!this.state.factorKey) throw new Error("factorKey not present");
       const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
@@ -879,6 +888,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         tssPubKey: Buffer.from(tssPubKey).toString("hex"),
         signatures: this.signatures,
         userInfo,
+        isMFAEnabled,
       };
       await this.sessionManager.createSession(payload);
       this.currentStorage.set("sessionId", sessionId);
