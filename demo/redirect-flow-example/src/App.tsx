@@ -40,9 +40,15 @@ function App() {
 
   const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
 
+  // decide whether to rehydrate session
+  const rehydrate = true;
   useEffect(() => {
     const init = async () => {
-      await coreKitInstance.init();
+      // Example config to handle redirect result manually
+      await coreKitInstance.init({ handleRedirectResult: false, rehydrate});
+      if (window.location.hash.includes("#state")) {
+        await coreKitInstance.handleRedirectResult();
+      }
 
       if (coreKitInstance.provider) {
         setProvider(coreKitInstance.provider);

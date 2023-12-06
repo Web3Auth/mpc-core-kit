@@ -14,14 +14,26 @@ import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
-export type CoreKitMode = UX_MODE_TYPE | "nodejs";
+export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
+
 export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 
+export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
+
 export interface InitParams {
+  /**
+   * @defaultValue `true`
+   * handle the redirect result during init()
+   */
   handleRedirectResult: boolean;
+  /**
+   * @defaultValue `true`
+   * rehydrate the session during init()
+   */
+  rehydrate?: boolean;
 }
 
 export interface BaseLoginParams {
@@ -292,7 +304,7 @@ export interface Web3AuthOptions {
    *
    * @defaultValue `'local'`
    */
-  storageKey?: "session" | "local" | "memory" | IStorage;
+  storageKey?: SupportedStorageType;
 
   /**
    * @defaultValue 86400
@@ -363,19 +375,15 @@ export interface Web3AuthOptions {
   tssLib?: unknown;
 
   /**
-   * @defaultValue `[]`
-   * Server hostUrl for authorization before signing or refresh.
-   * Will request for authorization every signing or refresh if being set.
-   * Required for remote client setup.
+   * @defaultValue `Web3AuthOptions.web3AuthClientId`
+   * Overwrites the default value ( clientId ) used as nonce for hashing the hash factor key.
+   *
+   * If you want to aggregate the mfa status of client id 1 and client id 2  apps
+   * set hashedFactorNonce to some common clientID, which can be either client id 1 or client id 2 or any other unique string
+   * #PR 72
+   * Do not use this unless you know what you are doing.
    */
-  authorizationUrl?: string[];
-
-  /**
-   * @defaultValue `false`
-   * Allow no authorization requirement for remote client setup.
-   * if AuthorizationUrl is set, this option will be ignored.
-   */
-  allowNoAuthorizationForRemoteClient?: boolean;
+  hashedFactorNonce?: string;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;

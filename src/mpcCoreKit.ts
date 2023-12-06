@@ -14,6 +14,7 @@ import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
+import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { post } from "@toruslabs/http-helpers";
@@ -21,6 +22,7 @@ import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
+import type * as TssLib from "@toruslabs/tss-lib";
 import type * as TssLib from "@toruslabs/tss-lib";
 import { CHAIN_NAMESPACES, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
@@ -45,6 +47,7 @@ import { BrowserStorage, storeWebBrowserFactor } from "./helper/browserStorage";
 import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
+  CoreKitMode,
   CreateFactorParams,
   EnableMFAParams,
   ICoreKit,
@@ -109,12 +112,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
-    if (options.uxMode === "nodejs" && ["local", "session"].includes(options.storageKey.toString())) {
-      throw new Error(`nodejs mode do not storage of type : ${options.storageKey}`);
+
+    const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
+
+    if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString())) {
+      throw new Error(`${options.uxMode} mode do not storage of type : ${options.storageKey}`);
     }
 
-    if (options.uxMode === "nodejs" && !options.tssLib) {
-      throw new Error(`nodejs mode requires tssLib`);
+    if (isNodejsOrRN && !options.tssLib) {
+      throw new Error(`${options.uxMode} mode requires tssLib`);
     }
 
     if (options.enableLogging) {
@@ -127,8 +133,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
-    if (!options.baseUrl) options.baseUrl = `${window.location.origin}/serviceworker`;
+    if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
+    if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
     if (!options.authorizationUrl) options.authorizationUrl = [];
     if (!options.allowNoAuthorizationForRemoteClient) options.allowNoAuthorizationForRemoteClient = false;
 
@@ -169,6 +176,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     throw new Error("Not implemented");
   }
 
+  // this return oauthkey which is used by demo to reset account.
+  // this is not the same metadataKey from tkey.
+  // will be fixed in next major release
   get metadataKey(): string | null {
     return this.state?.oAuthKey ? this.state.oAuthKey : null;
   }
@@ -240,6 +250,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
     this.resetState();
+    if (params.rehydrate === undefined) params.rehydrate = true;
 
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
@@ -251,8 +262,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       useTSS: true,
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
-        baseUrl: this.options.baseUrl ? this.options.baseUrl : `${window.location.origin}/serviceworker`,
-        uxMode: this.options.uxMode === "nodejs" ? UX_MODE.REDIRECT : this.options.uxMode,
+        baseUrl: this.options.baseUrl,
+        uxMode: this.isNodejsOrRN(this.options.uxMode) ? UX_MODE.REDIRECT : (this.options.uxMode as UX_MODE_TYPE),
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
@@ -294,7 +305,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.handleRedirectResult();
 
       // if not redirect flow try to rehydrate session if available
-    } else if (this.sessionManager.sessionId) {
+    } else if (params.rehydrate && this.sessionManager.sessionId) {
       await this.rehydrateSession();
       if (this.state.factorKey || this.state.remoteClient) await this.setupProvider();
     }
@@ -303,6 +314,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
     this.checkReady();
+    if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
     const { importTssKey } = params;
 
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
@@ -398,7 +410,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  private async handleRedirectResult(): Promise<void> {
+  public async handleRedirectResult(): Promise<void> {
     this.checkReady();
 
     try {
@@ -487,45 +499,50 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
-    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
+    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
     if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
       if (this.tKey._localMetadataTransitions[0].length) throw new Error("CommitChanges are required before enabling MFA");
       throw new Error("MFA already enabled");
     }
 
-    let browserData;
+    try {
+      let browserData;
 
-    if (this.options.uxMode === "nodejs") {
-      browserData = {
-        browserName: "Node Env",
-        browserVersion: "",
-        deviceName: "nodejs",
-      };
-    } else {
-      const browserInfo = bowser.parse(navigator.userAgent);
-      const browserName = `${browserInfo.browser.name}`;
-      browserData = {
-        browserName,
-        browserVersion: browserInfo.browser.version,
-        deviceName: browserInfo.os.name,
-      };
+      if (this.isNodejsOrRN(this.options.uxMode)) {
+        browserData = {
+          browserName: "Node Env",
+          browserVersion: "",
+          deviceName: "nodejs",
+        };
+      } else {
+        // try {
+        const browserInfo = bowser.parse(navigator.userAgent);
+        const browserName = `${browserInfo.browser.name}`;
+        browserData = {
+          browserName,
+          browserVersion: browserInfo.browser.version,
+          deviceName: browserInfo.os.name,
+        };
+      }
+      const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
+      storeWebBrowserFactor(deviceFactorKey, this);
+      await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
+
+      const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
+      await this.deleteFactor(hashedFactorPub, hashedFactorKey);
+      await this.deleteMetadataShareBackup(hashedFactorKey);
+
+      // only recovery factor = true
+      if (recoveryFactor) {
+        const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
+        return backupFactorKey;
+      }
+      // update to undefined for next major release
+      return "";
+    } catch (err: unknown) {
+      log.error("error enabling MFA", err);
+      throw new Error((err as Error).message);
     }
-
-    const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
-    storeWebBrowserFactor(deviceFactorKey, this);
-    await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
-
-    const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
-    await this.deleteFactor(hashedFactorPub, hashedFactorKey);
-    await this.deleteMetadataShareBackup(hashedFactorKey);
-
-    // only recovery factor = true
-    if (recoveryFactor) {
-      const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
-      return backupFactorKey;
-    }
-    // update to undefined for next major release
-    return "";
   }
 
   public getTssFactorPub = (): string[] => {
@@ -632,6 +649,113 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     let tss: typeof TssLib;
     if (this.options.uxMode === "nodejs") {
+      tss = this.options.tssLib as typeof TssLib;
+    } else {
+      tss = await import("@toruslabs/tss-lib");
+      await tss.default(tssImportUrl);
+    }
+    // setup mock shares, sockets and tss wasm files.
+    const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
+
+    const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
+    const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
+    const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
+
+    if (!currentSession) {
+      throw new Error(`sessionAuth does not exist ${currentSession}`);
+    }
+
+    const signatures = await this.getSigningSignatures(msgHash.toString("hex"));
+    if (!signatures) {
+      throw new Error(`Signature does not exist ${signatures}`);
+    }
+
+    const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKey.toString("base64"), true, tssImportUrl);
+    const serverCoeffs: Record<number, string> = {};
+    for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
+      const serverIndex = participatingServerDKGIndexes[i];
+      serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
+    }
+
+    client.precompute(tss, { signatures, server_coeffs: serverCoeffs });
+
+    await client.ready().catch((err) => {
+      client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
+      throw err;
+    });
+
+    let { r, s, recoveryParam } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
+      signatures,
+    });
+
+    if (recoveryParam < 27) {
+      recoveryParam += 27;
+    }
+    // skip await cleanup
+    client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
+    return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
+  };
+
+  // function for setting up provider
+  public getPublic: () => Promise<Buffer> = async () => {
+    let { tssPubKey } = this.state;
+    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
+      tssPubKey = tssPubKey.subarray(1);
+    }
+    return tssPubKey;
+  };
+
+  public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {
+    // if (this.state.remoteClient) {
+    //   return this.remoteSign(msgHash);
+    // }
+    return this.localSign(msgHash);
+  };
+
+  public localSign = async (msgHash: Buffer) => {
+    // PreSetup
+    let { tssShareIndex, tssPubKey } = this.state;
+    const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
+      verifier: "test-verifier",
+      verifierId: "test@example.com",
+    });
+
+    if (!this.state.factorKey) throw new Error("factorKey not present");
+    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
+    const tssNonce = this.getTssNonce();
+
+    if (!tssPubKey || !torusNodeTSSEndpoints) {
+      throw new Error("tssPubKey or torusNodeTSSEndpoints not available");
+    }
+
+    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
+      tssPubKey = tssPubKey.subarray(1);
+    }
+
+    const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
+    const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
+
+    const parties = 4;
+    const clientIndex = parties - 1;
+    // 1. setup
+    // generate endpoints for servers
+    const { nodeIndexes } = await (this.tKey.serviceProvider as TorusServiceProvider).getTSSPubKey(
+      this.tKey.tssTag,
+      this.tKey.metadata.tssNonces[this.tKey.tssTag]
+    );
+    const {
+      endpoints,
+      tssWSEndpoints,
+      partyIndexes,
+      nodeIndexesReturned: participatingServerDKGIndexes,
+    } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
+    const randomSessionNonce = keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
+    const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
+    // session is needed for authentication to the web3auth infrastructure holding the factor 1
+    const currentSession = `${sessionId}${randomSessionNonce}`;
+
+    let tss: typeof TssLib;
+    if (this.isNodejsOrRN(this.options.uxMode)) {
       tss = this.options.tssLib as typeof TssLib;
     } else {
       tss = await import("@toruslabs/tss-lib");
@@ -862,10 +986,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (this.options.disableHashedFactorKey) {
         factorKey = generateFactorKey().private;
         // delete previous hashed factorKey if present
-        const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
+        const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
         await this.deleteMetadataShareBackup(hashedFactorKey);
       } else {
-        factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
+        factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
       }
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
@@ -891,7 +1015,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else {
       if (importTssKey) throw new Error("Cannot import tss key for existing user");
       await this.tKey.initialize({ neverInitializeNewKey: true });
-      const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.web3AuthClientId);
+      const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
       if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
         // Initialize tkey with existing hashed share if available.
         const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
@@ -1258,5 +1382,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
     const { r, s, v } = result.data as { v: string; r: string; s: string };
     return { v: parseInt(v), r: Buffer.from(r, "hex"), s: Buffer.from(s, "hex") };
+  }
+
+  private async getSigningSignatures(data: string): Promise<string[]> {
+    if (!this.signatures) throw new Error("signatures not present");
+    log.info("data", data);
+    return this.signatures;
+  }
+
+  private isNodejsOrRN(params: CoreKitMode): boolean {
+    const mode = params;
+    return mode === "nodejs" || mode === "react-native";
   }
 }

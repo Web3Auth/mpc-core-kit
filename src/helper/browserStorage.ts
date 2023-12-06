@@ -1,7 +1,7 @@
 import BN from "bn.js";
 
 import { FIELD_ELEMENT_HEX_LEN } from "../constants";
-import { ICoreKit, IStorage, TkeyLocalStoreData } from "../interfaces";
+import { ICoreKit, IStorage, SupportedStorageType, TkeyLocalStoreData } from "../interfaces";
 import { storageAvailable } from "../utils";
 
 export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
