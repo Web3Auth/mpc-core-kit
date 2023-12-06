@@ -4,8 +4,6 @@ import { FIELD_ELEMENT_HEX_LEN } from "../constants";
 import { ICoreKit, IStorage, SupportedStorageType, TkeyLocalStoreData } from "../interfaces";
 import { storageAvailable } from "../utils";
 
-export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
-
 export class MemoryStorage implements IStorage {
   private _store: Record<string, string> = {};
 

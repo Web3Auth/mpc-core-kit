@@ -23,7 +23,6 @@ import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type * as TssLib from "@toruslabs/tss-lib";
-import type * as TssLib from "@toruslabs/tss-lib";
 import { CHAIN_NAMESPACES, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
@@ -136,8 +135,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
-    if (!options.authorizationUrl) options.authorizationUrl = [];
-    if (!options.allowNoAuthorizationForRemoteClient) options.allowNoAuthorizationForRemoteClient = false;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -588,113 +585,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw error;
     }
   }
-
-  // function for setting up provider
-  public getPublic: () => Promise<Buffer> = async () => {
-    let { tssPubKey } = this.state;
-    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
-      tssPubKey = tssPubKey.subarray(1);
-    }
-    return tssPubKey;
-  };
-
-  public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {
-    if (this.state.remoteClient) {
-      return this.remoteSign(msgHash);
-    }
-    return this.localSign(msgHash);
-  };
-
-  public localSign = async (msgHash: Buffer) => {
-    // PreSetup
-    let { tssShareIndex, tssPubKey } = this.state;
-    const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
-      verifier: "test-verifier",
-      verifierId: "test@example.com",
-    });
-
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
-    const tssNonce = this.getTssNonce();
-
-    if (!tssPubKey || !torusNodeTSSEndpoints) {
-      throw new Error("tssPubKey or torusNodeTSSEndpoints not available");
-    }
-
-    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
-      tssPubKey = tssPubKey.subarray(1);
-    }
-
-    const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
-    const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
-
-    const parties = 4;
-    const clientIndex = parties - 1;
-    // 1. setup
-    // generate endpoints for servers
-    const { nodeIndexes } = await (this.tKey.serviceProvider as TorusServiceProvider).getTSSPubKey(
-      this.tKey.tssTag,
-      this.tKey.metadata.tssNonces[this.tKey.tssTag]
-    );
-    const {
-      endpoints,
-      tssWSEndpoints,
-      partyIndexes,
-      nodeIndexesReturned: participatingServerDKGIndexes,
-    } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
-    const randomSessionNonce = keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
-    const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
-    // session is needed for authentication to the web3auth infrastructure holding the factor 1
-    const currentSession = `${sessionId}${randomSessionNonce}`;
-
-    let tss: typeof TssLib;
-    if (this.options.uxMode === "nodejs") {
-      tss = this.options.tssLib as typeof TssLib;
-    } else {
-      tss = await import("@toruslabs/tss-lib");
-      await tss.default(tssImportUrl);
-    }
-    // setup mock shares, sockets and tss wasm files.
-    const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
-
-    const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
-    const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
-    const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
-
-    if (!currentSession) {
-      throw new Error(`sessionAuth does not exist ${currentSession}`);
-    }
-
-    const signatures = await this.getSigningSignatures(msgHash.toString("hex"));
-    if (!signatures) {
-      throw new Error(`Signature does not exist ${signatures}`);
-    }
-
-    const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKey.toString("base64"), true, tssImportUrl);
-    const serverCoeffs: Record<number, string> = {};
-    for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
-      const serverIndex = participatingServerDKGIndexes[i];
-      serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
-    }
-
-    client.precompute(tss, { signatures, server_coeffs: serverCoeffs });
-
-    await client.ready().catch((err) => {
-      client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
-      throw err;
-    });
-
-    let { r, s, recoveryParam } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
-      signatures,
-    });
-
-    if (recoveryParam < 27) {
-      recoveryParam += 27;
-    }
-    // skip await cleanup
-    client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
-    return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
-  };
 
   // function for setting up provider
   public getPublic: () => Promise<Buffer> = async () => {
@@ -1303,28 +1193,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
   }
 
-  private async getSigningSignatures(data: string): Promise<string[]> {
-    if (!this.signatures) throw new Error("signatures not present");
-    if (this.options.authorizationUrl.length === 0) {
-      if (this.state.remoteClient && !this.options.allowNoAuthorizationForRemoteClient) {
-        throw new Error("remote client is present, authorizationUrl is required");
-      }
-      return this.signatures;
-    }
-    const sigPromise = this.options.authorizationUrl.map(async (url) => {
-      const { sig } = await post<{ sig?: string }>(url, {
-        signatures: this.signatures,
-        verifier: this.verifier,
-        verifierID: this.verifierId,
-        clientID: this.options.web3AuthClientId,
-        data,
-      });
-
-      return sig;
-    });
-    return Promise.all(sigPromise);
-  }
-
   public async remoteSign(msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> {
     if (!this.state.remoteClient.remoteClientUrl) throw new Error("remoteClientUrl not present");
 
@@ -1384,8 +1252,33 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return { v: parseInt(v), r: Buffer.from(r, "hex"), s: Buffer.from(s, "hex") };
   }
 
+  // private async getSigningSignatures(data: string): Promise<string[]> {
+  //   if (!this.signatures) throw new Error("signatures not present");
+  //   log.info("data", data);
+  //   return this.signatures;
+  // }
+
   private async getSigningSignatures(data: string): Promise<string[]> {
     if (!this.signatures) throw new Error("signatures not present");
+    // if (this.options.authorizationUrl.length === 0) {
+    //   if (this.state.remoteClient && !this.options.allowNoAuthorizationForRemoteClient) {
+    //     throw new Error("remote client is present, authorizationUrl is required");
+    //   }
+    //   return this.signatures;
+    // }
+    // const sigPromise = this.options.authorizationUrl.map(async (url) => {
+    //   const { sig } = await post<{ sig?: string }>(url, {
+    //     signatures: this.signatures,
+    //     verifier: this.verifier,
+    //     verifierID: this.verifierId,
+    //     clientID: this.options.web3AuthClientId,
+    //     data,
+    //   });
+
+    //   return sig;
+    // });
+    // return Promise.all(sigPromise);
+
     log.info("data", data);
     return this.signatures;
   }
