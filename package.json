@@ -47,6 +47,7 @@
     "@toruslabs/eccrypto": "4.0.0",
     "@toruslabs/fetch-node-details": "^13.0.1",
     "@toruslabs/fnd-base": "^13.0.1",
+    "@toruslabs/http-helpers": "^5.0.0",
     "@toruslabs/metadata-helpers": "^5.x",
     "@toruslabs/openlogin-session-manager": "^3.0.0",
     "@toruslabs/torus.js": "^11.0.6",
@@ -57,7 +58,8 @@
     "@web3auth/base-provider": "^7.0.1",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
-    "elliptic": "^6.5.4"
+    "elliptic": "^6.5.4",
+    "hi-base32": "^0.5.1"
   },
   "devDependencies": {
     "@babel/register": "^7.22.15",
@@ -75,6 +77,7 @@
     "esbuild-register": "^3.5.0",
     "eslint": "^8.49.0",
     "husky": "^8.0.3",
+    "jsonwebtoken": "^9.0.2",
     "lint-staged": "^14.0.1",
     "mocha": "^10.2.0",
     "node-fetch": "^3.3.2",

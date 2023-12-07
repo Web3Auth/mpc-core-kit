@@ -72,7 +72,7 @@ export type MPCKeyDetails = {
   tssPubKey?: TkeyPoint;
 };
 
-export type OauthLoginParams = SubVerifierDetailsParams | AggregateVerifierLoginParams;
+export type OauthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface EnableMFAParams {
@@ -127,6 +127,18 @@ export interface IdTokenLoginParams {
    * Any additional parameter (key value pair) you'd like to pass to the login function.
    */
   additionalParams?: ExtraParams;
+
+  /**
+   * Key to import key into Tss during first time login.
+   */
+  importTssKey?: string;
+}
+
+export interface IRemoteClientState {
+  remoteFactorPub: string;
+  remoteClientUrl: string;
+  remoteClientToken: string;
+  metadataShare: string;
 }
 
 export interface Web3AuthState {
@@ -136,6 +148,7 @@ export interface Web3AuthState {
   tssShareIndex?: number;
   tssPubKey?: Buffer;
   factorKey?: BN;
+  remoteClient?: IRemoteClientState;
 }
 
 export interface ICoreKit {
@@ -382,6 +395,7 @@ export interface SessionData {
   tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
+  remoteClient?: IRemoteClientState;
 }
 
 export interface TkeyLocalStoreData {
