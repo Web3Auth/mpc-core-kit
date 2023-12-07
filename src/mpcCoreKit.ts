@@ -45,6 +45,7 @@ import {
   MPCKeyDetails,
   OauthLoginParams,
   SessionData,
+  SetupProvider,
   SubVerifierDetailsParams,
   UserInfo,
   Web3AuthOptions,
@@ -259,7 +260,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // if not redirect flow try to rehydrate session if available
     } else if (params.rehydrate && this.sessionManager.sessionId) {
       await this.rehydrateSession();
-      if (this.state.factorKey) await this.setupProvider();
+      if (this.state.factorKey) await this.internalSetupProvider();
     }
     // if not redirect flow or session rehydration, ask for factor key to login
   }
@@ -759,6 +760,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return exportTssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
   }
 
+  public async setupProvider<T extends { setupProvider: SetupProvider }>(provider: T): Promise<T> {
+    // provider.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
+    await provider.setupProvider({ sign: this.sign, getPublic: this.getPublic });
+    return provider;
+  }
+
   private getTssNonce(): number {
     if (!this.tKey.metadata.tssNonces) throw new Error("tssNonce not present");
     const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
@@ -820,7 +827,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // Finalize setup.
     if (!this.tKey.manualSync) await this.tKey.syncLocalMetadataTransitions();
-    await this.setupProvider();
+    await this.internalSetupProvider();
     await this.createSession();
   }
 
@@ -1026,7 +1033,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
   }
 
-  private async setupProvider(): Promise<void> {
+  private async internalSetupProvider(): Promise<void> {
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
     await signingProvider.setupProvider({ sign: this.sign, getPublic: this.getPublic });
     this.privKeyProvider = signingProvider;

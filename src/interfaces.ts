@@ -387,3 +387,6 @@ export interface SessionData {
 export interface TkeyLocalStoreData {
   factorKey: string;
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type SetupProvider = ({ sign, getPublic }: { sign: any; getPublic: any }) => Promise<void>;
