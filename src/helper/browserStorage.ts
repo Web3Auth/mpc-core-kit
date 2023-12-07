@@ -99,7 +99,7 @@ export class BrowserStorage {
   }
 }
 
-export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit, storageKey: "local" | "session" = "local"): Promise<void> {
+export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit, storageKey: SupportedStorageType = "local"): Promise<void> {
   const metadata = mpcCoreKit.tKey.getMetadata();
   const currentStorage = BrowserStorage.getInstance("mpc_corekit_store", storageKey);
 
@@ -112,7 +112,7 @@ export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit,
   );
 }
 
-export async function getWebBrowserFactor(mpcCoreKit: ICoreKit, storageKey: "local" | "session" = "local"): Promise<string | undefined> {
+export async function getWebBrowserFactor(mpcCoreKit: ICoreKit, storageKey: SupportedStorageType = "local"): Promise<string | undefined> {
   const metadata = mpcCoreKit.tKey.getMetadata();
   const currentStorage = BrowserStorage.getInstance("mpc_corekit_store", storageKey);
 
