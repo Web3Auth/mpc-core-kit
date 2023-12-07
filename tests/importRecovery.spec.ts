@@ -55,12 +55,14 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         shareType: TssShareType.RECOVERY,
       });
 
+      const exportedTssKey1 = await coreKitInstance._UNSAFE_exportTssKey();
       // recover key
       // reinitalize corekit
       await coreKitInstance.logout();
       BrowserStorage.getInstance("memory").resetStore();
 
       const recoveredTssKey = await coreKitInstance._UNSAFE_recoverTssKey([factorKeyDevice, factorKeyRecovery]);
+      assert.strictEqual(recoveredTssKey, exportedTssKey1);
 
       await criticalResetAccount(coreKitInstance);
       BrowserStorage.getInstance("memory").resetStore();
