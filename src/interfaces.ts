@@ -136,6 +136,7 @@ export interface Web3AuthState {
   tssShareIndex?: number;
   tssPubKey?: Buffer;
   factorKey?: BN;
+  isMFAEnabled?: boolean;
 }
 
 export interface ICoreKit {
@@ -382,6 +383,7 @@ export interface SessionData {
   tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
+  isMFAEnabled: boolean;
 }
 
 export interface TkeyLocalStoreData {
