@@ -98,7 +98,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
-    if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString())) {
+    if (!options.storageKey) options.storageKey = "local";
+    if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString()) && !options.asyncStorageKey) {
       throw new Error(`${options.uxMode} mode do not storage of type : ${options.storageKey}`);
     }
 
@@ -112,7 +113,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else log.setLevel("error");
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
-    if (!options.storageKey) options.storageKey = "local";
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";

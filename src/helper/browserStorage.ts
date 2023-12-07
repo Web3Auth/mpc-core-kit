@@ -177,7 +177,7 @@ export async function asyncStoreFactor(factorKey: BN, mpcCoreKit: ICoreKit, stor
   );
 }
 
-export async function asyncSetFactor(mpcCoreKit: ICoreKit, storageKey: IAsyncStorage): Promise<string | undefined> {
+export async function asyncGetFactor(mpcCoreKit: ICoreKit, storageKey: IAsyncStorage): Promise<string | undefined> {
   const metadata = mpcCoreKit.tKey.getMetadata();
   const currentStorage = AsyncStorage.getInstance("mpc_corekit_store", storageKey);
 

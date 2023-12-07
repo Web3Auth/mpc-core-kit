@@ -6,6 +6,7 @@ import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 
 import {
+  asyncGetFactor,
   COREKIT_STATUS,
   getWebBrowserFactor,
   IAsyncStorage,
@@ -98,7 +99,12 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
 
       // new instance
       const instance2 = await newInstance();
-      const browserFactor = await getWebBrowserFactor(instance2, testVariable.storage);
+      let browserFactor;
+      if (testVariable.storage) {
+        browserFactor = await getWebBrowserFactor(instance2, testVariable.storage);
+      } else {
+        browserFactor = await asyncGetFactor(instance2, testVariable.asyncStorage);
+      }
 
       // login with mfa factor
       await instance2.inputFactorKey(new BN(recoverFactor, "hex"));
