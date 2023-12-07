@@ -110,13 +110,6 @@ export class AsyncStorage {
   private constructor(storeKey: string, storage: IAsyncStorage) {
     this.storage = storage;
     this._storeKey = storeKey;
-    try {
-      if (!storage.getItem(storeKey)) {
-        await this.resetStore();
-      }
-    } catch (error) {
-      // Storage is not available
-    }
   }
 
   static getInstance(key: string, storageKey: IAsyncStorage): AsyncStorage {

@@ -143,7 +143,7 @@ variable.forEach(async (testVariable) => {
     });
 
     const { idToken, parsedToken } = await mockLogin(email);
-    await instance.init({ handleRedirectResult: false });
+    await instance.init({ handleRedirectResult: false, rehydrate: false });
     try {
       await instance.loginWithJWT({
         verifier: "torus-test-health",

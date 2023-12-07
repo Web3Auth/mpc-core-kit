@@ -8,13 +8,22 @@ import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 
-import { COREKIT_STATUS, TssSecurityQuestion, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import {
+  BrowserStorage,
+  COREKIT_STATUS,
+  SupportedStorageType,
+  TssSecurityQuestion,
+  WEB3AUTH_NETWORK,
+  WEB3AUTH_NETWORK_TYPE,
+  Web3AuthMPCCoreKit,
+} from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
   uxMode: UX_MODE_TYPE | "nodejs";
   manualSync?: boolean;
+  storage?: SupportedStorageType;
 };
 
 export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3AuthMPCCoreKit>, testVariable: TestVariable) => {
@@ -23,6 +32,7 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       const coreKitInstance = await newInstance();
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) await criticalResetAccount(coreKitInstance);
       await coreKitInstance.logout();
+      BrowserStorage.getInstance("corekit_store", testVariable.storage).resetStore();
     });
     t.afterEach(function () {
       return console.log("finished running test");
@@ -100,7 +110,7 @@ const variable: TestVariable[] = [
   // { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: UX_MODE.REDIRECT },
   // { web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET, uxMode: UX_MODE.REDIRECT },
 
-  { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: "nodejs", manualSync: true },
+  { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: "nodejs", manualSync: false, storage: "memory" },
   // { web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET, uxMode: UX_MODE.REDIRECT, manualSync: true },
 ];
 
