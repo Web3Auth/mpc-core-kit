@@ -216,10 +216,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
+  // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
+  // TssShareType.DEVICE and TssShareType.RECOVERY
+  // if the factors key provided is the same type recovery will not works
   public async _UNSAFE_recoverTssKey(factorKey: string[]) {
     this.checkReady();
     const factorKeyBN = new BN(factorKey[0], "hex");
-
     const shareStore0 = await this.getFactorKeyMetadata(factorKeyBN);
     await this.tKey.initialize({ withShare: shareStore0 });
 
@@ -232,6 +234,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const factorKeyBNInput = new BN(factorKey[i], "hex");
       const { tssIndex, tssShare } = await this.tKey.getTSSShare(factorKeyBNInput);
       if (tssIndexes.includes(tssIndex)) {
+        // reset instance before throw error
         await this.init();
         throw new Error("Duplicate TSS Index");
       }
@@ -241,8 +244,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     const finalKey = lagrangeInterpolation(tssShares, tssIndexesBN);
+    // reset instance after recovery completed
     await this.init();
-    return finalKey.toString("hex");
+    return finalKey.toString("hex", 64);
   }
 
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
