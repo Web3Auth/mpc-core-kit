@@ -112,7 +112,7 @@ export class AsyncStorage {
     this._storeKey = storeKey;
     try {
       if (!storage.getItem(storeKey)) {
-        this.resetStore();
+        await this.resetStore();
       }
     } catch (error) {
       // Storage is not available
@@ -131,14 +131,14 @@ export class AsyncStorage {
   }
 
   async toJSON(): Promise<string> {
-    const result = this.storage.getItem(this._storeKey);
+    const result = await this.storage.getItem(this._storeKey);
     if (!result) throw new Error(`storage ${this._storeKey} is null`);
     return result;
   }
 
   async resetStore(): Promise<Record<string, unknown>> {
-    const currStore = this.getStore();
-    this.storage.setItem(this._storeKey, JSON.stringify({}));
+    const currStore = await this.getStore();
+    await this.storage.setItem(this._storeKey, JSON.stringify({}));
     return currStore;
   }
 
@@ -154,13 +154,13 @@ export class AsyncStorage {
   async set<T>(key: string, value: T): Promise<void> {
     const store = JSON.parse((await this.storage.getItem(this._storeKey)) || "{}");
     store[key] = value;
-    this.storage.setItem(this._storeKey, JSON.stringify(store));
+    await this.storage.setItem(this._storeKey, JSON.stringify(store));
   }
 
   async remove(key: string): Promise<void> {
     const store = JSON.parse((await this.storage.getItem(this._storeKey)) || "{}");
     delete store[key];
-    this.storage.setItem(this._storeKey, JSON.stringify(store));
+    await this.storage.setItem(this._storeKey, JSON.stringify(store));
   }
 }
 
