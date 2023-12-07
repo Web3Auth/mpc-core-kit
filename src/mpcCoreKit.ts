@@ -31,7 +31,7 @@ import {
   VALID_SHARE_INDICES,
   WEB3AUTH_NETWORK,
 } from "./constants";
-import { BrowserStorage, storeWebBrowserFactor } from "./helper/browserStorage";
+import { AsyncStorage, asyncStoreFactor, BrowserStorage, storeWebBrowserFactor } from "./helper/browserStorage";
 import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
@@ -77,7 +77,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private sessionManager!: OpenloginSessionManager<SessionData>;
 
-  private currentStorage!: BrowserStorage;
+  private currentStorage!: BrowserStorage | AsyncStorage;
 
   private nodeDetailManager!: NodeDetailManager;
 
@@ -122,18 +122,25 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
-    this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
-
-    const sessionId = this.currentStorage.get<string>("sessionId");
-    this.sessionManager = new OpenloginSessionManager({
-      sessionTime: this.options.sessionTime,
-      sessionId,
-    });
+    if (this.options.asyncStorageKey) {
+      this.currentStorage = AsyncStorage.getInstance(this._storageBaseKey, options.asyncStorageKey);
+    } else {
+      this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
+    }
 
     this.nodeDetailManager = new NodeDetailManager({
       network: this.options.web3AuthNetwork,
       enableLogging: options.enableLogging,
     });
+
+    const asyncConstructor = async () => {
+      const sessionId = await this.currentStorage.get<string>("sessionId");
+      this.sessionManager = new OpenloginSessionManager({
+        sessionTime: this.options.sessionTime,
+        sessionId,
+      });
+    };
+    asyncConstructor();
   }
 
   get tKey(): ThresholdKey {
@@ -474,7 +481,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         };
       }
       const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
-      storeWebBrowserFactor(deviceFactorKey, this);
+      if (this.currentStorage instanceof AsyncStorage) {
+        asyncStoreFactor(deviceFactorKey, this, this.options.asyncStorageKey);
+      } else {
+        storeWebBrowserFactor(deviceFactorKey, this, this.options.storageKey);
+      }
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
 
       const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
@@ -683,7 +694,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // throw new Error("User is not logged in.");
       await this.sessionManager.invalidateSession();
     }
-    this.currentStorage.set("sessionId", "");
+    // to accommodate async storage
+    await this.currentStorage.set("sessionId", "");
+
     this.resetState();
     await this.init({ handleRedirectResult: false });
   }
@@ -881,7 +894,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         userInfo,
       };
       await this.sessionManager.createSession(payload);
-      this.currentStorage.set("sessionId", sessionId);
+      // to accommodate async storage
+      await this.currentStorage.set("sessionId", sessionId);
     } catch (err) {
       log.error("error creating session", err);
     }
