@@ -150,24 +150,17 @@ export async function remoteRefreshTssShares(
   remoteClient: IRemoteClientState,
   updateMetadata = false
 ) {
-  // const { tssShare, tssIndex } = await tKey.getTSSShare(factorKeyForExistingTSSShare);
-
   const rssNodeDetails = await tKey._getRssNodeDetails();
   const { serverEndpoints, serverPubKeys, serverThreshold } = rssNodeDetails;
-  let finalSelectedServers = randomSelection(
-    new Array(rssNodeDetails.serverEndpoints.length).fill(null).map((_, i) => i + 1),
-    Math.ceil(rssNodeDetails.serverEndpoints.length / 2)
-  );
 
   const verifierNameVerifierId = tKey.serviceProvider.getVerifierNameVerifierId();
 
   const tssCommits = tKey.metadata.tssPolyCommits[tKey.tssTag];
   const tssNonce: number = tKey.metadata.tssNonces[tKey.tssTag] || 0;
   const { pubKey: newTSSServerPub, nodeIndexes } = await tKey.serviceProvider.getTSSPubKey(tKey.tssTag, tssNonce + 1);
+
   // move to pre-refresh
-  if (nodeIndexes?.length > 0) {
-    finalSelectedServers = nodeIndexes.slice(0, Math.min(serverEndpoints.length, nodeIndexes.length));
-  }
+  const finalSelectedServers = nodeIndexes.slice(0, Math.min(serverEndpoints.length, nodeIndexes.length));
 
   const factorEnc = tKey.getFactorEncs(TkeyPoint.fromCompressedPub(remoteClient.remoteFactorPub));
 
