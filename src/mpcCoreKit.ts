@@ -638,7 +638,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
     }
 
-    client.precompute(tss, { signatures, server_coeffs: serverCoeffs });
+    await client.precompute(tss, { signatures, server_coeffs: serverCoeffs });
 
     await client.ready().catch((err) => {
       client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
