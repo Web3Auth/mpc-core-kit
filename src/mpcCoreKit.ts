@@ -554,7 +554,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
       tssPubKey = tssPubKey.subarray(1);
     }
-    return tssPubKey;
+    return Buffer.from(tssPubKey);
   };
 
   public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {
@@ -566,7 +566,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public localSign = async (msgHash: Buffer) => {
     // PreSetup
-    let { tssShareIndex, tssPubKey } = this.state;
+    const { tssShareIndex } = this.state;
+    let tssPubKey = await this.getPublic();
+
     const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
       verifier: "test-verifier",
       verifierId: "test@example.com",
