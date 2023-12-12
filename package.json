@@ -50,7 +50,7 @@
     "@toruslabs/metadata-helpers": "^5.x",
     "@toruslabs/openlogin-session-manager": "^3.0.0",
     "@toruslabs/torus.js": "^11.0.6",
-    "@toruslabs/tss-client": "^2.0.0",
+    "@toruslabs/tss-client": "^2.1.0",
     "@toruslabs/tss-lib": "^2.0.0",
     "@web3auth-mpc/ethereum-provider": "^2.3.0",
     "@web3auth/base": "^7.0.1",
