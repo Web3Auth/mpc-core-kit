@@ -97,12 +97,10 @@ export class AsyncMemoryStorage implements IAsyncStorage {
   private _store: Record<string, string> = {};
 
   async getItem(key: string): Promise<string | null> {
-    console.log("async get", key);
     return this._store[key] || null;
   }
 
   async setItem(key: string, value: string): Promise<void> {
-    console.log("async set", key);
     this._store[key] = value;
   }
 }
