@@ -68,8 +68,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private options: Web3AuthOptionsWithDefaults;
 
-  // private privKeyProvider: EthereumSigningProvider | null = null;
-
   private providerProxy: SwappableProxy<SafeEventEmitterProvider> | null = null;
 
   private torusSp: TorusServiceProvider | null = null;
@@ -152,7 +150,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   get provider(): SafeEventEmitterProvider | null {
-    // return this.privKeyProvider?.provider ? this.privKeyProvider.provider : null;
     return this.providerProxy ? this.providerProxy : null;
   }
 
@@ -1070,8 +1067,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else {
       this.providerProxy.setTarget(signingProvider.provider);
     }
-    // to remove
-    // this.privKeyProvider = signingProvider;
   }
 
   private updateState(newState: Partial<Web3AuthState>): void {
@@ -1080,7 +1075,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private resetState(): void {
     this.tkey = null;
-    // this.privKeyProvider = null;
     this.providerProxy = null;
   }
 
