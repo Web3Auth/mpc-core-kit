@@ -35,6 +35,7 @@
     "@toruslabs/metadata-helpers": "^5.x"
   },
   "dependencies": {
+    "@metamask/swappable-obj-proxy": "^2.1.0",
     "@tkey-mpc/chrome-storage": "^9.0.2",
     "@tkey-mpc/common-types": "^9.0.2",
     "@tkey-mpc/core": "^9.0.2",
