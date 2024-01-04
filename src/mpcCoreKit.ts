@@ -271,9 +271,21 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
+  async featureRequest() {
+    const result = await fetch("https://signer.tor.us/feature-access?isMpcCoreKit=true", {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+    if (result.status !== 200) throw new Error("MPC access denied, please subscribe to our plan to use MPC");
+    return result.json();
+  }
+
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
     this.checkReady();
     if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
+    await this.featureRequest();
 
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
     try {
@@ -320,6 +332,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void> {
     this.checkReady();
 
+    await this.featureRequest();
     const { verifier, verifierId, idToken } = idTokenLoginParams;
     try {
       // oAuth login.
