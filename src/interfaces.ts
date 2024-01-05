@@ -20,6 +20,11 @@ export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
+export interface IAsyncStorage {
+  async?: boolean;
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+}
 
 export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
 
@@ -297,6 +302,13 @@ export interface Web3AuthOptions {
    * @defaultValue `'local'`
    */
   storageKey?: SupportedStorageType;
+
+  /**
+   *  asyncStorageKey take precedence over storageKey.
+   *  if asyncStorageKey is provided, storageKey will be ignored.
+   * @defaultValue `undefined`
+   */
+  asyncStorageKey?: IAsyncStorage;
 
   /**
    * @defaultValue 86400

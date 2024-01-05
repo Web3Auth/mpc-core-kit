@@ -6,8 +6,10 @@ import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 
 import {
+  asyncGetFactor,
   COREKIT_STATUS,
   getWebBrowserFactor,
+  IAsyncStorage,
   MemoryStorage,
   Point,
   SupportedStorageType,
@@ -15,12 +17,13 @@ import {
   WEB3AUTH_NETWORK,
   Web3AuthMPCCoreKit,
 } from "../src";
-import { criticalResetAccount, mockLogin } from "./setup";
+import { AsyncMemoryStorage, criticalResetAccount, mockLogin } from "./setup";
 
 type FactorTestVariable = {
   types: TssShareType;
   manualSync?: boolean;
-  storage: SupportedStorageType;
+  storage?: SupportedStorageType;
+  asyncStorage?: IAsyncStorage;
 };
 
 //   const { types } = factor;
@@ -96,10 +99,12 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
 
       // new instance
       const instance2 = await newInstance();
-      const browserFactor = await getWebBrowserFactor(instance2, testVariable.storage);
-      // try {
-      // checkLogin(instance2);
-      // }
+      let browserFactor;
+      if (testVariable.storage) {
+        browserFactor = await getWebBrowserFactor(instance2, testVariable.storage);
+      } else {
+        browserFactor = await asyncGetFactor(instance2, testVariable.asyncStorage);
+      }
 
       // login with mfa factor
       await instance2.inputFactorKey(new BN(recoverFactor, "hex"));
@@ -119,6 +124,8 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
 const variable: FactorTestVariable[] = [
   { types: TssShareType.DEVICE, manualSync: true, storage: new MemoryStorage() },
   { types: TssShareType.RECOVERY, manualSync: true, storage: "memory" },
+
+  { types: TssShareType.RECOVERY, manualSync: true, asyncStorage: new AsyncMemoryStorage() },
 ];
 
 const email = "testmail99";
@@ -131,11 +138,12 @@ variable.forEach(async (testVariable) => {
       uxMode: "nodejs",
       tssLib: TssLib,
       storageKey: testVariable.storage,
+      asyncStorageKey: testVariable.asyncStorage,
       manualSync: testVariable.manualSync,
     });
 
     const { idToken, parsedToken } = await mockLogin(email);
-    await instance.init({ handleRedirectResult: false });
+    await instance.init({ handleRedirectResult: false, rehydrate: false });
     try {
       await instance.loginWithJWT({
         verifier: "torus-test-health",
