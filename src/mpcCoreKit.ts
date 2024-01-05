@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey-mpc/common-types";
-import ThresholdKey, { CoreError } from "@tkey-mpc/core";
+import ThresholdKey, { CoreError, lagrangeInterpolation } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
@@ -207,6 +207,39 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
+  // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
+  // TssShareType.DEVICE and TssShareType.RECOVERY
+  // if the factors key provided is the same type recovery will not works
+  public async _UNSAFE_recoverTssKey(factorKey: string[]) {
+    this.checkReady();
+    const factorKeyBN = new BN(factorKey[0], "hex");
+    const shareStore0 = await this.getFactorKeyMetadata(factorKeyBN);
+    await this.tKey.initialize({ withShare: shareStore0 });
+
+    this.tkey.privKey = new BN(factorKey[1], "hex");
+
+    const tssShares: BN[] = [];
+    const tssIndexes: number[] = [];
+    const tssIndexesBN: BN[] = [];
+    for (let i = 0; i < factorKey.length; i++) {
+      const factorKeyBNInput = new BN(factorKey[i], "hex");
+      const { tssIndex, tssShare } = await this.tKey.getTSSShare(factorKeyBNInput);
+      if (tssIndexes.includes(tssIndex)) {
+        // reset instance before throw error
+        await this.init();
+        throw new Error("Duplicate TSS Index");
+      }
+      tssIndexes.push(tssIndex);
+      tssIndexesBN.push(new BN(tssIndex));
+      tssShares.push(tssShare);
+    }
+
+    const finalKey = lagrangeInterpolation(tssShares, tssIndexesBN);
+    // reset instance after recovery completed
+    await this.init();
+    return finalKey.toString("hex", 64);
+  }
+
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
     this.resetState();
     if (params.rehydrate === undefined) params.rehydrate = true;
@@ -274,7 +307,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
     this.checkReady();
     if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
-
+    const { importTssKey } = params;
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
     try {
       // oAuth login.
@@ -307,7 +340,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         });
       }
 
-      await this.setupTkey();
+      await this.setupTkey(importTssKey);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -319,7 +352,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void> {
     this.checkReady();
-
+    const { importTssKey } = idTokenLoginParams;
     const { verifier, verifierId, idToken } = idTokenLoginParams;
     try {
       // oAuth login.
@@ -357,7 +390,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
 
-      await this.setupTkey();
+      await this.setupTkey(importTssKey);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -758,7 +791,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.state.signatures) throw new Error("signatures not present");
 
     const tssKeyBN = new BN(tssKey, "hex");
-    this.tKey.importTssKey({ tag: this.tKey.tssTag, importKey: tssKeyBN, factorPub, newTSSIndex }, { authSignatures: this.state.signatures });
+    await this.tKey.importTssKey({ tag: this.tKey.tssTag, importKey: tssKeyBN, factorPub, newTSSIndex }, { authSignatures: this.state.signatures });
   }
 
   public async _UNSAFE_exportTssKey(): Promise<string> {
@@ -780,7 +813,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tssNonce;
   }
 
-  private async setupTkey(): Promise<void> {
+  private async setupTkey(importTssKey?: string): Promise<void> {
     if (!this.state.oAuthKey) {
       throw new Error("user not logged in");
     }
@@ -797,10 +830,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
       }
-      const deviceTSSShare = new BN(generatePrivate());
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
-      await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
+      if (!importTssKey) {
+        const deviceTSSShare = new BN(generatePrivate());
+        await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
+      } else {
+        await this.tKey.initialize();
+        await this.importTssKey(importTssKey, factorPub, deviceTSSIndex);
+      }
 
       // Finalize initialization.
       await this.tKey.reconstructKey();
@@ -814,6 +852,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
       }
     } else {
+      if (importTssKey) throw new Error("Cannot import tss key for existing user");
       await this.tKey.initialize({ neverInitializeNewKey: true });
       const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
       if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
