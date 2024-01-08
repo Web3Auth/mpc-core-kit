@@ -4,6 +4,7 @@ import ThresholdKey, { CoreError } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
+import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { generatePrivate } from "@toruslabs/eccrypto";
@@ -272,7 +273,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   async featureRequest() {
-    const result = await fetch("https://signer.tor.us/feature-access?isMpcCoreKit=true", {
+    const accessUrl = SIGNER_MAP[this.options.web3AuthNetwork];
+
+    const accessRequest = {
+      verifier: this.verifier,
+      verifier_id: this.verifierId,
+      network: this.options.web3AuthNetwork,
+      client_id: this.options.web3AuthClientId,
+      is_mpc_core_kit: "true",
+      enable_gating: "true",
+    };
+    const url = new URL(`${accessUrl}/api/feature-access`);
+    url.search = new URLSearchParams(accessRequest).toString();
+    const result = await fetch(url, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
