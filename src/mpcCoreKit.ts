@@ -285,12 +285,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     };
     const url = new URL(`${accessUrl}/api/feature-access`);
     url.search = new URLSearchParams(accessRequest).toString();
-    const result = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const result = await fetch(url);
+
     if (result.status !== 200) throw new Error("MPC access denied, please subscribe to our plan to use MPC");
     return result.json();
   }
