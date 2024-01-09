@@ -31,6 +31,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       });
       await criticalResetAccount(instance2);
       await instance2.logout();
+      BrowserStorage.getInstance("memory").resetStore();
     });
 
     await t.test("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
