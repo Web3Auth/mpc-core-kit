@@ -210,6 +210,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
     this.resetState();
+    await this.featureRequest();
+
     if (params.rehydrate === undefined) params.rehydrate = true;
 
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
@@ -266,35 +268,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       // if not redirect flow try to rehydrate session if available
     } else if (params.rehydrate && this.sessionManager.sessionId) {
-      await this.rehydrateSession();
-      if (this.state.factorKey) await this.setupProvider();
+      const result = await this.rehydrateSession().catch((_err) => {
+        log.info("rehydrate session failed");
+        return false;
+      });
+      if (result && this.state.factorKey) await this.setupProvider();
     }
     // if not redirect flow or session rehydration, ask for factor key to login
-  }
-
-  async featureRequest() {
-    const accessUrl = SIGNER_MAP[this.options.web3AuthNetwork];
-
-    const accessRequest = {
-      verifier: this.verifier,
-      verifier_id: this.verifierId,
-      network: this.options.web3AuthNetwork,
-      client_id: this.options.web3AuthClientId,
-      is_mpc_core_kit: "true",
-      enable_gating: "true",
-    };
-    const url = new URL(`${accessUrl}/api/feature-access`);
-    url.search = new URLSearchParams(accessRequest).toString();
-    const result = await fetch(url);
-
-    if (result.status !== 200) throw new Error("MPC access denied, please subscribe to our plan to use MPC");
-    return result.json();
   }
 
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
     this.checkReady();
     if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
-    await this.featureRequest();
 
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
     try {
@@ -341,7 +326,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void> {
     this.checkReady();
 
-    await this.featureRequest();
     const { verifier, verifierId, idToken } = idTokenLoginParams;
     try {
       // oAuth login.
@@ -871,7 +855,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       this.checkReady();
 
-      if (!this.sessionManager.sessionId) return {};
+      if (!this.sessionManager.sessionId) return false;
       const result = await this.sessionManager.authorizeSession();
       const factorKey = new BN(result.factorKey, "hex");
       if (!factorKey) {
@@ -894,6 +878,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
+      return true;
     } catch (err) {
       log.error("error trying to authorize session", err);
     }
@@ -1096,5 +1081,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private isNodejsOrRN(params: CoreKitMode): boolean {
     const mode = params;
     return mode === "nodejs" || mode === "react-native";
+  }
+
+  private async featureRequest() {
+    const accessUrl = SIGNER_MAP[this.options.web3AuthNetwork];
+
+    const accessRequest = {
+      verifier: this.verifier,
+      verifier_id: this.verifierId,
+      network: this.options.web3AuthNetwork,
+      client_id: this.options.web3AuthClientId,
+      is_mpc_core_kit: "true",
+      enable_gating: "true",
+    };
+    const url = new URL(`${accessUrl}/api/feature-access`);
+    url.search = new URLSearchParams(accessRequest).toString();
+    const result = await fetch(url);
+
+    if (result.status !== 200) throw new Error("MPC access denied, please subscribe to our plan to use MPC");
+    return result.json();
   }
 }
