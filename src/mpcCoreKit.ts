@@ -274,8 +274,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       // try rehydrate session
       if (sessionResult) {
-        const result = await this.rehydrateSession(sessionResult);
-        if (result && this.state.factorKey) await this.setupProvider();
+        await this.rehydrateSession(sessionResult);
       } else {
         // feature gating on no session rehydration
         await this.featureRequest();
@@ -888,7 +887,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
-      return true;
+
+      await this.setupProvider();
     } catch (err) {
       log.error("error trying to authorize session", err);
     }
