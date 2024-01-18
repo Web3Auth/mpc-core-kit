@@ -210,8 +210,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
     this.resetState();
-    await this.featureRequest();
-
     if (params.rehydrate === undefined) params.rehydrate = true;
 
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
@@ -264,16 +262,29 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.options.uxMode === UX_MODE.REDIRECT &&
       (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))
     ) {
+      // on failed redirect, instance is reseted.
       await this.handleRedirectResult();
 
       // if not redirect flow try to rehydrate session if available
     } else if (params.rehydrate && this.sessionManager.sessionId) {
-      const result = await this.rehydrateSession().catch((_err) => {
-        log.info("rehydrate session failed");
-        return false;
+      // swallowed, should not throw on rehydrate timed out session
+      const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
+        log.info("rehydrate session error", err);
       });
-      if (result && this.state.factorKey) await this.setupProvider();
+
+      // try rehydrate session
+      if (sessionResult) {
+        const result = await this.rehydrateSession(sessionResult);
+        if (result && this.state.factorKey) await this.setupProvider();
+      } else {
+        // feature gating on no session rehydration
+        await this.featureRequest();
+      }
+    } else {
+      // feature gating if not redirect flow or session rehydration
+      await this.featureRequest();
     }
+
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
@@ -411,6 +422,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.torusSp.verifierId = userInfo.verifierId;
       await this.setupTkey();
     } catch (error: unknown) {
+      this.resetState();
       log.error("error while handling redirect result", error);
       throw new Error((error as Error).message);
     }
@@ -851,12 +863,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  private async rehydrateSession() {
+  private async rehydrateSession(result: SessionData) {
     try {
       this.checkReady();
 
-      if (!this.sessionManager.sessionId) return false;
-      const result = await this.sessionManager.authorizeSession();
       const factorKey = new BN(result.factorKey, "hex");
       if (!factorKey) {
         throw new Error("Invalid factor key");
@@ -1060,7 +1070,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private resetState(): void {
+    this.ready = false;
     this.tkey = null;
+    this.torusSp = null;
+    this.storageLayer = null;
     this.privKeyProvider = null;
   }
 
@@ -1098,7 +1111,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     url.search = new URLSearchParams(accessRequest).toString();
     const result = await fetch(url);
 
-    if (result.status !== 200) throw new Error("MPC access denied, please subscribe to our plan to use MPC");
+    if (result.status !== 200) {
+      // reset state on no mpc access
+      this.resetState();
+      throw new Error("MPC access denied, please subscribe to our plan to use MPC");
+    }
     return result.json();
   }
 }
