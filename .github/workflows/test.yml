@@ -1,0 +1,28 @@
+on: push
+
+name: tests
+
+jobs:
+  test:
+    name: run tests
+    strategy:
+      matrix:
+        node: ["20.x"]
+        os: [ubuntu-latest]
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v3
+
+       - name: Set up node
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm run test
