@@ -4,6 +4,7 @@ import ThresholdKey, { CoreError, lagrangeInterpolation } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
 import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
 import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
+import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { generatePrivate } from "@toruslabs/eccrypto";
@@ -294,13 +295,28 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.options.uxMode === UX_MODE.REDIRECT &&
       (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))
     ) {
+      // on failed redirect, instance is reseted.
       await this.handleRedirectResult();
 
       // if not redirect flow try to rehydrate session if available
     } else if (params.rehydrate && this.sessionManager.sessionId) {
-      await this.rehydrateSession();
-      if (this.state.factorKey) await this.setupProvider();
+      // swallowed, should not throw on rehydrate timed out session
+      const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
+        log.info("rehydrate session error", err);
+      });
+
+      // try rehydrate session
+      if (sessionResult) {
+        await this.rehydrateSession(sessionResult);
+      } else {
+        // feature gating on no session rehydration
+        await this.featureRequest();
+      }
+    } else {
+      // feature gating if not redirect flow or session rehydration
+      await this.featureRequest();
     }
+
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
@@ -438,6 +454,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.torusSp.verifierId = userInfo.verifierId;
       await this.setupTkey();
     } catch (error: unknown) {
+      this.resetState();
       log.error("error while handling redirect result", error);
       throw new Error((error as Error).message);
     }
@@ -884,12 +901,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  private async rehydrateSession() {
+  private async rehydrateSession(result: SessionData) {
     try {
       this.checkReady();
 
-      if (!this.sessionManager.sessionId) return {};
-      const result = await this.sessionManager.authorizeSession();
       const factorKey = new BN(result.factorKey, "hex");
       if (!factorKey) {
         throw new Error("Invalid factor key");
@@ -911,6 +926,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
+
+      await this.setupProvider();
     } catch (err) {
       log.error("error trying to authorize session", err);
     }
@@ -1092,7 +1109,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private resetState(): void {
+    this.ready = false;
     this.tkey = null;
+    this.torusSp = null;
+    this.storageLayer = null;
     this.privKeyProvider = null;
   }
 
@@ -1113,5 +1133,26 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private isNodejsOrRN(params: CoreKitMode): boolean {
     const mode = params;
     return mode === "nodejs" || mode === "react-native";
+  }
+
+  private async featureRequest() {
+    const accessUrl = SIGNER_MAP[this.options.web3AuthNetwork];
+
+    const accessRequest = {
+      network: this.options.web3AuthNetwork,
+      client_id: this.options.web3AuthClientId,
+      is_mpc_core_kit: "true",
+      enable_gating: "true",
+    };
+    const url = new URL(`${accessUrl}/api/feature-access`);
+    url.search = new URLSearchParams(accessRequest).toString();
+    const result = await fetch(url);
+
+    if (result.status !== 200) {
+      // reset state on no mpc access
+      this.resetState();
+      throw new Error("MPC access denied, please subscribe to our plan to use MPC");
+    }
+    return result.json();
   }
 }
