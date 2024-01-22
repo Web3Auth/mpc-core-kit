@@ -1100,8 +1100,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const accessUrl = SIGNER_MAP[this.options.web3AuthNetwork];
 
     const accessRequest = {
-      verifier: this.verifier,
-      verifier_id: this.verifierId,
       network: this.options.web3AuthNetwork,
       client_id: this.options.web3AuthClientId,
       is_mpc_core_kit: "true",
