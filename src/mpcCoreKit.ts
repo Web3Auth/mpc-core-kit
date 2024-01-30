@@ -311,10 +311,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         // feature gating on no session rehydration
         await this.featureRequest();
+        TorusUtils.setSessionTime(this.options.sessionTime);
       }
     } else {
       // feature gating if not redirect flow or session rehydration
       await this.featureRequest();
+      TorusUtils.setSessionTime(this.options.sessionTime);
     }
 
     // if not redirect flow or session rehydration, ask for factor key to login
@@ -1143,6 +1145,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       client_id: this.options.web3AuthClientId,
       is_mpc_core_kit: "true",
       enable_gating: "true",
+      session_time: this.options.sessionTime.toString(),
     };
     const url = new URL(`${accessUrl}/api/feature-access`);
     url.search = new URLSearchParams(accessRequest).toString();

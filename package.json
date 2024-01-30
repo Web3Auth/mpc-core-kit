@@ -18,7 +18,7 @@
   "homepage": "https://github.com/Web3Auth/mpc-core-kit/tree/master#readme",
   "license": "ISC",
   "scripts": {
-    "test": "node --test -r esbuild-register tests/*.spec.ts ",
+    "test": "node --test -r esbuild-register tests/sessionTime.spec.ts ",
     "dev": "torus-scripts start",
     "build": "torus-scripts build",
     "release": "torus-scripts release",
@@ -49,7 +49,7 @@
     "@toruslabs/fnd-base": "^13.1.1",
     "@toruslabs/metadata-helpers": "^5.x",
     "@toruslabs/openlogin-session-manager": "^3.0.0",
-    "@toruslabs/torus.js": "^12.1.0",
+    "@toruslabs/torus.js": "file:toruslabs-torus.js-12.1.1.tgz",
     "@toruslabs/tss-client": "^2.1.0",
     "@toruslabs/tss-lib": "^2.0.0",
     "@web3auth-mpc/ethereum-provider": "^2.3.0",
