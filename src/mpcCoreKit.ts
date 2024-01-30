@@ -302,7 +302,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else if (params.rehydrate && this.sessionManager.sessionId) {
       // swallowed, should not throw on rehydrate timed out session
       const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
-        log.info("rehydrate session error", err);
+        log.error("rehydrate session error", err);
       });
 
       // try rehydrate session
@@ -678,7 +678,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`sessionAuth does not exist ${currentSession}`);
     }
 
-    const signatures = await this.getSigningSignatures(msgHash.toString("hex"));
+    const signatures = await this.getSigningSignatures();
     if (!signatures) {
       throw new Error(`Signature does not exist ${signatures}`);
     }
@@ -976,7 +976,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND" || factorKeyMetadata.message === "SHARE_DELETED") {
       return false;
     }
-    log.info("factorKeyMetadata", factorKeyMetadata);
     return true;
   }
 
@@ -1126,9 +1125,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
   }
 
-  private async getSigningSignatures(data: string): Promise<string[]> {
+  private async getSigningSignatures(): Promise<string[]> {
     if (!this.signatures) throw new Error("signatures not present");
-    log.info("data", data);
     return this.signatures;
   }
 
