@@ -52,9 +52,8 @@
     "@toruslabs/torus.js": "^12.1.0",
     "@toruslabs/tss-client": "^2.1.0",
     "@toruslabs/tss-lib": "^2.0.0",
-    "@web3auth-mpc/ethereum-provider": "^2.3.0",
+    "@web3auth-mpc/ethereum-provider": "^3.1.0",
     "@web3auth/base": "^7.0.1",
-    "@web3auth/base-provider": "^7.0.1",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
     "elliptic": "^6.5.4"
