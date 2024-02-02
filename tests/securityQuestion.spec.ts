@@ -30,7 +30,7 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
   test(`#Tss Security Question - ${testVariable.manualSync} `, async function (t) {
     await t.before(async function () {
       const coreKitInstance = await newInstance();
-      if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) await criticalResetAccount(coreKitInstance);
+      await criticalResetAccount(coreKitInstance);
       await coreKitInstance.logout();
       BrowserStorage.getInstance("corekit_store", testVariable.storage).resetStore();
     });
