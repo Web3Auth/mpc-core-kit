@@ -1,5 +1,5 @@
 import { TORUS_SAPPHIRE_NETWORK } from "@toruslabs/constants";
-import { CHAIN_NAMESPACES, CustomChainConfig } from "@web3auth/base";
+import { CHAIN_NAMESPACES, CustomChainConfig } from "@web3auth-mpc/base";
 import { ec as EllipticCurve } from "elliptic";
 
 export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {

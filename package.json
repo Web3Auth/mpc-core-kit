@@ -53,8 +53,8 @@
     "@toruslabs/torus.js": "^12.1.0",
     "@toruslabs/tss-client": "^2.1.0",
     "@toruslabs/tss-lib": "^2.0.0",
+    "@web3auth-mpc/base": "https://gitpkg.now.sh/Web3Auth/web3auth-mpc-web/packages/base?debug/error-stack",
     "@web3auth-mpc/ethereum-provider": "https://gitpkg.now.sh/Web3Auth/web3auth-mpc-web/packages/providers/ethereum-provider?debug/error-stack",
-    "@web3auth/base": "^7.0.1",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
     "elliptic": "^6.5.4"

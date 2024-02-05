@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import { BNString, Point as TkeyPoint } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
-import { SafeEventEmitterProvider } from "@web3auth/base";
+import { SafeEventEmitterProvider } from "@web3auth-mpc/base";
 import BN from "bn.js";
 import { COREKIT_STATUS, CreateFactorParams, EnableMFAParams, ICoreKit, IdTokenLoginParams, IFactorKey, InitParams, MPCKeyDetails, OauthLoginParams, UserInfo, Web3AuthOptions, Web3AuthState } from "./interfaces";
 export declare class Web3AuthMPCCoreKit implements ICoreKit {

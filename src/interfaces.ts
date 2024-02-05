@@ -9,7 +9,7 @@ import type {
   UX_MODE_TYPE,
   WebAuthnExtraParams,
 } from "@toruslabs/customauth";
-import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
+import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth-mpc/base";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";

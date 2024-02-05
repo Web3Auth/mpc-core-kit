@@ -1,5 +1,5 @@
 import { TORUS_SAPPHIRE_NETWORK, SIGNER_MAP } from '@toruslabs/constants';
-import { CHAIN_NAMESPACES, log } from '@web3auth/base';
+import { CHAIN_NAMESPACES, log } from '@web3auth-mpc/base';
 import { ec } from 'elliptic';
 import _defineProperty from '@babel/runtime/helpers/defineProperty';
 import { getPubKeyPoint, randomSelection, Point as Point$1, ShareStore, encrypt, SHARE_DELETED } from '@tkey-mpc/common-types';

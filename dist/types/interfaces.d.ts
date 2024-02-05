@@ -2,7 +2,7 @@
 import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import type { AGGREGATE_VERIFIER_TYPE, ExtraParams, LoginWindowResponse, SubVerifierDetails, TorusVerifierResponse, UX_MODE_TYPE, WebAuthnExtraParams } from "@toruslabs/customauth";
-import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
+import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth-mpc/base";
 import BN from "bn.js";
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";

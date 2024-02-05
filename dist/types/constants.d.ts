@@ -1,4 +1,4 @@
-import { CustomChainConfig } from "@web3auth/base";
+import { CustomChainConfig } from "@web3auth-mpc/base";
 import { ec as EllipticCurve } from "elliptic";
 export declare const DEFAULT_CHAIN_CONFIG: CustomChainConfig;
 export declare const WEB3AUTH_NETWORK: {

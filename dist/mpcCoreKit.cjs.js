@@ -155,8 +155,8 @@ __webpack_require__.d(__webpack_exports__, {
 
 ;// CONCATENATED MODULE: external "@toruslabs/constants"
 const constants_namespaceObject = require("@toruslabs/constants");
-;// CONCATENATED MODULE: external "@web3auth/base"
-const base_namespaceObject = require("@web3auth/base");
+;// CONCATENATED MODULE: external "@web3auth-mpc/base"
+const base_namespaceObject = require("@web3auth-mpc/base");
 ;// CONCATENATED MODULE: external "elliptic"
 const external_elliptic_namespaceObject = require("elliptic");
 ;// CONCATENATED MODULE: ./src/constants.ts
