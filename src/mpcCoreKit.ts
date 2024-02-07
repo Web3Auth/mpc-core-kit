@@ -86,6 +86,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private enableLogging = false;
 
+  private accountIndex;
+
   private ready = false;
 
   constructor(options: Web3AuthOptions) {
@@ -141,6 +143,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         sessionId,
       });
     };
+    this.accountIndex = 0;
     asyncConstructor();
   }
 
@@ -482,6 +485,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  public async setTssWalletIndex(accountIndex: number) {
+    this.accountIndex = accountIndex;
+    await this.finalizeTkey(this.state.factorKey);
+  }
+
   public getCurrentFactorKey(): IFactorKey {
     this.checkReady();
     if (!this.state.factorKey) throw new Error("factorKey not present");
@@ -499,7 +507,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public getTssPublicKey(): TkeyPoint {
     this.checkReady();
-    return this.tKey.getTSSPub();
+    // pass this optional account index;
+    return this.tKey.getTSSPub(this.accountIndex);
   }
 
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
@@ -607,6 +616,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return Buffer.from(tssPubKey);
   };
 
+  public getNonce = () => {
+    // call tkey with index and get nonce
+    return this.accountIndex ? this.tkey.computeNonce(this.accountIndex) : new BN(0);
+  };
+
   public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {
     // if (this.state.remoteClient) {
     //   return this.remoteSign(msgHash);
@@ -625,7 +639,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
 
     if (!this.state.factorKey) throw new Error("factorKey not present");
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
+    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
+      accountIndex: this.accountIndex,
+      threshold: 0,
+    });
     const tssNonce = this.getTssNonce();
 
     if (!tssPubKey || !torusNodeTSSEndpoints) {
@@ -687,9 +704,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const serverIndex = participatingServerDKGIndexes[i];
       serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
     }
-
-    client.precompute(tss, { signatures, server_coeffs: serverCoeffs });
-
+    client.precompute(tss, { signatures, server_coeffs: serverCoeffs, nonce: scalarBNToBufferSEC1(this.getNonce()).toString("base64") });
     await client.ready().catch((err) => {
       client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
       throw err;
@@ -763,7 +778,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
     const tkeyDetails = this.tKey.getKeyDetails();
-    const tssPubKey = this.state.tssPubKey ? this.tKey.getTSSPub() : undefined;
+    const tssPubKey = this.state.tssPubKey ? this.tKey.getTSSPub(this.accountIndex) : undefined;
 
     const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
     const keyDetails: MPCKeyDetails = {
@@ -884,8 +899,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async finalizeTkey(factorKey: BN) {
     // Read tss meta data.
-    const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
-    const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
+    const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey, {
+      accountIndex: this.accountIndex,
+      threshold: 0,
+    });
+    const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub(this.accountIndex)).toBufferSEC1(false);
 
     this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
@@ -939,7 +957,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.sessionManager.sessionId = sessionId;
       const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
       if (!this.state.factorKey) throw new Error("factorKey not present");
-      const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
+      const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
+        accountIndex: this.accountIndex,
+        threshold: 0,
+      });
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw new Error("User not logged in");
       }

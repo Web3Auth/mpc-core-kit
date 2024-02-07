@@ -37,6 +37,7 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
 
     await t.test("should able to create factor", async function () {
       const coreKitInstance = await newInstance();
+      coreKitInstance.setTssWalletIndex(1);
       const firstFactor = coreKitInstance.getCurrentFactorKey();
       // try delete hash factor factor
       try {
@@ -63,6 +64,7 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
 
       // new instance
       const instance2 = await newInstance();
+      instance2.setTssWalletIndex(1);
       assert.strictEqual(instance2.getTssFactorPub().length, 3);
 
       // try inputFactor ( set as active factor )
@@ -88,6 +90,7 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
 
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
+      instance.setTssWalletIndex(1);
       const recoverFactor = await instance.enableMFA({});
 
       if (testVariable.manualSync) {
@@ -99,6 +102,7 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
 
       // new instance
       const instance2 = await newInstance();
+
       let browserFactor;
       if (testVariable.storage) {
         browserFactor = await getWebBrowserFactor(instance2, testVariable.storage);

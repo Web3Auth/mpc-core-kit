@@ -28,12 +28,15 @@ const variable: TestVariable[] = [
   // { web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET, uxMode: UX_MODE.REDIRECT, manualSync: true, email: defaultTestEmail },
 ];
 
-const checkLogin = async (coreKitInstance: Web3AuthMPCCoreKit) => {
+const checkLogin = async (coreKitInstance: Web3AuthMPCCoreKit, accountIndex = 0) => {
   const keyDetails = coreKitInstance.getKeyDetails();
   assert.strictEqual(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
   assert.strictEqual(keyDetails.requiredFactors, 0);
   const factorkey = coreKitInstance.getCurrentFactorKey();
-  await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"));
+  await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
+    threshold: 0,
+    accountIndex,
+  });
 };
 
 variable.forEach((testVariable) => {
@@ -120,6 +123,59 @@ variable.forEach((testVariable) => {
       const publicKeyPoint = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkey.x.toString("hex"), publicKeyPoint.x.toString("hex"));
       assert.strictEqual(pubkey.y.toString("hex"), publicKeyPoint.y.toString("hex"));
+    });
+
+    await t.test("#Login and sign with different account/wallet index", async function () {
+      // mock login with random
+      const { idToken: idToken2, parsedToken: parsedToken2 } = await mockLogin();
+      await coreKitInstance.init({ handleRedirectResult: false });
+      await coreKitInstance.loginWithJWT({
+        verifier: "torus-test-health",
+        verifierId: parsedToken2.email,
+        idToken: idToken2,
+      });
+
+      const secp256k1 = new EC("secp256k1");
+      await coreKitInstance.setTssWalletIndex(0);
+
+      const msg = "hello world 1";
+      const msgBuffer = Buffer.from(msg);
+      const msgHash = keccak256(msgBuffer);
+      const signature1 = await coreKitInstance.sign(msgHash);
+
+      const pubkey1 = secp256k1.recoverPubKey(msgHash, signature1, signature1.v - 27);
+      const publicKeyPoint1 = coreKitInstance.getTssPublicKey();
+      assert.strictEqual(pubkey1.x.toString("hex"), publicKeyPoint1.x.toString("hex"));
+      assert.strictEqual(pubkey1.y.toString("hex"), publicKeyPoint1.y.toString("hex"));
+
+      await coreKitInstance.setTssWalletIndex(1);
+
+      const msg1 = "hello world 2";
+      const msgBuffer1 = Buffer.from(msg1);
+      const msgHash1 = keccak256(msgBuffer1);
+
+      const signature2 = await coreKitInstance.sign(msgHash1);
+
+      const pubkey2 = secp256k1.recoverPubKey(msgHash1, signature2, signature2.v - 27);
+      const publicKeyPoint2 = coreKitInstance.getTssPublicKey();
+      assert.strictEqual(pubkey2.x.toString("hex"), publicKeyPoint2.x.toString("hex"));
+      assert.strictEqual(pubkey2.y.toString("hex"), publicKeyPoint2.y.toString("hex"));
+
+      await checkLogin(coreKitInstance, 1);
+
+      await coreKitInstance.setTssWalletIndex(2);
+
+      const msg2 = "hello world 3";
+      const msgBuffer2 = Buffer.from(msg2);
+      const msgHash2 = keccak256(msgBuffer2);
+      const signature3 = await coreKitInstance.sign(msgHash2);
+
+      const pubkey3 = secp256k1.recoverPubKey(msgHash2, signature3, signature3.v - 27);
+      const publicKeyPoint3 = coreKitInstance.getTssPublicKey();
+      assert.strictEqual(pubkey3.x.toString("hex"), publicKeyPoint3.x.toString("hex"));
+      assert.strictEqual(pubkey3.y.toString("hex"), publicKeyPoint3.y.toString("hex"));
+
+      await checkLogin(coreKitInstance, 2);
     });
   });
 });

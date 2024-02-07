@@ -8,15 +8,7 @@ import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 
-import {
-  BrowserStorage,
-  COREKIT_STATUS,
-  SupportedStorageType,
-  TssSecurityQuestion,
-  WEB3AUTH_NETWORK,
-  WEB3AUTH_NETWORK_TYPE,
-  Web3AuthMPCCoreKit,
-} from "../src";
+import { BrowserStorage, SupportedStorageType, TssSecurityQuestion, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
@@ -44,6 +36,7 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
     await t.test("should work", async function () {
       // set security question
       const instance = await newInstance();
+      instance.setTssWalletIndex(1);
       const question = "test question";
       const answer = "test answer";
       const newQuestion = "new question";
