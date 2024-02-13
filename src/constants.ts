@@ -1,17 +1,5 @@
 import { TORUS_SAPPHIRE_NETWORK } from "@toruslabs/constants";
-import { CHAIN_NAMESPACES, CustomChainConfig } from "@web3auth/base";
 import { ec as EllipticCurve } from "elliptic";
-
-export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
-  chainNamespace: CHAIN_NAMESPACES.EIP155,
-  chainId: "0x5",
-  rpcTarget: "https://rpc.ankr.com/eth_goerli",
-  displayName: "Goerli Testnet",
-  blockExplorer: "https://goerli.etherscan.io",
-  ticker: "ETH",
-  tickerName: "Ethereum",
-  decimals: 18,
-};
 
 export const WEB3AUTH_NETWORK = {
   MAINNET: TORUS_SAPPHIRE_NETWORK.SAPPHIRE_MAINNET,

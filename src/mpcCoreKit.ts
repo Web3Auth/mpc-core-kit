@@ -89,7 +89,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private ready = false;
 
   constructor(options: Web3AuthOptions) {
-    if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
       throw new Error("You must specify a eip155 chain config.");
     }

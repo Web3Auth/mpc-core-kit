@@ -279,7 +279,7 @@ export interface Web3AuthOptions {
   /**
    * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.
    */
-  chainConfig?: CustomChainConfig;
+  chainConfig: CustomChainConfig;
 
   /**
    * @defaultValue `false`
