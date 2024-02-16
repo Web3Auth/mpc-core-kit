@@ -1,4 +1,4 @@
-# Web3Auth MPC Core Kit Beta
+# Web3Auth MPC Core Kit
 
 [![npm version](https://img.shields.io/npm/v/@web3auth/mpc-core-kit?label=%22%22)](https://www.npmjs.com/package/@web3auth/mpc-core-kit/v/latest)
 [![minzip](https://img.shields.io/bundlephobia/minzip/@web3auth/mpc-core-kit?label=%22%22)](https://bundlephobia.com/result?p=@web3auth/mpc-core-kit@latest)
@@ -100,3 +100,14 @@ Checkout the [Web3Auth Demo](https://demo-app.web3auth.io/) to see how Web3Auth 
 - Have a look at our [Community Portal](https://community.web3auth.io/) to see if anyone has any questions or issues you might be having. Feel free to reate new topics and we'll help you out as soon as possible.
 - Checkout our [Troubleshooting Documentation Page](https://web3auth.io/docs/troubleshooting) to know the common issues and solutions.
 - For Priority Support, please have a look at our [Pricing Page](https://web3auth.io/pricing.html) for the plan that suits your needs.
+
+
+### Development steps:-
+  #### Install dependencies: 
+    npm i
+    
+  #### Run tests:
+    npm run test
+
+  #### Build:
+    npm run build

@@ -128,7 +128,7 @@ const variable: FactorTestVariable[] = [
   { types: TssShareType.RECOVERY, manualSync: true, asyncStorage: new AsyncMemoryStorage() },
 ];
 
-const email = "testmail99";
+const email = "testmail102";
 variable.forEach(async (testVariable) => {
   const newCoreKitLogInInstance = async () => {
     const instance = new Web3AuthMPCCoreKit({
