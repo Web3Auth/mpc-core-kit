@@ -53,6 +53,7 @@
     "@toruslabs/tss-client": "^2.1.0",
     "@toruslabs/tss-lib": "^2.0.0",
     "@web3auth-mpc/base": "https://gitpkg.now.sh/Web3Auth/web3auth-mpc-web/packages/base?debug/rn-crash",
+    "@web3auth-mpc/base-provider": "https://gitpkg.now.sh/Web3Auth/web3auth-mpc-web/packages/providers/base-provider?debug/rn-crash",
     "@web3auth-mpc/ethereum-provider": "https://gitpkg.now.sh/Web3Auth/web3auth-mpc-web/packages/providers/ethereum-provider?debug/rn-crash",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
