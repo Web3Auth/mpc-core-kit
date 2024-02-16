@@ -810,7 +810,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       // await this.updateState({ chainConfig });
       this.options.chainConfig = chainConfig;
-      this.setupProvider();
+      await this.setupProvider();
     } catch (error: unknown) {
       log.error("change chain config error", error);
       throw error;
