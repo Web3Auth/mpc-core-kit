@@ -18,7 +18,7 @@
   "homepage": "https://github.com/Web3Auth/mpc-core-kit/tree/master#readme",
   "license": "ISC",
   "scripts": {
-    "test": "node --test -r esbuild-register tests/*.spec.ts ",
+    "test": "node --test -r esbuild-register tests/*.spec.ts",
     "dev": "torus-scripts start",
     "build": "torus-scripts build",
     "release": "torus-scripts release",
@@ -37,7 +37,7 @@
   "dependencies": {
     "@tkey-mpc/chrome-storage": "^9.0.2",
     "@tkey-mpc/common-types": "^9.0.2",
-    "@tkey-mpc/core": "^9.0.2",
+    "@tkey-mpc/core": "file:tkey-mpc-core-9.0.3.tgz",
     "@tkey-mpc/security-questions": "^9.0.2",
     "@tkey-mpc/service-provider-torus": "^9.0.3",
     "@tkey-mpc/share-serialization": "^9.0.2",
