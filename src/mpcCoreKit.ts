@@ -487,6 +487,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async setTssWalletIndex(accountIndex: number) {
     this.accountIndex = accountIndex;
+    await this.tkey.reconstructKey();
     await this.finalizeTkey(this.state.factorKey);
   }
 
@@ -618,7 +619,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public getNonce = () => {
     // call tkey with index and get nonce
-    return this.accountIndex ? this.tkey.computeNonce(this.accountIndex) : new BN(0);
+    return this.accountIndex ? this.tkey.computeAccountNonce(this.accountIndex) : new BN(0);
   };
 
   public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {

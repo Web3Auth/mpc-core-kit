@@ -36,7 +36,7 @@
   },
   "dependencies": {
     "@tkey-mpc/chrome-storage": "^9.0.2",
-    "@tkey-mpc/common-types": "^9.0.2",
+    "@tkey-mpc/common-types": "file:tkey-mpc-common-types-9.0.2.tgz",
     "@tkey-mpc/core": "file:tkey-mpc-core-9.0.3.tgz",
     "@tkey-mpc/security-questions": "^9.0.2",
     "@tkey-mpc/service-provider-torus": "^9.0.3",
@@ -87,6 +87,10 @@
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "tslib": "^2.6.2",
     "typescript": "^5.2.2"
+  },
+  "engines" : { 
+    "npm" : ">=10.0.0",
+    "node" : ">=16.0.0 <17.0.0"
   },
   "overrides": {
     "@tkey-mpc/storage-layer-torus": {
