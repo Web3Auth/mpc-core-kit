@@ -187,7 +187,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!tkey.metadata) return COREKIT_STATUS.INITIALIZED;
       if (!tkey.privKey || !this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
       return COREKIT_STATUS.LOGGED_IN;
-    } catch (e) { }
+    } catch (e) {}
     return COREKIT_STATUS.NOT_INITIALIZED;
   }
 

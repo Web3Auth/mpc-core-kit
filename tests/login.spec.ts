@@ -8,7 +8,7 @@ import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 import { ec as EC } from "elliptic";
 
-import { BrowserStorage, COREKIT_STATUS, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { BrowserStorage, COREKIT_STATUS, DEFAULT_CHAIN_CONFIG, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
@@ -47,6 +47,16 @@ variable.forEach((testVariable) => {
     storageKey: "memory",
     manualSync,
   });
+  const coreKitInstanceWithoutProvider = new Web3AuthMPCCoreKit({
+    web3AuthClientId: "torus-key-test",
+    web3AuthNetwork,
+    baseUrl: "http://localhost:3000",
+    uxMode,
+    tssLib: TssLib,
+    storageKey: "memory",
+    manualSync,
+    setupProviderOnInit: false,
+  });
 
   const testNameSuffix = JSON.stringify(testVariable);
   test(`#Login Test with JWT + logout :  ${testNameSuffix}`, async (t) => {
@@ -64,7 +74,7 @@ variable.forEach((testVariable) => {
     //   // redirect flow
     //   // not testable
     // });
-    await t.test("#Login ", async function () {
+    await t.test("#Login with default provider", async function () {
       // mocklogin
       const { idToken, parsedToken } = await mockLogin(email);
       await coreKitInstance.init({ handleRedirectResult: false });
@@ -73,9 +83,27 @@ variable.forEach((testVariable) => {
         verifierId: parsedToken.email,
         idToken,
       });
-
       // get key details
       await checkLogin(coreKitInstance);
+      const result = await coreKitInstance.provider.request({ method: "eth_chainId", params: [] });
+      assert.strictEqual(result, DEFAULT_CHAIN_CONFIG.chainId);
+    });
+
+    await t.test("#Login without provider", async function () {
+      // mocklogin
+      const { idToken, parsedToken } = await mockLogin(email);
+      await coreKitInstanceWithoutProvider.init({ handleRedirectResult: false });
+      await coreKitInstanceWithoutProvider.loginWithJWT({
+        verifier: "torus-test-health",
+        verifierId: parsedToken.email,
+        idToken,
+      });
+      // get key details
+      await checkLogin(coreKitInstanceWithoutProvider);
+      try {
+        await coreKitInstanceWithoutProvider.provider.request({ method: "eth_chainId", params: [] });
+        throw new Error("should not reach here");
+      } catch (error) {}
     });
 
     await t.test("#relogin ", async function () {

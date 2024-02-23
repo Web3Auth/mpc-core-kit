@@ -394,7 +394,6 @@ export interface Web3AuthOptions {
    * Setup Provider after `login success` reconstruct.
    */
   setupProviderOnInit?: boolean;
-
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
