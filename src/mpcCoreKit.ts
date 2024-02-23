@@ -121,6 +121,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
+    if (options.setupProviderOnInit === undefined) options.setupProviderOnInit = true;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -186,7 +187,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!tkey.metadata) return COREKIT_STATUS.INITIALIZED;
       if (!tkey.privKey || !this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
       return COREKIT_STATUS.LOGGED_IN;
-    } catch (e) {}
+    } catch (e) { }
     return COREKIT_STATUS.NOT_INITIALIZED;
   }
 
@@ -810,7 +811,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       // await this.updateState({ chainConfig });
       this.options.chainConfig = chainConfig;
-      await this.setupProvider();
+      await this.setupProvider({ chainConfig: this.options.chainConfig });
     } catch (error: unknown) {
       log.error("change chain config error", error);
       throw error;
@@ -906,7 +907,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // Finalize setup.
     if (!this.tKey.manualSync) await this.tKey.syncLocalMetadataTransitions();
-    await this.setupProvider();
+    if (this.options.setupProviderOnInit) {
+      await this.setupProvider({ chainConfig: this.options.chainConfig });
+    }
     await this.createSession();
   }
 
@@ -942,7 +945,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         userInfo: result.userInfo,
       });
 
-      await this.setupProvider();
+      if (this.options.setupProviderOnInit) {
+        await this.setupProvider({ chainConfig: this.options.chainConfig });
+      }
     } catch (err) {
       log.error("error trying to authorize session", err);
     }
@@ -1113,7 +1118,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
   }
 
-  private async setupProvider(): Promise<void> {
+  public async setupProvider(option: { chainConfig: CustomChainConfig }): Promise<void> {
+    this.options.chainConfig = option.chainConfig;
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
     await signingProvider.setupProvider({ sign: this.sign, getPublic: this.getPublic });
 
