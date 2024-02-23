@@ -1,6 +1,6 @@
 {
   "name": "@web3auth/mpc-core-kit",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "MPC CoreKit SDK for web3Auth",
   "keywords": [
     "web3Auth/mpc-core-kit",
@@ -35,6 +35,7 @@
     "@toruslabs/metadata-helpers": "^5.x"
   },
   "dependencies": {
+    "@metamask/swappable-obj-proxy": "^2.1.0",
     "@tkey-mpc/chrome-storage": "^9.0.2",
     "@tkey-mpc/common-types": "file:tkey-mpc-common-types-9.0.2.tgz",
     "@tkey-mpc/core": "file:tkey-mpc-core-9.0.3.tgz",
