@@ -65,7 +65,7 @@ import {
 } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
-  public state: Web3AuthState = {};
+  public state: Web3AuthState = { accountIndex: 0 };
 
   private options: Web3AuthOptionsWithDefaults;
 
@@ -86,8 +86,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private _storageBaseKey = "corekit_store";
 
   private enableLogging = false;
-
-  private accountIndex;
 
   private ready = false;
 
@@ -144,7 +142,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         sessionId,
       });
     };
-    this.accountIndex = 0;
     asyncConstructor();
   }
 
@@ -487,9 +484,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async setTssWalletIndex(accountIndex: number) {
-    this.accountIndex = accountIndex;
-    await this.tkey.reconstructKey();
-    await this.finalizeTkey(this.state.factorKey);
+    this.updateState({ tssPubKey: Point.fromTkeyPoint(this.tKey.getTSSPub(accountIndex)).toBufferSEC1(false), accountIndex });
   }
 
   public getCurrentFactorKey(): IFactorKey {
@@ -507,10 +502,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  // Deprecated soon
+  // use getPublicSync instead
   public getTssPublicKey(): TkeyPoint {
     this.checkReady();
     // pass this optional account index;
-    return this.tKey.getTSSPub(this.accountIndex);
+    return this.tKey.getTSSPub(this.state.accountIndex);
   }
 
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
@@ -611,6 +608,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   // function for setting up provider
   public getPublic: () => Promise<Buffer> = async () => {
+    return this.getPublicSync();
+  };
+
+  public getPublicSync: () => Buffer = () => {
     let { tssPubKey } = this.state;
     if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
       tssPubKey = tssPubKey.subarray(1);
@@ -619,8 +620,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   };
 
   public getNonce = () => {
-    // call tkey with index and get nonce
-    return this.accountIndex ? this.tkey.computeAccountNonce(this.accountIndex) : new BN(0);
+    return this.tkey.computeAccountNonce(this.state.accountIndex);
   };
 
   public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {
@@ -642,7 +642,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (!this.state.factorKey) throw new Error("factorKey not present");
     const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
-      accountIndex: this.accountIndex,
+      accountIndex: this.state.accountIndex,
       threshold: 0,
     });
     const tssNonce = this.getTssNonce();
@@ -780,7 +780,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
     const tkeyDetails = this.tKey.getKeyDetails();
-    const tssPubKey = this.state.tssPubKey ? this.tKey.getTSSPub(this.accountIndex) : undefined;
+    const tssPubKey = this.state.tssPubKey ? Point.fromBufferSEC1(this.state.tssPubKey).toTkeyPoint() : undefined;
 
     const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
     const keyDetails: MPCKeyDetails = {
@@ -914,12 +914,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async finalizeTkey(factorKey: BN) {
+    if (this.state.accountIndex !== 0) {
+      log.warn("AccountIndex should be 0");
+      this.state.accountIndex = 0;
+    }
     // Read tss meta data.
-    const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey, {
-      accountIndex: this.accountIndex,
-      threshold: 0,
-    });
-    const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub(this.accountIndex)).toBufferSEC1(false);
+    const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
+    const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
 
     this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
@@ -956,7 +957,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         factorKey: new BN(result.factorKey, "hex"),
         oAuthKey: result.oAuthKey,
         tssShareIndex: result.tssShareIndex,
-        tssPubKey: Buffer.from(result.tssPubKey.padStart(FIELD_ELEMENT_HEX_LEN, "0"), "hex"),
+        tssPubKey: Point.fromTkeyPoint(this.tkey.getTSSPub()).toBufferSEC1(false),
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
@@ -974,7 +975,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
       if (!this.state.factorKey) throw new Error("factorKey not present");
       const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
-        accountIndex: this.accountIndex,
+        accountIndex: this.state.accountIndex,
         threshold: 0,
       });
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
