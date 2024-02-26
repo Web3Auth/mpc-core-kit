@@ -18,7 +18,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
     t.before(async () => {
       const instance = await newCoreKitLogInInstance({
         network: WEB3AUTH_NETWORK.DEVNET,
-        manualSync: testVariable.manualSync,
+        manualSync: false,
         email: testVariable.email,
       });
       await criticalResetAccount(instance);
@@ -26,7 +26,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
       const instance2 = await newCoreKitLogInInstance({
         network: WEB3AUTH_NETWORK.DEVNET,
-        manualSync: testVariable.manualSync,
+        manualSync: false,
         email: testVariable.importKeyEmail,
       });
       await criticalResetAccount(instance2);
@@ -64,6 +64,10 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         shareType: TssShareType.RECOVERY,
       });
 
+      if (testVariable.manualSync) {
+        await coreKitInstance.commitChanges();
+      }
+
       const exportedTssKey1 = await coreKitInstance._UNSAFE_exportTssKey();
       // recover key
       // reinitalize corekit
@@ -100,7 +104,6 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       await coreKitInstance2.loginWithJWT(newIdTokenLoginParams);
 
       const exportedTssKey = await coreKitInstance2._UNSAFE_exportTssKey();
-      criticalResetAccount(coreKitInstance2);
       BrowserStorage.getInstance("memory").resetStore();
 
       assert.strictEqual(exportedTssKey, recoveredTssKey);
@@ -115,7 +118,10 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
   });
 };
 
-const variable: ImportKeyTestVariable[] = [{ manualSync: false, email: "emailexport", importKeyEmail: "emailimport" }];
+const variable: ImportKeyTestVariable[] = [
+  { manualSync: false, email: "emailexport", importKeyEmail: "emailimport" },
+  { manualSync: true, email: "emailexport", importKeyEmail: "emailimport" },
+];
 
 variable.forEach(async (testVariable) => {
   await ImportTest(testVariable);
