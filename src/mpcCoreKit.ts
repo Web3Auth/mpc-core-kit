@@ -805,13 +805,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async switchChain(chainConfig: CustomChainConfig): Promise<void> {
-    this.checkReady();
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-
     try {
-      // await this.updateState({ chainConfig });
-      this.options.chainConfig = chainConfig;
-      await this.setupProvider({ chainConfig: this.options.chainConfig });
+      await this.setupProvider({ chainConfig });
     } catch (error: unknown) {
       log.error("change chain config error", error);
       throw error;
@@ -1119,6 +1114,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async setupProvider(option: { chainConfig: CustomChainConfig }): Promise<void> {
+    this.checkReady();
+    if (!this.state.factorKey) throw new Error("factorKey not present");
+
     this.options.chainConfig = option.chainConfig;
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
     await signingProvider.setupProvider({ sign: this.sign, getPublic: this.getPublic });
