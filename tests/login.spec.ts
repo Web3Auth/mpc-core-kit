@@ -5,7 +5,6 @@ import test from "node:test";
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import * as TssLib from "@toruslabs/tss-lib-node";
-import { Web3AuthMPCCoreKit as OldCoreKit } from "@web3auth/mpc-core-kit";
 import BN from "bn.js";
 import { ec as EC } from "elliptic";
 
@@ -43,15 +42,6 @@ const checkLogin = async (coreKitInstance: Web3AuthMPCCoreKit, accountIndex = 0)
 variable.forEach((testVariable) => {
   const { web3AuthNetwork, uxMode, manualSync, email } = testVariable;
   const coreKitInstance = new Web3AuthMPCCoreKit({
-    web3AuthClientId: "torus-key-test",
-    web3AuthNetwork,
-    baseUrl: "http://localhost:3000",
-    uxMode,
-    tssLib: TssLib,
-    storageKey: "memory",
-    manualSync,
-  });
-  const oldCoreKitInstance = new OldCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork,
     baseUrl: "http://localhost:3000",
@@ -133,45 +123,6 @@ variable.forEach((testVariable) => {
       const publicKeyPoint = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkey.x.toString("hex"), publicKeyPoint.x.toString("hex"));
       assert.strictEqual(pubkey.y.toString("hex"), publicKeyPoint.y.toString("hex"));
-    });
-
-    await t.test("#After Login able to get same details with old and new sdk", async function () {
-      // mock login
-      const { idToken, parsedToken } = await mockLogin(email);
-      await coreKitInstance.init({ handleRedirectResult: false });
-      await coreKitInstance.loginWithJWT({
-        verifier: "torus-test-health",
-        verifierId: parsedToken.email,
-        idToken,
-      });
-
-      // get key details
-      await checkLogin(coreKitInstance);
-      const publicKeyPoint = coreKitInstance.getTssPublicKey();
-
-      const factorkey = coreKitInstance.getCurrentFactorKey();
-      const { tssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
-        threshold: 0,
-      });
-
-      const { idToken: idToken2, parsedToken: parsedToken2 } = await mockLogin(email);
-      await oldCoreKitInstance.init({ handleRedirectResult: false });
-      await oldCoreKitInstance.loginWithJWT({
-        verifier: "torus-test-health",
-        verifierId: parsedToken2.email,
-        idToken: idToken2,
-      });
-      const publicKeyPoint2 = oldCoreKitInstance.getTssPublicKey();
-      // should get same tss pub key post and pre soft account implementation
-      assert.strictEqual(publicKeyPoint.x.toString("hex"), publicKeyPoint2.x.toString("hex"));
-      assert.strictEqual(publicKeyPoint.y.toString("hex"), publicKeyPoint2.y.toString("hex"));
-
-      const factorkey2 = oldCoreKitInstance.getCurrentFactorKey();
-      const { tssShare: oldTssShare } = await oldCoreKitInstance.tKey.getTSSShare(new BN(factorkey2.factorKey, "hex"), {
-        threshold: 0,
-      });
-      // should get tss share post and pre soft account implementation
-      assert.strictEqual(oldTssShare.toString("hex"), tssShare.toString("hex"));
     });
 
     await t.test("#Login and sign with different account/wallet index", async function () {
