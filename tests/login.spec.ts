@@ -1,5 +1,5 @@
 /* eslint-disable mocha/handle-done-callback */
-import assert from "node:assert";
+import assert, { strictEqual } from "node:assert";
 import test from "node:test";
 
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
@@ -79,6 +79,15 @@ variable.forEach((testVariable) => {
 
       // get key details
       await checkLogin(coreKitInstance);
+      const pubKey = coreKitInstance.getTssPublicKey();
+      const factorkey = coreKitInstance.getCurrentFactorKey();
+      const { tssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
+        threshold: 0,
+      });
+      // check whether the public key and tss share is same as old sdks
+      strictEqual(pubKey.x.toString("hex"), "1f85b9d4fc945dc93739323d65a4dc89060faece4cb90c147a28bb93b01c0cac");
+      strictEqual(pubKey.y.toString("hex"), "f286a5912766de74d48cfa38bb1e593053b2cb471504ace3ef6186af584502f8");
+      strictEqual(tssShare.toString("hex"), "6252d281ae566243c1c00e8d89414527c1d6634faf489164efa28c5d6adc450a");
     });
 
     await t.test("#relogin ", async function () {
