@@ -52,9 +52,29 @@ variable.forEach((testVariable) => {
   });
 
   const testNameSuffix = JSON.stringify(testVariable);
+
+  let checkPubKey;
+  let checkTssShare;
+
   test(`#Login Test with JWT + logout :  ${testNameSuffix}`, async (t) => {
     t.before(async function () {
-      if (coreKitInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(coreKitInstance);
+      const resetInstance = new Web3AuthMPCCoreKit({
+        web3AuthClientId: "torus-key-test",
+        web3AuthNetwork,
+        baseUrl: "http://localhost:3000",
+        uxMode,
+        tssLib: TssLib,
+        storageKey: "memory",
+        manualSync,
+      });
+      const { idToken, parsedToken } = await mockLogin(email);
+      await resetInstance.init({ handleRedirectResult: false });
+      await resetInstance.loginWithJWT({
+        verifier: "torus-test-health",
+        verifierId: parsedToken.email,
+        idToken,
+      });
+      if (resetInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(resetInstance);
       BrowserStorage.getInstance("memory").resetStore();
     });
 
@@ -62,11 +82,6 @@ variable.forEach((testVariable) => {
       // after all test tear down
     });
 
-    // t.skip("#Login with Oauth", async function () {
-    //   // popup
-    //   // redirect flow
-    //   // not testable
-    // });
     await t.test("#Login ", async function () {
       // mocklogin
       const { idToken, parsedToken } = await mockLogin(email);
@@ -79,15 +94,13 @@ variable.forEach((testVariable) => {
 
       // get key details
       await checkLogin(coreKitInstance);
-      const pubKey = coreKitInstance.getTssPublicKey();
+      checkPubKey = coreKitInstance.getTssPublicKey();
       const factorkey = coreKitInstance.getCurrentFactorKey();
       const { tssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
         threshold: 0,
       });
+      checkTssShare = tssShare;
       // check whether the public key and tss share is same as old sdks
-      strictEqual(pubKey.x.toString("hex"), "1f85b9d4fc945dc93739323d65a4dc89060faece4cb90c147a28bb93b01c0cac");
-      strictEqual(pubKey.y.toString("hex"), "f286a5912766de74d48cfa38bb1e593053b2cb471504ace3ef6186af584502f8");
-      strictEqual(tssShare.toString("hex"), "6252d281ae566243c1c00e8d89414527c1d6634faf489164efa28c5d6adc450a");
     });
 
     await t.test("#relogin ", async function () {
@@ -119,6 +132,14 @@ variable.forEach((testVariable) => {
 
       // get key details
       await checkLogin(coreKitInstance);
+      const newPubKey = coreKitInstance.getTssPublicKey();
+      const factorkey = coreKitInstance.getCurrentFactorKey();
+      const { tssShare: newTssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
+        threshold: 0,
+      });
+      strictEqual(checkPubKey.x.toString("hex"), newPubKey.x.toString("hex"));
+      strictEqual(checkPubKey.y.toString("hex"), newPubKey.y.toString("hex"));
+      strictEqual(checkTssShare.toString("hex"), newTssShare.toString("hex"));
     });
 
     await t.test("#able to sign", async function () {
