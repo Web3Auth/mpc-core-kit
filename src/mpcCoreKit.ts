@@ -643,7 +643,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.state.factorKey) throw new Error("factorKey not present");
     const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
       accountIndex: this.state.accountIndex,
-      threshold: 0,
     });
     const tssNonce = this.getTssNonce();
 
@@ -885,6 +884,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
       } else {
         await this.tKey.initialize();
+        await this.tKey.reconstructKey();
         await this.importTssKey(importTssKey, factorPub, deviceTSSIndex);
       }
 
@@ -906,9 +906,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
         // Initialize tkey with existing hashed share if available.
         const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
-        await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
-        await this.tKey.reconstructKey();
-        await this.finalizeTkey(hashedFactorKey);
+        try {
+          await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
+          await this.tKey.reconstructKey();
+          await this.finalizeTkey(hashedFactorKey);
+        } catch (err) {
+          log.error("error initializing tkey with hashed share", err);
+        }
       }
     }
   }
@@ -976,7 +980,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!this.state.factorKey) throw new Error("factorKey not present");
       const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
         accountIndex: this.state.accountIndex,
-        threshold: 0,
       });
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw new Error("User not logged in");

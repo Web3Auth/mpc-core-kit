@@ -29,7 +29,7 @@ export const criticalResetAccount = async (coreKitInstance: Web3AuthMPCCoreKit):
   }
 
   await coreKitInstance.tKey.storageLayer.setMetadata({
-    privKey: new BN(coreKitInstance.metadataKey!, "hex"),
+    privKey: new BN(coreKitInstance.state.oAuthKey!, "hex"),
     input: { message: "KEY_NOT_FOUND" },
   });
 };

@@ -41,15 +41,16 @@ const checkLogin = async (coreKitInstance: Web3AuthMPCCoreKit, accountIndex = 0)
 
 variable.forEach((testVariable) => {
   const { web3AuthNetwork, uxMode, manualSync, email } = testVariable;
-  const coreKitInstance = new Web3AuthMPCCoreKit({
-    web3AuthClientId: "torus-key-test",
-    web3AuthNetwork,
-    baseUrl: "http://localhost:3000",
-    uxMode,
-    tssLib: TssLib,
-    storageKey: "memory",
-    manualSync,
-  });
+  const newCoreKitInstance = () =>
+    new Web3AuthMPCCoreKit({
+      web3AuthClientId: "torus-key-test",
+      web3AuthNetwork,
+      baseUrl: "http://localhost:3000",
+      uxMode,
+      tssLib: TssLib,
+      storageKey: "memory",
+      manualSync,
+    });
 
   const testNameSuffix = JSON.stringify(testVariable);
 
@@ -74,7 +75,7 @@ variable.forEach((testVariable) => {
         verifierId: parsedToken.email,
         idToken,
       });
-      if (resetInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(resetInstance);
+      await criticalResetAccount(resetInstance);
       BrowserStorage.getInstance("memory").resetStore();
     });
 
@@ -83,6 +84,8 @@ variable.forEach((testVariable) => {
     });
 
     await t.test("#Login ", async function () {
+      const coreKitInstance = newCoreKitInstance();
+
       // mocklogin
       const { idToken, parsedToken } = await mockLogin(email);
       await coreKitInstance.init({ handleRedirectResult: false });
@@ -100,10 +103,17 @@ variable.forEach((testVariable) => {
         threshold: 0,
       });
       checkTssShare = tssShare;
+      // console.log(coreKitInstance.tKey.metadata.factorEncs);
+      // console.log(coreKitInstance.tKey.metadata.encryptedSalt);
+
+      if (manualSync) {
+        await coreKitInstance.commitChanges();
+      }
       // check whether the public key and tss share is same as old sdks
     });
 
     await t.test("#relogin ", async function () {
+      const coreKitInstance = newCoreKitInstance();
       // reload without rehydrate
       // await coreKitInstance.init({ rehydrate: false });
 
@@ -115,7 +125,10 @@ variable.forEach((testVariable) => {
       await coreKitInstance.logout();
 
       // rehydrate should fail
-      await coreKitInstance.init();
+      await coreKitInstance.init({
+        rehydrate: false,
+        handleRedirectResult: false,
+      });
       assert.strictEqual(coreKitInstance.status, COREKIT_STATUS.INITIALIZED);
       try {
         coreKitInstance.getCurrentFactorKey();
@@ -129,20 +142,22 @@ variable.forEach((testVariable) => {
         verifierId: parsedToken.email,
         idToken,
       });
+      // console.log(coreKitInstance.tKey.metadata.factorEncs);
 
       // get key details
       await checkLogin(coreKitInstance);
       const newPubKey = coreKitInstance.getTssPublicKey();
       const factorkey = coreKitInstance.getCurrentFactorKey();
-      const { tssShare: newTssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
-        threshold: 0,
-      });
+      const { tssShare: newTssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"));
       strictEqual(checkPubKey.x.toString("hex"), newPubKey.x.toString("hex"));
       strictEqual(checkPubKey.y.toString("hex"), newPubKey.y.toString("hex"));
       strictEqual(checkTssShare.toString("hex"), newTssShare.toString("hex"));
+      // console.log(coreKitInstance.tKey.metadata.encryptedSalt);
     });
 
     await t.test("#able to sign", async function () {
+      const coreKitInstance = newCoreKitInstance();
+      await coreKitInstance.init();
       const msg = "hello world";
       const msgBuffer = Buffer.from(msg);
       const msgHash = keccak256(msgBuffer);
@@ -156,6 +171,7 @@ variable.forEach((testVariable) => {
     });
 
     await t.test("#Login and sign with different account/wallet index", async function () {
+      const coreKitInstance = newCoreKitInstance();
       // mock login with random
       const { idToken: idToken2, parsedToken: parsedToken2 } = await mockLogin();
       await coreKitInstance.init({ handleRedirectResult: false });
