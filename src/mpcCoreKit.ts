@@ -121,6 +121,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
+    if (options.setupProviderOnInit === undefined) options.setupProviderOnInit = true;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -367,11 +368,31 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void> {
+  /**
+   * login with JWT.
+   * @param idTokenLoginParams - login parameter required by web3auth for login with JWT.
+   * @param opt - prefetchTssPublicKeys - option prefetch server tssPubs for new user registration.
+   *              For best performance, set it to the number of factor you want to create for new user. Set it 0 for existing user.
+   *              default is 1, max value is 3
+   */
+  public async loginWithJWT(
+    idTokenLoginParams: IdTokenLoginParams,
+    opt: { prefetchTssPublicKeys: number } = { prefetchTssPublicKeys: 1 }
+  ): Promise<void> {
     this.checkReady();
+    if (opt.prefetchTssPublicKeys > 3) throw new Error("prefetch value should be less than 3");
+
     const { importTssKey } = idTokenLoginParams;
     const { verifier, verifierId, idToken } = idTokenLoginParams;
+
+    (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
+    (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
     try {
+      // prefetch tss pub key
+      const prefetchTssPubs = [];
+      for (let i = 0; i < opt.prefetchTssPublicKeys; i++) {
+        prefetchTssPubs.push(this.tkey.serviceProvider.getTSSPubKey("default", i));
+      }
       // oAuth login.
       let loginResponse: TorusKey;
       if (!idTokenLoginParams.subVerifier) {
@@ -398,14 +419,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const oAuthShare = this._getOAuthKey(loginResponse);
 
       (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(oAuthShare, "hex");
-      (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
-      (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
 
       this.updateState({
         oAuthKey: oAuthShare,
         userInfo: { ...parseToken(idToken), verifier, verifierId },
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
+
+      // wait for prefetch completed before setup tkey
+      await Promise.all(prefetchTssPubs);
 
       await this.setupTkey(importTssKey);
     } catch (err: unknown) {
@@ -804,13 +826,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async switchChain(chainConfig: CustomChainConfig): Promise<void> {
-    this.checkReady();
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-
     try {
-      // await this.updateState({ chainConfig });
-      this.options.chainConfig = chainConfig;
-      await this.setupProvider();
+      await this.setupProvider({ chainConfig });
     } catch (error: unknown) {
       log.error("change chain config error", error);
       throw error;
@@ -906,7 +923,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // Finalize setup.
     if (!this.tKey.manualSync) await this.tKey.syncLocalMetadataTransitions();
-    await this.setupProvider();
+    if (this.options.setupProviderOnInit) {
+      await this.setupProvider({ chainConfig: this.options.chainConfig });
+    }
     await this.createSession();
   }
 
@@ -942,7 +961,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         userInfo: result.userInfo,
       });
 
-      await this.setupProvider();
+      if (this.options.setupProviderOnInit) {
+        await this.setupProvider({ chainConfig: this.options.chainConfig });
+      }
     } catch (err) {
       log.error("error trying to authorize session", err);
     }
@@ -1113,7 +1134,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
   }
 
-  private async setupProvider(): Promise<void> {
+  public async setupProvider(option: { chainConfig: CustomChainConfig }): Promise<void> {
+    this.checkReady();
+    if (!this.state.factorKey) throw new Error("factorKey not present");
+
+    this.options.chainConfig = option.chainConfig;
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
     await signingProvider.setupProvider({ sign: this.sign, getPublic: this.getPublic });
 

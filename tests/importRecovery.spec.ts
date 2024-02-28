@@ -23,6 +23,15 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       });
       await criticalResetAccount(instance);
       await instance.logout();
+
+      const instance2 = await newCoreKitLogInInstance({
+        network: WEB3AUTH_NETWORK.DEVNET,
+        manualSync: testVariable.manualSync,
+        email: testVariable.importKeyEmail,
+      });
+      await criticalResetAccount(instance2);
+      await instance2.logout();
+      BrowserStorage.getInstance("memory").resetStore();
     });
 
     await t.test("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
