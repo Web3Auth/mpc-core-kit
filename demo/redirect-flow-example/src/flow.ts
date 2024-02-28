@@ -36,7 +36,7 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
     });
 
     let SqFactorTime = Date.now();
-    console.log(SqFactorTime);
+    console.log("SQ time", SqFactorTime);
     console.log(SqFactorTime - loggedInTime);
 
     await coreKitInstance.commitChanges();
@@ -44,6 +44,8 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
     let commitTime = Date.now();
     console.log("commit :", commitTime);
     console.log(commitTime - SqFactorTime);
+
+    console.log("total time", commitTime - startTime);
     
     
 }
