@@ -8,6 +8,9 @@ import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
 import { BN } from "bn.js";
 
 import jwt, { Algorithm } from "jsonwebtoken";
+import { flow } from "./flow";
+
+
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
   if (el) {
@@ -156,7 +159,7 @@ function App() {
         verifier: 'torus-test-health',
         verifierId: parsedToken.email,
         idToken,
-      }, {prefetch: 1} );
+      }, {prefetchTssPublicKeys: 1} );
       if (coreKitInstance.provider) {
         setProvider(coreKitInstance.provider);
       }
@@ -168,6 +171,19 @@ function App() {
       }
       setCoreKitStatus(coreKitInstance.status);
     } catch (error: unknown) {
+      console.error(error);
+    }
+  }
+
+  const timedFlow = async () => {
+    try {
+      if (!mockEmail) {
+        throw new Error('mockEmail not found');
+      }
+      const { idToken, parsedToken } = await mockLogin(mockEmail);
+      await flow({ selectedNetwork, manualSync: true, setupProviderOnInit: false,  verifier: 'torus-test-health', verifierId: parsedToken.email, idToken });
+    }
+    catch (error: unknown) {
       console.error(error);
     }
   }
@@ -667,7 +683,11 @@ function App() {
             Recover Using Security Answer
           </button>
         </div>
+
       </div>
+      <button onClick={() => timedFlow()} className="card">
+        Timed Flow 
+      </button>
 
     </>
   );
