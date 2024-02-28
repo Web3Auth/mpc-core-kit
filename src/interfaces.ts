@@ -389,6 +389,12 @@ export interface Web3AuthOptions {
    * Do not use this unless you know what you are doing.
    */
   hashedFactorNonce?: string;
+
+  /**
+   * @defaultValue `true`
+   * Setup Provider after `login success` reconstruct.
+   */
+  setupProviderOnInit?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;

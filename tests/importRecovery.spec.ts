@@ -26,7 +26,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
       const instance2 = await newCoreKitLogInInstance({
         network: WEB3AUTH_NETWORK.DEVNET,
-        manualSync: false,
+        manualSync: testVariable.manualSync,
         email: testVariable.importKeyEmail,
       });
       await criticalResetAccount(instance2);
