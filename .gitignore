@@ -24,4 +24,5 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-*.tgz
+# todo: for local testing still tkey-mpc merge
+# *.tgz
