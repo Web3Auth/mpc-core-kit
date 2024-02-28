@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
 import "./App.css";
 import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
 import { BN } from "bn.js";
+
+import jwt, { Algorithm } from "jsonwebtoken";
+import { flow } from "./flow";
+
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -23,10 +27,39 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     web3AuthNetwork: selectedNetwork,
     uxMode: 'redirect',
     manualSync: true,
+    setupProviderOnInit: false
   }
 );
 
+const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
+const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
+const alg: Algorithm = "ES256";
+export const mockLogin = async (email: string) => {
+  const iat = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: "torus-key-test",
+    aud: "torus-key-test",
+    name: email,
+    email,
+    scope: "email",
+    iat,
+    eat: iat + 120,
+  };
+
+  const algo = {
+    expiresIn: 120,
+    algorithm: alg,
+  };
+
+  const token = jwt.sign(payload, jwtPrivateKey, algo);
+  const idToken = token;
+  const parsedToken = parseToken(idToken);
+  return { idToken, parsedToken };
+};
+
 function App() {
+  const [mockEmail, setMockEmail] = useState<string | undefined>(undefined);
+
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
   const [provider, setProvider] = useState<SafeEventEmitterProvider | null>(null);
   const [web3, setWeb3] = useState<any>(undefined)
@@ -37,6 +70,9 @@ function App() {
   const [newAnswer, setNewAnswer] = useState<string | undefined>(undefined);
   const [question, setQuestion] = useState<string | undefined>(undefined);
   const [newQuestion, setNewQuestion] = useState<string | undefined>(undefined);
+
+
+
 
   const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
 
@@ -52,12 +88,19 @@ function App() {
 
       if (coreKitInstance.provider) {
         setProvider(coreKitInstance.provider);
+      } else {
+        if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+          coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then(() => {
+            setProvider(coreKitInstance.provider);
+          });
+        }
       }
 
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
         uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
       }
 
+      console.log("coreKitInstance.status", coreKitInstance.status)
       setCoreKitStatus(coreKitInstance.status);
 
       try {
@@ -99,6 +142,45 @@ function App() {
     });
     uiConsole(pubsHex);
   };
+
+  const loginWithMock = async () => {
+    try {
+      if (!mockEmail) {
+        throw new Error('mockEmail not found');
+      }
+      const { idToken, parsedToken } = await mockLogin(mockEmail);
+      await coreKitInstance.loginWithJWT({
+        verifier: 'torus-test-health',
+        verifierId: parsedToken.email,
+        idToken,
+      }, {prefetchTssPublicKeys: 1} );
+      if (coreKitInstance.provider) {
+        setProvider(coreKitInstance.provider);
+      }
+      else {
+        coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
+          
+          setProvider(coreKitInstance.provider);
+        });
+      }
+      setCoreKitStatus(coreKitInstance.status);
+    } catch (error: unknown) {
+      console.error(error);
+    }
+  }
+
+  const timedFlow = async () => {
+    try {
+      if (!mockEmail) {
+        throw new Error('mockEmail not found');
+      }
+      const { idToken, parsedToken } = await mockLogin(mockEmail);
+      await flow({ selectedNetwork, manualSync: true, setupProviderOnInit: false,  verifier: 'torus-test-health', verifierId: parsedToken.email, idToken });
+    }
+    catch (error: unknown) {
+      console.error(error);
+    }
+  }
 
   const login = async () => {
     try {
@@ -168,6 +250,7 @@ function App() {
     await coreKitInstance.logout();
     uiConsole("Log out");
     setProvider(null);
+    setCoreKitStatus(coreKitInstance.status);
   };
 
   const getUserInfo = (): void => {
@@ -579,6 +662,11 @@ function App() {
 
   const unloggedInView = (
     <>
+      <input value={mockEmail} onChange={(e) => setMockEmail(e.target.value)}></input>
+      <button onClick={() => loginWithMock()} className="card">
+        MockLogin
+      </button>
+
       <button onClick={() => login()} className="card">
         Login
       </button>
@@ -606,7 +694,11 @@ function App() {
             Recover Using Security Answer
           </button>
         </div>
+
       </div>
+      <button onClick={() => timedFlow()} className="card">
+        Timed Flow 
+      </button>
 
     </>
   );
@@ -620,7 +712,7 @@ function App() {
         Redirect Flow Example
       </h1>
 
-      <div className="grid">{provider ? loggedInView : unloggedInView}</div>
+      <div className="grid">{coreKitStatus === COREKIT_STATUS.LOGGED_IN ? loggedInView : unloggedInView}</div>
       <div id="console" style={{ whiteSpace: "pre-line" }}>
         <p style={{ whiteSpace: "pre-line" }}></p>
       </div>
