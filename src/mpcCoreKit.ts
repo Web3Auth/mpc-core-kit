@@ -367,11 +367,26 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void> {
+  /**
+   * login with JWT.
+   * @param idTokenLoginParams - login parameter required by web3auth for login with JWT.
+   * @param opt - option prefetch server tssPubs. max value is 3, default is 1
+   */
+  public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams, opt: { prefetch: number } = { prefetch: 1 }): Promise<void> {
     this.checkReady();
+    if (opt.prefetch > 3) throw new Error("prefetch value should be less than 3");
+
     const { importTssKey } = idTokenLoginParams;
     const { verifier, verifierId, idToken } = idTokenLoginParams;
+
+    (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
+    (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
     try {
+      // prefetch tss pub key
+      const prefetchTssPubs = [];
+      for (let i = 0; i < opt.prefetch; i++) {
+        prefetchTssPubs[i] = this.tkey.serviceProvider.getTSSPubKey("default", i);
+      }
       // oAuth login.
       let loginResponse: TorusKey;
       if (!idTokenLoginParams.subVerifier) {
@@ -398,14 +413,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const oAuthShare = this._getOAuthKey(loginResponse);
 
       (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(oAuthShare, "hex");
-      (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
-      (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
 
       this.updateState({
         oAuthKey: oAuthShare,
         userInfo: { ...parseToken(idToken), verifier, verifierId },
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
+
+      // wait for prefetch completed before setup tkey
+      await Promise.all(prefetchTssPubs);
 
       await this.setupTkey(importTssKey);
     } catch (err: unknown) {

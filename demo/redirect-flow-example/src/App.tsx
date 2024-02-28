@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
@@ -7,6 +7,7 @@ import "./App.css";
 import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
 import { BN } from "bn.js";
 
+import jwt, { Algorithm } from "jsonwebtoken";
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
   if (el) {
@@ -26,7 +27,35 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
   }
 );
 
+const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
+const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
+const alg: Algorithm = "ES256";
+export const mockLogin = async (email: string) => {
+  const iat = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: "torus-key-test",
+    aud: "torus-key-test",
+    name: email,
+    email,
+    scope: "email",
+    iat,
+    eat: iat + 120,
+  };
+
+  const algo = {
+    expiresIn: 120,
+    algorithm: alg,
+  };
+
+  const token = jwt.sign(payload, jwtPrivateKey, algo);
+  const idToken = token;
+  const parsedToken = parseToken(idToken);
+  return { idToken, parsedToken };
+};
+
 function App() {
+  const [mockEmail, setMockEmail] = useState<string | undefined>(undefined);
+
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
   const [provider, setProvider] = useState<SafeEventEmitterProvider | null>(null);
   const [web3, setWeb3] = useState<any>(undefined)
@@ -99,6 +128,23 @@ function App() {
     });
     uiConsole(pubsHex);
   };
+
+  const loginWithMock = async () => {
+    try {
+      if (!mockEmail) {
+        throw new Error('mockEmail not found');
+      }
+      const { idToken, parsedToken } = await mockLogin(mockEmail);
+      await coreKitInstance.loginWithJWT({
+        verifier: 'torus-test-health',
+        verifierId: parsedToken.email,
+        idToken,
+      }, {prefetch: 2} );
+      setProvider(coreKitInstance.provider);
+    } catch (error: unknown) {
+      console.error(error);
+    }
+  }
 
   const login = async () => {
     try {
@@ -562,6 +608,11 @@ function App() {
 
   const unloggedInView = (
     <>
+      <input value={mockEmail} onChange={(e) => setMockEmail(e.target.value)}></input>
+      <button onClick={() => loginWithMock()} className="card">
+        MockLogin
+      </button>
+
       <button onClick={() => login()} className="card">
         Login
       </button>
