@@ -107,6 +107,31 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       BrowserStorage.getInstance("memory").resetStore();
 
       assert.strictEqual(exportedTssKey, recoveredTssKey);
+
+      // reinitialize corekit
+      const newEmail3 = testVariable.importKeyEmail;
+      const newLogin3 = await mockLogin(newEmail);
+
+      const newIdTokenLoginParams3 = {
+        verifier: "torus-test-health",
+        verifierId: newLogin3.parsedToken.email,
+        idToken: newLogin3.idToken,
+      } as IdTokenLoginParams;
+
+      const coreKitInstance3 = new Web3AuthMPCCoreKit({
+        web3AuthClientId: "torus-key-test",
+        web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
+        baseUrl: "http://localhost:3000",
+        uxMode: "nodejs",
+        tssLib: TssLib,
+        storageKey: "memory",
+      });
+
+      await coreKitInstance3.init();
+      await coreKitInstance3.loginWithJWT(newIdTokenLoginParams3);
+
+      const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey();
+      console.log(exportedTssKey3);
     });
 
     t.afterEach(function () {
