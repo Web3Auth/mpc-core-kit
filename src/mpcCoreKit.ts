@@ -386,7 +386,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // prefetch tss pub key
       const prefetchTssPubs = [];
       for (let i = 0; i < opt.prefetch; i++) {
-        prefetchTssPubs[i] = this.tkey.serviceProvider.getTSSPubKey("default", i);
+        prefetchTssPubs.push(this.tkey.serviceProvider.getTSSPubKey("default", i));
       }
       // oAuth login.
       let loginResponse: TorusKey;

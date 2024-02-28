@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
@@ -17,6 +17,12 @@ const uiConsole = (...args: any[]): void => {
 };
 
 const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
+// performance options
+// const options = {
+//   manualSync: true,
+//   prefetchTssPub: 2,
+//   setupProvdiverOnInit: false,
+// }
 
 const coreKitInstance = new Web3AuthMPCCoreKit(
   {
@@ -24,6 +30,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     web3AuthNetwork: selectedNetwork,
     uxMode: 'redirect',
     manualSync: true,
+    setupProviderOnInit: false
   }
 );
 
@@ -67,6 +74,9 @@ function App() {
   const [question, setQuestion] = useState<string | undefined>(undefined);
   const [newQuestion, setNewQuestion] = useState<string | undefined>(undefined);
 
+
+
+
   const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
 
   // decide whether to rehydrate session
@@ -81,12 +91,19 @@ function App() {
 
       if (coreKitInstance.provider) {
         setProvider(coreKitInstance.provider);
+      } else {
+        if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+          coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
+            setProvider(coreKitInstance.provider);
+          });
+        }
       }
 
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
         uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
       }
 
+      console.log("coreKitInstance.status", coreKitInstance.status)
       setCoreKitStatus(coreKitInstance.status);
 
       try {
@@ -140,7 +157,16 @@ function App() {
         verifierId: parsedToken.email,
         idToken,
       }, {prefetch: 2} );
-      setProvider(coreKitInstance.provider);
+      if (coreKitInstance.provider) {
+        setProvider(coreKitInstance.provider);
+      }
+      else {
+        coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
+          
+          setProvider(coreKitInstance.provider);
+        });
+      }
+      setCoreKitStatus(coreKitInstance.status);
     } catch (error: unknown) {
       console.error(error);
     }
@@ -214,6 +240,7 @@ function App() {
     await coreKitInstance.logout();
     uiConsole("Log out");
     setProvider(null);
+    setCoreKitStatus(coreKitInstance.status);
   };
 
   const getUserInfo = (): void => {
@@ -654,7 +681,7 @@ function App() {
         Redirect Flow Example
       </h1>
 
-      <div className="grid">{provider ? loggedInView : unloggedInView}</div>
+      <div className="grid">{coreKitStatus === COREKIT_STATUS.LOGGED_IN ? loggedInView : unloggedInView}</div>
       <div id="console" style={{ whiteSpace: "pre-line" }}>
         <p style={{ whiteSpace: "pre-line" }}></p>
       </div>
