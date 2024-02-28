@@ -93,7 +93,7 @@ function App() {
         setProvider(coreKitInstance.provider);
       } else {
         if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-          coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
+          coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then(() => {
             setProvider(coreKitInstance.provider);
           });
         }
@@ -156,7 +156,7 @@ function App() {
         verifier: 'torus-test-health',
         verifierId: parsedToken.email,
         idToken,
-      }, {prefetch: 2} );
+      }, {prefetch: 1} );
       if (coreKitInstance.provider) {
         setProvider(coreKitInstance.provider);
       }

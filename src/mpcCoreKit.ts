@@ -371,11 +371,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   /**
    * login with JWT.
    * @param idTokenLoginParams - login parameter required by web3auth for login with JWT.
-   * @param opt - option prefetch server tssPubs. max value is 3, default is 1
+   * @param opt - prefetchTssPublicKeys - option prefetch server tssPubs for new user registration.
+   *              For best performance, set it to the number of factor you want to create for new user. Set it 0 for existing user.
+   *              default is 1, max value is 3
    */
-  public async loginWithJWT(idTokenLoginParams: IdTokenLoginParams, opt: { prefetch: number } = { prefetch: 1 }): Promise<void> {
+  public async loginWithJWT(
+    idTokenLoginParams: IdTokenLoginParams,
+    opt: { prefetchTssPublicKeys: number } = { prefetchTssPublicKeys: 1 }
+  ): Promise<void> {
     this.checkReady();
-    if (opt.prefetch > 3) throw new Error("prefetch value should be less than 3");
+    if (opt.prefetchTssPublicKeys > 3) throw new Error("prefetch value should be less than 3");
 
     const { importTssKey } = idTokenLoginParams;
     const { verifier, verifierId, idToken } = idTokenLoginParams;
@@ -385,7 +390,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       // prefetch tss pub key
       const prefetchTssPubs = [];
-      for (let i = 0; i < opt.prefetch; i++) {
+      for (let i = 0; i < opt.prefetchTssPublicKeys; i++) {
         prefetchTssPubs.push(this.tkey.serviceProvider.getTSSPubKey("default", i));
       }
       // oAuth login.
