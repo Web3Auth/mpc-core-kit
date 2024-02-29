@@ -38,19 +38,19 @@ const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZ
 const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
 const alg: Algorithm = "ES256";
 
-export const mockLogin = async (email?: string) => {
-  // if email is not passed generate a random email
-  function stringGen(len: number) {
-    let text = "";
-    const charset = "abcdefghijklmnopqrstuvwxyz0123456789";
+export function stringGen(len: number) {
+  let text = "";
+  const charset = "abcdefghijklmnopqrstuvwxyz0123456789";
 
-    for (let i = 0; i < len; i++) {
-      text += charset.charAt(Math.floor(Math.random() * charset.length));
-    }
-
-    return text;
+  for (let i = 0; i < len; i++) {
+    text += charset.charAt(Math.floor(Math.random() * charset.length));
   }
 
+  return text;
+}
+
+export const mockLogin = async (email?: string) => {
+  // if email is not passed generate a random email
   if (!email) {
     email = `${stringGen(10)}@${stringGen(5)}.${stringGen(3)}`;
   }

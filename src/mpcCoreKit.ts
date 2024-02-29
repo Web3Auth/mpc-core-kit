@@ -505,7 +505,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async setTssWalletIndex(accountIndex: number) {
+  public setTssWalletIndex(accountIndex: number) {
     this.updateState({ tssPubKey: Point.fromTkeyPoint(this.tKey.getTSSPub(accountIndex)).toBufferSEC1(false), accountIndex });
   }
 
