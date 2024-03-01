@@ -73,6 +73,23 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       const newFactor = await securityQuestion.recoverFactor(instance, newAnswer);
       await instance.tKey.getTSSShare(new BN(newFactor, "hex"));
 
+      instance.setTssWalletIndex(0);
+
+      // recover factor
+      // check factor
+      const newFactor2 = await securityQuestion.recoverFactor(instance, newAnswer);
+      await instance.tKey.getTSSShare(new BN(newFactor, "hex"));
+
+      instance.setTssWalletIndex(2);
+
+      // recover factor
+      // check factor
+      const newFactor3 = await securityQuestion.recoverFactor(instance, newAnswer);
+      await instance.tKey.getTSSShare(new BN(newFactor, "hex"));
+
+      assert.strictEqual(newFactor, newFactor2);
+      assert.strictEqual(newFactor, newFactor3);
+
       try {
         await instance.tKey.getTSSShare(new BN(factor, "hex"));
         throw new Error("should not reach here");
