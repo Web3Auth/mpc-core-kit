@@ -25,4 +25,4 @@ yarn-debug.log*
 yarn-error.log*
 
 # todo: for local testing still tkey-mpc merge
-# *.tgz
+*.tgz
