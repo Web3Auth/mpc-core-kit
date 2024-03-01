@@ -508,7 +508,7 @@ function App() {
   return (
     <div className="container">
       <h1 className="title">
-        <a target="_blank" href="https://web3auth.io/docs/guides/mpc" rel="noreferrer">
+        <a target="_blank" href="https://web3auth.io/docs/sdk/core-kit/mpc-core-kit" rel="noreferrer">
           Web3Auth MPC Core Kit 
         </a> {" "}
         Auth0 Redirect Flow Example
@@ -520,9 +520,10 @@ function App() {
       </div>
 
       <footer className="footer">
-        <a href="https://github.com/Web3Auth/web3auth-core-kit-examples/tree/main/tkey/tkey-mpc-beta-react-popup-example" target="_blank" rel="noopener noreferrer">
+        <a href="https://github.com/Web3Auth/mpc-core-kit/tree/master/demo/auth0-redirect-flow-example" target="_blank" rel="noopener noreferrer">
           Source code
         </a>
+        <a href="https://web3auth.io/community/c/help-core-kit/mpc-core-kit/33" target="_blank" rel="noopener noreferrer">Facing issue? Search/Post your issue on Community Forum!</a>
       </footer>
     </div>
   );
