@@ -1219,7 +1219,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (result.status !== 200) {
       // reset state on no mpc access
       this.resetState();
-      throw new Error("MPC access denied, please subscribe to our plan to use MPC");
+      const errMessage = (await result.json()) as { error: string };
+      throw new Error(errMessage.error);
     }
     return result.json();
   }

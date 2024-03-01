@@ -38,6 +38,16 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
     await t.test("should able to create factor", async function () {
       const coreKitInstance = await newInstance();
       coreKitInstance.setTssWalletIndex(1);
+
+      coreKitInstance.setTssWalletIndex(0);
+      const tssPubKeyIndex0 = coreKitInstance.getTssPublicKey();
+
+      coreKitInstance.setTssWalletIndex(1);
+      const tssPubKeyIndex1 = coreKitInstance.getTssPublicKey();
+
+      coreKitInstance.setTssWalletIndex(99);
+      const tssPubKeyIndex99 = coreKitInstance.getTssPublicKey();
+
       const firstFactor = coreKitInstance.getCurrentFactorKey();
       // try delete hash factor factor
       try {
@@ -51,6 +61,7 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
         shareType: TssShareType.DEVICE,
       });
 
+      coreKitInstance.setTssWalletIndex(2);
       const factorKey2 = await coreKitInstance.createFactor({
         shareType: TssShareType.RECOVERY,
       });
@@ -59,27 +70,63 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
       if (testVariable.manualSync) {
         await coreKitInstance.commitChanges();
       }
+
+      coreKitInstance.setTssWalletIndex(0);
+      const tssPubKeyIndexPost0 = coreKitInstance.getTssPublicKey();
+
+      coreKitInstance.setTssWalletIndex(1);
+      const tssPubKeyIndexPost1 = coreKitInstance.getTssPublicKey();
+
+      coreKitInstance.setTssWalletIndex(99);
+      const tssPubKeyIndexPost99 = coreKitInstance.getTssPublicKey();
+
       // clear session prevent rehydration
       await coreKitInstance.logout();
 
       // new instance
       const instance2 = await newInstance();
-      instance2.setTssWalletIndex(1);
       assert.strictEqual(instance2.getTssFactorPub().length, 3);
 
       // try inputFactor ( set as active factor )
 
       // delete factor
+      instance2.setTssWalletIndex(0);
       const pt = Point.fromPrivateKey(factorKey1);
       await instance2.deleteFactor(pt.toTkeyPoint());
 
       // delete factor
+      instance2.setTssWalletIndex(1);
       const pt2 = Point.fromPrivateKey(factorKey2);
       await instance2.deleteFactor(pt2.toTkeyPoint());
 
       if (testVariable.manualSync) {
         await instance2.commitChanges();
       }
+
+      instance2.setTssWalletIndex(0);
+      const tssPubKey2IndexPost0 = instance2.getTssPublicKey();
+
+      instance2.setTssWalletIndex(1);
+      const tssPubKey2IndexPost1 = instance2.getTssPublicKey();
+
+      instance2.setTssWalletIndex(99);
+      const tssPubKey2IndexPost99 = instance2.getTssPublicKey();
+
+      assert.equal(tssPubKeyIndex0.x.toString("hex"), tssPubKeyIndexPost0.x.toString("hex"));
+      assert.equal(tssPubKeyIndex1.x.toString("hex"), tssPubKeyIndexPost1.x.toString("hex"));
+      assert.equal(tssPubKeyIndex99.x.toString("hex"), tssPubKeyIndexPost99.x.toString("hex"));
+
+      assert.equal(tssPubKeyIndex0.y.toString("hex"), tssPubKeyIndexPost0.y.toString("hex"));
+      assert.equal(tssPubKeyIndex1.y.toString("hex"), tssPubKeyIndexPost1.y.toString("hex"));
+      assert.equal(tssPubKeyIndex99.y.toString("hex"), tssPubKeyIndexPost99.y.toString("hex"));
+
+      assert.equal(tssPubKey2IndexPost0.x.toString("hex"), tssPubKeyIndex0.x.toString("hex"));
+      assert.equal(tssPubKey2IndexPost1.x.toString("hex"), tssPubKeyIndex1.x.toString("hex"));
+      assert.equal(tssPubKey2IndexPost99.x.toString("hex"), tssPubKeyIndex99.x.toString("hex"));
+
+      assert.equal(tssPubKey2IndexPost0.y.toString("hex"), tssPubKeyIndex0.y.toString("hex"));
+      assert.equal(tssPubKey2IndexPost1.y.toString("hex"), tssPubKeyIndex1.y.toString("hex"));
+      assert.equal(tssPubKey2IndexPost99.y.toString("hex"), tssPubKeyIndex99.y.toString("hex"));
 
       // new instance
       const instance3 = await newInstance();
