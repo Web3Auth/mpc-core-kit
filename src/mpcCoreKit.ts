@@ -641,10 +641,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return Buffer.from(tssPubKey);
   };
 
-  public getNonce = () => {
-    return this.tkey.computeAccountNonce(this.state.accountIndex);
-  };
-
   public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {
     // if (this.state.remoteClient) {
     //   return this.remoteSign(msgHash);
@@ -1227,4 +1223,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     return result.json();
   }
+
+  private getNonce = () => {
+    return this.tkey.computeAccountNonce(this.state.accountIndex);
+  };
 }
