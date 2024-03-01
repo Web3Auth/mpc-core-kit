@@ -18,7 +18,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
     t.before(async () => {
       const instance = await newCoreKitLogInInstance({
         network: WEB3AUTH_NETWORK.DEVNET,
-        manualSync: testVariable.manualSync,
+        manualSync: false,
         email: testVariable.email,
       });
       await criticalResetAccount(instance);
@@ -64,6 +64,10 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         shareType: TssShareType.RECOVERY,
       });
 
+      if (testVariable.manualSync) {
+        await coreKitInstance.commitChanges();
+      }
+
       const exportedTssKey1 = await coreKitInstance._UNSAFE_exportTssKey();
       // recover key
       // reinitalize corekit
@@ -100,10 +104,34 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       await coreKitInstance2.loginWithJWT(newIdTokenLoginParams);
 
       const exportedTssKey = await coreKitInstance2._UNSAFE_exportTssKey();
-      criticalResetAccount(coreKitInstance2);
       BrowserStorage.getInstance("memory").resetStore();
 
       assert.strictEqual(exportedTssKey, recoveredTssKey);
+
+      // reinitialize corekit
+      const newEmail3 = testVariable.importKeyEmail;
+      const newLogin3 = await mockLogin(newEmail);
+
+      const newIdTokenLoginParams3 = {
+        verifier: "torus-test-health",
+        verifierId: newLogin3.parsedToken.email,
+        idToken: newLogin3.idToken,
+      } as IdTokenLoginParams;
+
+      const coreKitInstance3 = new Web3AuthMPCCoreKit({
+        web3AuthClientId: "torus-key-test",
+        web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
+        baseUrl: "http://localhost:3000",
+        uxMode: "nodejs",
+        tssLib: TssLib,
+        storageKey: "memory",
+      });
+
+      await coreKitInstance3.init();
+      await coreKitInstance3.loginWithJWT(newIdTokenLoginParams3);
+
+      const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey();
+      console.log(exportedTssKey3);
     });
 
     t.afterEach(function () {
@@ -115,7 +143,10 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
   });
 };
 
-const variable: ImportKeyTestVariable[] = [{ manualSync: false, email: "emailexport", importKeyEmail: "emailimport" }];
+const variable: ImportKeyTestVariable[] = [
+  { manualSync: false, email: "emailexport", importKeyEmail: "emailimport" },
+  { manualSync: true, email: "emailexport", importKeyEmail: "emailimport" },
+];
 
 variable.forEach(async (testVariable) => {
   await ImportTest(testVariable);
