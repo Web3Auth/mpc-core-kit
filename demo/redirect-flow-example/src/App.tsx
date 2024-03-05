@@ -10,7 +10,7 @@ import { BN } from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
 
-
+import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
   if (el) {
@@ -92,15 +92,20 @@ function App() {
         await coreKitInstance.handleRedirectResult();
       }
 
-      if (coreKitInstance.provider) {
-        setProvider(coreKitInstance.provider);
-      } else {
-        if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-          coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then(() => {
-            setProvider(coreKitInstance.provider);
-          });
-        }
-      }
+      // if (coreKitInstance.provider) {
+      //   setProvider(coreKitInstance.provider);
+      // } else {
+      //   if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      //     coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then(() => {
+      //       setProvider(coreKitInstance.provider);
+      //     });
+      //   }
+      // }
+
+      const ethProvider = new EthereumSigningProvider({ config: { chainConfig : DEFAULT_CHAIN_CONFIG} });
+      await ethProvider.setupProvider(coreKitInstance)
+      setProvider(ethProvider.provider);
+    
 
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
         uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
