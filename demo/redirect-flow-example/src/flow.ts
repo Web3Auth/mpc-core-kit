@@ -30,7 +30,7 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
         verifier: params.verifier,
         verifierId: params.verifierId,
         idToken: params.idToken,
-    }, { prefetchTssPublicKeys: 3});
+    }, { prefetchTssPublicKeys: 2});
 
     let loggedInTime = Date.now();
     console.log("logged Time :", loggedInTime);
