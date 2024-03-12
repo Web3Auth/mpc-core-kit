@@ -164,12 +164,23 @@ function App() {
         setProvider(coreKitInstance.provider);
       }
       else {
-        coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
+        if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+          coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
           
-          setProvider(coreKitInstance.provider);
-        });
+            setProvider(coreKitInstance.provider);
+          });
+        }
       }
       setCoreKitStatus(coreKitInstance.status);
+
+
+      try {
+        let result = securityQuestion.getQuestion(coreKitInstance!);
+        setQuestion(result);
+      } catch (e) {
+        setQuestion(undefined);
+        uiConsole(e);
+      }
     } catch (error: unknown) {
       console.error(error);
     }
@@ -225,7 +236,11 @@ function App() {
       throw new Error("backupFactorKey not found");
     }
     const factorKey = new BN(backupFactorKey, "hex")
+    console.log(factorKey)
     await coreKitInstance.inputFactorKey(factorKey);
+    console.log(coreKitInstance)
+
+    setCoreKitStatus(coreKitInstance.status);
 
     if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
       uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
@@ -233,6 +248,8 @@ function App() {
 
     if (coreKitInstance.provider) {
       setProvider(coreKitInstance.provider);
+    } else if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      await coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG })
     }
   }
 
