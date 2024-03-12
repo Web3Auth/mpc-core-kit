@@ -1,6 +1,5 @@
 
-import { getPubKeyPoint } from "@tkey-mpc/common-types";
-import { WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit, TssSecurityQuestion, getHashedPrivateKey } from "@web3auth/mpc-core-kit";
+import { WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit, TssSecurityQuestion } from "@web3auth/mpc-core-kit";
 import BN from "bn.js";
 
 export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, manualSync: boolean, setupProviderOnInit: boolean, verifier: string, verifierId: string, idToken: string }) => {
@@ -15,6 +14,7 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
           uxMode: 'redirect',
           manualSync: params.manualSync,
           setupProviderOnInit: params.setupProviderOnInit,
+          disableHashedFactorKey: true,
         }
     );
     // init can be called before login is triggered, should it is excluded from the login time
@@ -48,25 +48,11 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
     console.log("SQ time", SqFactorTime);
     console.log(SqFactorTime - loggedInTime);
 
-    let securityFactor = await securityQuestion.recoverFactor(coreKitInstance, "answer");
-
-
-    // update current Factor key with security factor
-    await coreKitInstance.inputFactorKey(new BN(securityFactor, "hex"));
-    // enable mfa ( by deleting Hash Factor )
-    const hashFactor = getHashedPrivateKey(coreKitInstance.state.oAuthKey!, web3AuthClientId)
-    const hashedFactorPub = getPubKeyPoint(hashFactor);
-    await coreKitInstance.deleteFactor(hashedFactorPub, hashFactor);
-
-    let deletedFactorTime = Date.now();
-    console.log("deleted hash factor (enableMFA)", deletedFactorTime);
-    console.log(deletedFactorTime - SqFactorTime);
-
     await coreKitInstance.commitChanges();
 
     let commitTime = Date.now();
     console.log("commit :", commitTime);
-    console.log(commitTime - deletedFactorTime);
+    console.log(commitTime - SqFactorTime);
 
     console.log("total login time", commitTime - startTime);
     
