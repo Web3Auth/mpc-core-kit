@@ -46,7 +46,6 @@ import {
   InitParams,
   MPCKeyDetails,
   OauthLoginParams,
-  ServiceProviderLoginResponse,
   SessionData,
   SubVerifierDetailsParams,
   UserInfo,
@@ -398,7 +397,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         prefetchTssPubs.push(this.tkey.serviceProvider.getTSSPubKey("default", i));
       }
       // oAuth login.
-      let loginResponse: ServiceProviderLoginResponse;
+      let loginResponse: TorusKey;
       if (!idTokenLoginParams.subVerifier) {
         // single verifier login.
         loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).customAuthInstance.getTorusKey(
@@ -1165,14 +1164,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.providerProxy = null;
   }
 
-  private _getOAuthKey(result: ServiceProviderLoginResponse): string {
-    // TODO: change param type to TorusKey after tkey/service-provider-torus update
-    // this is the temporary fix before updating the tKey/servie-provider-torus with torus.js@v12.2.0
-    // torus.js@v12.2.0 added new property to the TorusKey metadata interface (serverTimeOffset)
-    const torusKey: TorusKey = {
-      ...result,
-      metadata: { ...result.metadata, serverTimeOffset: this.options.serverTimeOffset },
-    };
+  private _getOAuthKey(result: TorusKey): string {
     return TorusUtils.getPostboxKey(result);
   }
 
