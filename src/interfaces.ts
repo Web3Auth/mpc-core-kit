@@ -5,8 +5,6 @@ import type {
   ExtraParams,
   LoginWindowResponse,
   SubVerifierDetails,
-  TorusAggregateLoginResponse,
-  TorusLoginResponse,
   TorusVerifierResponse,
   UX_MODE_TYPE,
   WebAuthnExtraParams,
