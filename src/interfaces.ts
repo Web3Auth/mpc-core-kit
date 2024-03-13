@@ -5,6 +5,8 @@ import type {
   ExtraParams,
   LoginWindowResponse,
   SubVerifierDetails,
+  TorusAggregateLoginResponse,
+  TorusLoginResponse,
   TorusVerifierResponse,
   UX_MODE_TYPE,
   WebAuthnExtraParams,
@@ -394,6 +396,8 @@ export interface Web3AuthOptions {
    * Setup Provider after `login success` reconstruct.
    */
   setupProviderOnInit?: boolean;
+
+  serverTimeOffset?: number;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
@@ -410,3 +414,8 @@ export interface SessionData {
 export interface TkeyLocalStoreData {
   factorKey: string;
 }
+
+// TODO: remove when tkey/service-provider-torus with updated with latest version of torus.js
+// make given properties in the interface, optional
+export type Optional<T, K extends keyof T> = Pick<Partial<T>, K> & Omit<T, K>;
+export type ServiceProviderLoginResponse = Optional<TorusAggregateLoginResponse, "userInfo"> | Optional<TorusLoginResponse, "userInfo">;

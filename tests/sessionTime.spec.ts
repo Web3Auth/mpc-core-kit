@@ -5,8 +5,8 @@ import test from "node:test";
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import * as TssLib from "@toruslabs/tss-lib-node";
 
-import { WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
-import { mockLogin } from "./setup";
+import { COREKIT_STATUS, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -37,10 +37,8 @@ const variable: TestVariable[] = [
   },
 ];
 
-// eslint-disable-next-line mocha/no-global-tests
-test("#VariableSessionTime test", async (t) => {
-  await t.test("`sessionTime` provided and `SESSION_TOKEN_DURATION` should be equal, [devnet]", async function () {
-    const { web3AuthNetwork, uxMode, manualSync, email, web3ClientID: web3AuthClientId, sessionTime } = variable[0];
+variable.forEach((testVariable) => {
+  const { web3AuthNetwork, uxMode, manualSync, email, web3ClientID: web3AuthClientId, sessionTime } = variable[0];
     const coreKitInstance = new Web3AuthMPCCoreKit({
       web3AuthClientId,
       web3AuthNetwork,
@@ -52,54 +50,37 @@ test("#VariableSessionTime test", async (t) => {
       sessionTime,
     });
 
-    const { idToken, parsedToken } = await mockLogin(email);
-
-    await coreKitInstance.init({ handleRedirectResult: false });
-
-    await coreKitInstance.loginWithJWT({
-      verifier: "torus-test-health",
-      verifierId: parsedToken.email,
-      idToken,
+  test(`#Variable SessionTime test :  ${JSON.stringify({sessionTime: testVariable.sessionTime})}`, async (t) => {
+    t.before(async function () {
+      if (coreKitInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(coreKitInstance);
     });
 
-    coreKitInstance.signatures.forEach((sig) => {
-      const parsedSig = JSON.parse(sig);
-      const parsedSigData = JSON.parse(atob(parsedSig.data));
-
-      const sessionTimeDiff = parsedSigData.exp - Math.floor(Date.now() / 1000);
-      assert.strictEqual(sessionTimeDiff, sessionTime);
-    });
-  });
-
-  await t.test("`sessionTime` provided and `SESSION_TOKEN_DURATION` should be equal, [mainnet]", async function () {
-    const { web3AuthNetwork, uxMode, manualSync, email, web3ClientID: web3AuthClientId, sessionTime } = variable[1];
-    const coreKitInstance = new Web3AuthMPCCoreKit({
-      web3AuthClientId,
-      web3AuthNetwork,
-      baseUrl: "http://localhost:3000",
-      uxMode,
-      tssLib: TssLib,
-      storageKey: "memory",
-      manualSync,
-      sessionTime,
+    t.after(async function () {
+      // after all test tear down
     });
 
-    const { idToken, parsedToken } = await mockLogin(email);
+    await t.test("`sessionTime` should be equal to `sessionTokenDuration` from #Login", async function () {
+      // mocklogin
+      const { idToken, parsedToken } = await mockLogin(email);
 
-    await coreKitInstance.init({ handleRedirectResult: false });
+      await coreKitInstance.init({ handleRedirectResult: false });
 
-    await coreKitInstance.loginWithJWT({
-      verifier: "torus-test-health",
-      verifierId: parsedToken.email,
-      idToken,
-    });
+      await coreKitInstance.loginWithJWT({
+        verifier: "torus-test-health",
+        verifierId: parsedToken.email,
+        idToken,
+      });
 
-    coreKitInstance.signatures.forEach((sig) => {
-      const parsedSig = JSON.parse(sig);
-      const parsedSigData = JSON.parse(atob(parsedSig.data));
+      coreKitInstance.signatures.forEach((sig) => {
+        const parsedSig = JSON.parse(sig);
+        const parsedSigData = JSON.parse(atob(parsedSig.data));
 
-      const sessionTimeDiff = parsedSigData.exp - Math.floor(Date.now() / 1000);
-      assert.strictEqual(sessionTimeDiff, sessionTime);
+        const sessionTokenDuration = parsedSigData.exp - Math.floor(Date.now() / 1000);
+        // in success case, sessionTimeDiff (diff between provided sessionTime and generated session token duration from sss-service)
+        // should not be more than 3s(supposed 3s as the network latency)
+        const sessionTimeDiff = Math.abs(sessionTokenDuration - sessionTime);
+        assert.strictEqual(sessionTimeDiff <= 3, true);
+      });
     });
   });
 });

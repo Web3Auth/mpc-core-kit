@@ -46,6 +46,7 @@ import {
   InitParams,
   MPCKeyDetails,
   OauthLoginParams,
+  ServiceProviderLoginResponse,
   SessionData,
   SubVerifierDetailsParams,
   UserInfo,
@@ -116,6 +117,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     if (!options.sessionTime) options.sessionTime = 86400;
+    if (!options.serverTimeOffset) options.serverTimeOffset = 0; // ms
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
@@ -396,7 +398,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         prefetchTssPubs.push(this.tkey.serviceProvider.getTSSPubKey("default", i));
       }
       // oAuth login.
-      let loginResponse: TorusKey;
+      let loginResponse: ServiceProviderLoginResponse;
       if (!idTokenLoginParams.subVerifier) {
         // single verifier login.
         loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).customAuthInstance.getTorusKey(
@@ -1163,7 +1165,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.providerProxy = null;
   }
 
-  private _getOAuthKey(result: TorusKey): string {
+  private _getOAuthKey(result: ServiceProviderLoginResponse): string {
+    // TODO: change param type to TorusKey after tkey/service-provider-torus update
+    // this is the temporary fix before updating the tKey/servie-provider-torus with torus.js@v12.2.0
+    // torus.js@v12.2.0 added new property to the TorusKey metadata interface (serverTimeOffset)
+    const torusKey: TorusKey = {
+      ...result,
+      metadata: { ...result.metadata, serverTimeOffset: this.options.serverTimeOffset },
+    };
     return TorusUtils.getPostboxKey(result);
   }
 
