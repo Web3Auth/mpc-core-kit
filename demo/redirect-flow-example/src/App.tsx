@@ -191,8 +191,7 @@ function App() {
       if (!mockEmail) {
         throw new Error('mockEmail not found');
       }
-      const { idToken, parsedToken } = await mockLogin(mockEmail);
-      await flow({ selectedNetwork, manualSync: true, setupProviderOnInit: false,  verifier: 'torus-test-health', verifierId: parsedToken.email, idToken });
+      await flow({ selectedNetwork, manualSync: true, setupProviderOnInit: false,  verifier: 'torus-test-health', verifierId: mockEmail });
     }
     catch (error: unknown) {
       console.error(error);
