@@ -61,7 +61,7 @@ export const VALID_SHARE_INDICES = [TssShareType.DEVICE, TssShareType.RECOVERY];
 
 export const SCALAR_LEN = 32; // Length of secp256k1 scalar in bytes.
 export const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
-export const CURVE = new EllipticCurve("secp256k1");
+export const CURVE_SECP256K1 = new EllipticCurve("secp256k1");
 
 export const MAX_FACTORS = 10; // Maximum number of factors that can be added to an account.
 export const SOCIAL_TKEY_INDEX = 1;

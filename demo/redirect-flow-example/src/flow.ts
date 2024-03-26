@@ -1,4 +1,6 @@
 
+import { KeyType } from "@tkey/common-types";
+import { wasm } from "@toruslabs/tss-frost-client-wasm";
 import { WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit, TssSecurityQuestion } from "@web3auth/mpc-core-kit";
 
 export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, manualSync: boolean, setupProviderOnInit: boolean, verifier: string, verifierId: string, idToken: string }) => {
@@ -12,6 +14,8 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
           uxMode: 'redirect',
           manualSync: params.manualSync,
           setupProviderOnInit: params.setupProviderOnInit,
+          tssKeyType: KeyType.ed25519,
+          tssWasmURL: wasm,
         }
     );
     

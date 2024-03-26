@@ -1,13 +1,13 @@
-import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey-mpc/common-types";
-import ThresholdKey from "@tkey-mpc/core";
+import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
   LoginWindowResponse,
+  PasskeyExtraParams,
   SubVerifierDetails,
   TorusVerifierResponse,
   UX_MODE_TYPE,
-  WebAuthnExtraParams,
 } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
@@ -75,6 +75,7 @@ export type MPCKeyDetails = {
   totalFactors: number;
   shareDescriptions: ShareDescriptionMap;
   tssPubKey?: TkeyPoint;
+  tssKeyType: string;
 };
 
 export type OauthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
@@ -126,7 +127,7 @@ export interface IdTokenLoginParams {
   /**
    * Extra verifier params in case of a WebAuthn verifier type.
    */
-  extraVerifierParams?: WebAuthnExtraParams;
+  extraVerifierParams?: PasskeyExtraParams;
 
   /**
    * Any additional parameter (key value pair) you'd like to pass to the login function.
@@ -154,7 +155,7 @@ export interface ICoreKit {
    * The tKey instance, if initialized.
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
-  tKey: ThresholdKey | null;
+  tKey: TKeyTSS | null;
 
   /**
    * Provider for making the blockchain calls.
@@ -276,6 +277,16 @@ export interface Web3AuthOptions {
    * The Web3Auth Client ID for your application. Find one at https://dashboard.web3auth.io
    */
   web3AuthClientId: string;
+
+  /**
+   * The type of the signing key (e.g., `secp256k1`, `ed25519`).
+   */
+  tssKeyType: KeyType;
+
+  /**
+   * The URL of the WASM client library.
+   */
+  tssWasmURL: URL;
 
   /**
    * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.
