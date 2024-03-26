@@ -1,4 +1,4 @@
-import { Point as TkeyPoint } from "@tkey-mpc/common-types";
+import { Point as TkeyPoint } from "@tkey/common-types";
 import type { BNString } from "@toruslabs/torus.js";
 import BN from "bn.js";
 import { curve } from "elliptic";

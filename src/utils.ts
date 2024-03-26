@@ -1,5 +1,5 @@
-import { getPubKeyPoint, Point, Point as TkeyPoint, randomSelection } from "@tkey-mpc/common-types";
-import ThresholdKey from "@tkey-mpc/core";
+import { getPubKeyPoint, Point, Point as TkeyPoint } from "@tkey/common-types";
+import { randomSelection, TKeyTSS } from "@tkey/tss";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
@@ -74,7 +74,7 @@ export function parseToken(token: string) {
  * @param signatures - Signatures for authentication against RSS servers.
  */
 async function refreshTssShares(
-  tKey: ThresholdKey,
+  tKey: TKeyTSS,
   factorPubs: Point[],
   tssIndices: number[],
   factorKeyForExistingTSSShare: BN,
@@ -101,7 +101,7 @@ async function refreshTssShares(
 }
 
 export async function addFactorAndRefresh(
-  tKey: ThresholdKey,
+  tKey: TKeyTSS,
   newFactorPub: Point,
   newFactorTSSIndex: number,
   factorKeyForExistingTSSShare: BN,
@@ -126,7 +126,7 @@ export async function addFactorAndRefresh(
   await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
 }
 
-export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDelete: Point, factorKeyForExistingTSSShare: BN, signatures: string[]) {
+export async function deleteFactorAndRefresh(tKey: TKeyTSS, factorPubToDelete: Point, factorKeyForExistingTSSShare: BN, signatures: string[]) {
   if (!tKey) {
     throw new Error("tkey does not exist, cannot add factor pub");
   }

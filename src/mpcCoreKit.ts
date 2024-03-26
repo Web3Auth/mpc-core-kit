@@ -1,9 +1,10 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 import { createSwappableProxy, SwappableProxy } from "@metamask/swappable-obj-proxy";
+import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
+import { CoreError, lagrangeInterpolation } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
-import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType} from "@tkey/common-types";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import { TKeyTSS } from "@tkey/tss";
+import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
@@ -62,8 +63,6 @@ import {
   parseToken,
   scalarBNToBufferSEC1,
 } from "./utils";
-import { CoreError, lagrangeInterpolation } from "@tkey/core";
-import { TSSTorusServiceProvider } from "@tkey/tss";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
@@ -395,16 +394,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       let loginResponse: TorusKey;
       if (!idTokenLoginParams.subVerifier) {
         // single verifier login.
-        loginResponse = await this.torusSp.customAuthInstance.getTorusKey(
-          verifier,
-          verifierId,
-          { verifier_id: verifierId },
-          idToken,
-          {
-            ...idTokenLoginParams.extraVerifierParams,
-            ...idTokenLoginParams.additionalParams,
-          }
-        );
+        loginResponse = await this.torusSp.customAuthInstance.getTorusKey(verifier, verifierId, { verifier_id: verifierId }, idToken, {
+          ...idTokenLoginParams.extraVerifierParams,
+          ...idTokenLoginParams.additionalParams,
+        });
         this.torusSp.verifierType = "normal";
       } else {
         // aggregate verifier login
@@ -677,10 +670,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const clientIndex = parties - 1;
     // 1. setup
     // generate endpoints for servers
-    const { nodeIndexes } = await this.torusSp.getTSSPubKey(
-      this.tKey.tssTag,
-      this.tKey.metadata.tssNonces[this.tKey.tssTag]
-    );
+    const { nodeIndexes } = await this.torusSp.getTSSPubKey(this.tKey.tssTag, this.tKey.metadata.tssNonces[this.tKey.tssTag]);
     const {
       endpoints,
       tssWSEndpoints,

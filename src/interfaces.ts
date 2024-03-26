@@ -1,5 +1,5 @@
-import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey-mpc/common-types";
-import ThresholdKey from "@tkey-mpc/core";
+import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
@@ -154,7 +154,7 @@ export interface ICoreKit {
    * The tKey instance, if initialized.
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
-  tKey: ThresholdKey | null;
+  tKey: TKeyTSS | null;
 
   /**
    * Provider for making the blockchain calls.
