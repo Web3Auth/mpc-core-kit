@@ -1,10 +1,9 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 import { createSwappableProxy, SwappableProxy } from "@metamask/swappable-obj-proxy";
-import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey-mpc/common-types";
-import ThresholdKey, { CoreError, lagrangeInterpolation } from "@tkey-mpc/core";
-import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
-import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
-import { TorusStorageLayer } from "@tkey-mpc/storage-layer-torus";
+import { ShareSerializationModule } from "@tkey/share-serialization";
+import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType} from "@tkey/common-types";
+import { TorusStorageLayer } from "@tkey/storage-layer-torus";
+import { TKeyTSS } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
@@ -63,6 +62,8 @@ import {
   parseToken,
   scalarBNToBufferSEC1,
 } from "./utils";
+import { CoreError, lagrangeInterpolation } from "@tkey/core";
+import { TSSTorusServiceProvider } from "@tkey/tss";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
@@ -71,11 +72,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private providerProxy: SwappableProxy<SafeEventEmitterProvider> | null = null;
 
-  private torusSp: TorusServiceProvider | null = null;
+  private torusSp: TSSTorusServiceProvider | null = null;
 
   private storageLayer: TorusStorageLayer | null = null;
 
-  private tkey: ThresholdKey | null = null;
+  private tkey: TKeyTSS | null = null;
 
   private sessionManager!: OpenloginSessionManager<SessionData>;
 
@@ -146,7 +147,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     asyncConstructor();
   }
 
-  get tKey(): ThresholdKey {
+  get tKey(): TKeyTSS {
     if (this.tkey === null) throw new Error("Tkey not initialized");
     return this.tkey;
   }
@@ -253,8 +254,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("error getting node details, please try again!");
     }
 
-    this.torusSp = new TorusServiceProvider({
-      useTSS: true,
+    this.torusSp = new TSSTorusServiceProvider({
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
         baseUrl: this.options.baseUrl,
@@ -263,8 +263,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
       },
-      nodeEndpoints: nodeDetails.torusNodeEndpoints,
-      nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
     });
 
     this.storageLayer = new TorusStorageLayer({
@@ -274,7 +272,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const shareSerializationModule = new ShareSerializationModule();
 
-    this.tkey = new ThresholdKey({
+    this.tkey = new TKeyTSS({
       enableLogging: this.enableLogging,
       serviceProvider: this.torusSp,
       storageLayer: this.storageLayer,
@@ -285,9 +283,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
 
     if (this.isRedirectMode) {
-      await (this.tKey.serviceProvider as TorusServiceProvider).init({ skipSw: true, skipPrefetch: true });
+      await this.torusSp.init({ skipSw: true, skipPrefetch: true });
     } else if (this.options.uxMode === UX_MODE.POPUP) {
-      await (this.tKey.serviceProvider as TorusServiceProvider).init({});
+      await this.torusSp.init({});
     }
     this.ready = true;
 
@@ -326,7 +324,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.checkReady();
     if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
     const { importTssKey } = params;
-    const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
+    const tkeyServiceProvider = this.torusSp;
     try {
       // oAuth login.
       const verifierParams = params as SubVerifierDetailsParams;
@@ -385,19 +383,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const { importTssKey } = idTokenLoginParams;
     const { verifier, verifierId, idToken } = idTokenLoginParams;
 
-    (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
-    (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
+    this.torusSp.verifierName = verifier;
+    this.torusSp.verifierId = verifierId;
     try {
       // prefetch tss pub key
       const prefetchTssPubs = [];
       for (let i = 0; i < opt.prefetchTssPublicKeys; i++) {
-        prefetchTssPubs.push(this.tkey.serviceProvider.getTSSPubKey("default", i));
+        prefetchTssPubs.push(this.torusSp.getTSSPubKey("default", i));
       }
       // oAuth login.
       let loginResponse: TorusKey;
       if (!idTokenLoginParams.subVerifier) {
         // single verifier login.
-        loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).customAuthInstance.getTorusKey(
+        loginResponse = await this.torusSp.customAuthInstance.getTorusKey(
           verifier,
           verifierId,
           { verifier_id: verifierId },
@@ -407,18 +405,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
             ...idTokenLoginParams.additionalParams,
           }
         );
-        (this.tKey.serviceProvider as TorusServiceProvider).verifierType = "normal";
+        this.torusSp.verifierType = "normal";
       } else {
         // aggregate verifier login
-        loginResponse = await (this.tKey.serviceProvider as TorusServiceProvider).customAuthInstance.getAggregateTorusKey(verifier, verifierId, [
+        loginResponse = await this.torusSp.customAuthInstance.getAggregateTorusKey(verifier, verifierId, [
           { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
         ]);
-        (this.tKey.serviceProvider as TorusServiceProvider).verifierType = "aggregate";
+        this.torusSp.verifierType = "aggregate";
       }
 
       const oAuthShare = this._getOAuthKey(loginResponse);
 
-      (this.tKey.serviceProvider as TorusServiceProvider).postboxKey = new BN(oAuthShare, "hex");
+      this.torusSp.postboxKey = new BN(oAuthShare, "hex");
 
       this.updateState({
         oAuthKey: oAuthShare,
@@ -679,7 +677,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const clientIndex = parties - 1;
     // 1. setup
     // generate endpoints for servers
-    const { nodeIndexes } = await (this.tKey.serviceProvider as TorusServiceProvider).getTSSPubKey(
+    const { nodeIndexes } = await this.torusSp.getTSSPubKey(
       this.tKey.tssTag,
       this.tKey.metadata.tssNonces[this.tKey.tssTag]
     );
@@ -758,7 +756,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
       keyDesc.forEach(async (desc) => {
-        await this.tKey?.deleteShareDescription(factorPubHex, desc);
+        await this.tKey?.metadata.deleteShareDescription(factorPubHex, desc);
       });
     }
 
@@ -894,7 +892,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const factorPub = getPubKeyPoint(factorKey);
       if (!importTssKey) {
         const deviceTSSShare = new BN(generatePrivate());
-        await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
+        await this.tKey.initialize({ factorPub, deviceTSSShare, deviceTSSIndex });
       } else {
         await this.tKey.initialize();
         await this.tKey.reconstructKey();
