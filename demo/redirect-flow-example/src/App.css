@@ -19,19 +19,91 @@
 	font-size: 3rem;
 	text-align: center;
 	margin: 50px;
+	margin-bottom: 0;
 }
 
 .subtitle {
 	line-height: 1.15;
-	font-size: 1.5rem;
+	font-size: 2.5rem;
 	text-align: center;
-	margin: 10px;
+	margin: 20px;
 }
 
 .title a {
-	color: #0070f3;
 	text-decoration: none;
 }
+
+.title .first{
+	color: #0364ff;
+}
+
+.title .second{
+	color: #bb65ff;
+}
+
+.input {
+	width: 50%;
+	padding: 8px 12px;
+	font-size: 16px;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	outline: none;
+}
+  
+.input:focus {
+	border-color: #0364ff;
+}
+
+.input:valid {
+	border-color: #0364ff; /* Green border for valid input */
+}
+
+.input:invalid {
+	border-color: #dc3545; /* Red border for invalid input */
+}
+
+.input-wrapper {
+	display: flex;
+	align-items: center;
+}
+  
+.inputMock {
+	flex: 1;
+	padding: 8px 12px;
+	font-size: 16px;
+	border: 1px solid #ccc;
+	border-radius: 4px;
+	outline: none;
+	min-width: 300px;
+}
+  
+.mockLoginBtn {
+	padding: 8px 12px;
+	font-size: 16px;
+	border: 1px solid #0364ff;
+	border-radius: 4px;
+	background-color: #ffffff;
+	color: #0364ff;
+	cursor: pointer;
+	margin-left: 10px;
+}
+  
+.mockLoginBtn:hover {
+	background-color: #0364ff;
+	color: #ffffff;
+}
+
+.deleteSecurityQuestion{
+	border-color: #dc3545 !important;
+	color: #dc3545 !important;
+}
+
+.deleteSecurityQuestion:hover{
+	background-color: #dd4554 !important;
+	color: #ffffff !important;
+	border-color: #dc3545 !important;
+}
+  
 
 .grid {
 	display: flex;
@@ -56,7 +128,8 @@
 .card:focus,
 .card:active {
 	cursor: pointer;
-	background-color: #f1f1f1;
+	background-color: #0070f3;
+	color: #ffffff;
 }
 
 .footer {
