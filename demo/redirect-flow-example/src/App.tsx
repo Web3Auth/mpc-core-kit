@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
@@ -27,13 +27,26 @@ const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
 //   setupProvdiverOnInit: false,
 // }
 
+const newChainConfig = {
+  chainId: "0xaa36a7", // for wallet connect make sure to pass in this chain in the loginSettings of the adapter.
+  displayName: "Ethereum Sepolia",
+  chainNamespace: CHAIN_NAMESPACES.EIP155,
+  tickerName: "Ethereum Sepolia",
+  ticker: "ETH",
+  decimals: 18,
+  rpcTarget: "https://rpc.ankr.com/eth_sepolia",
+  blockExplorer: "https://sepolia.etherscan.io",
+  logo: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+};
+
 const coreKitInstance = new Web3AuthMPCCoreKit(
   {
     web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
     web3AuthNetwork: selectedNetwork,
     uxMode: 'redirect',
     manualSync: true,
-    setupProviderOnInit: false
+    setupProviderOnInit: false,
+    chainConfig: newChainConfig
   }
 );
 
@@ -87,12 +100,12 @@ function App() {
       if (window.location.hash.includes("#state")) {
         await coreKitInstance.handleRedirectResult();
       }
-
       if (coreKitInstance.provider) {
+        console.log("coreKitInstance.provider", coreKitInstance.provider)
         setProvider(coreKitInstance.provider);
       } else {
         if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-          coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then(() => {
+          coreKitInstance.setupProvider({ chainConfig: newChainConfig }).then(() => {
             setProvider(coreKitInstance.provider);
           });
         }
@@ -159,7 +172,7 @@ function App() {
         setProvider(coreKitInstance.provider);
       }
       else {
-        coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
+        coreKitInstance.setupProvider({ chainConfig: newChainConfig }).then((provider) => {
           
           setProvider(coreKitInstance.provider);
         });
@@ -626,7 +639,7 @@ function App() {
         </button>
 
         <button onClick={getAccounts} className="card">
-          Get Accounts
+          Get Current Account
         </button>
 
         <button onClick={() => setTSSWalletIndex(1)} className="card">
