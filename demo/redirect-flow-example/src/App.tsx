@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
@@ -17,6 +17,18 @@ const uiConsole = (...args: any[]): void => {
     el.innerHTML = JSON.stringify(args || {}, null, 2);
   }
   console.log(...args);
+};
+
+const DEFAULT_CHAIN_CONFIG = {
+  chainId: "0xaa36a7", // for wallet connect make sure to pass in this chain in the loginSettings of the adapter.
+  displayName: "Ethereum Sepolia",
+  chainNamespace: CHAIN_NAMESPACES.EIP155,
+  tickerName: "Ethereum Sepolia",
+  ticker: "ETH",
+  decimals: 18,
+  rpcTarget: "https://rpc.ankr.com/eth_sepolia",
+  blockExplorer: "https://sepolia.etherscan.io",
+  logo: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
 };
 
 const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
