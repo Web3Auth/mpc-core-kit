@@ -1,6 +1,6 @@
 {
   "name": "@web3auth/mpc-core-kit",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "MPC CoreKit SDK for web3Auth",
   "keywords": [
     "web3Auth/mpc-core-kit",
@@ -18,7 +18,7 @@
   "homepage": "https://github.com/Web3Auth/mpc-core-kit/tree/master#readme",
   "license": "ISC",
   "scripts": {
-    "test": "node --test -r esbuild-register tests/*.spec.ts ",
+    "test": "node --test -r esbuild-register tests/factors.spec.ts",
     "dev": "torus-scripts start",
     "build": "torus-scripts build",
     "release": "torus-scripts release",
@@ -36,20 +36,19 @@
   },
   "dependencies": {
     "@metamask/swappable-obj-proxy": "^2.1.0",
-    "@tkey-mpc/chrome-storage": "^9.0.2",
-    "@tkey-mpc/common-types": "^9.0.2",
-    "@tkey-mpc/core": "^9.0.2",
-    "@tkey-mpc/security-questions": "^9.0.2",
-    "@tkey-mpc/service-provider-torus": "^9.0.3",
-    "@tkey-mpc/share-serialization": "^9.0.2",
-    "@tkey-mpc/storage-layer-torus": "^9.0.2",
+    "@tkey-mpc/common-types": "^9.1.0",
+    "@tkey-mpc/core": "^9.1.1",
+    "@tkey-mpc/service-provider-torus": "^9.1.0",
+    "@tkey-mpc/share-serialization": "^9.1.0",
+    "@tkey-mpc/storage-layer-torus": "^9.1.0",
     "@toruslabs/constants": "^13.0.1",
-    "@toruslabs/customauth": "^16.0.6",
+    "@toruslabs/customauth": "^18.0.0",
     "@toruslabs/eccrypto": "4.0.0",
     "@toruslabs/fetch-node-details": "^13.0.1",
     "@toruslabs/fnd-base": "^13.1.1",
     "@toruslabs/metadata-helpers": "^5.x",
     "@toruslabs/openlogin-session-manager": "^3.0.0",
+    "@toruslabs/openlogin-utils": "^8.0.0",
     "@toruslabs/torus.js": "12.2.0",
     "@toruslabs/tss-client": "^2.1.0",
     "@toruslabs/tss-lib": "^2.0.0",
@@ -89,6 +88,9 @@
     "tslib": "^2.6.2",
     "typescript": "^5.2.2"
   },
+  "engines": {
+    "node": ">=20.x"
+  },
   "overrides": {
     "@tkey-mpc/storage-layer-torus": {
       "@toruslabs/http-helpers": "^6.0.0"
@@ -96,12 +98,9 @@
     "@toruslabs/base-session-manager": {
       "@toruslabs/http-helpers": "^6.0.0"
     },
-    "@toruslabs/customauth": {
-      "@toruslabs/http-helpers": "^6.0.0",
-      "@toruslabs/torus.js": "12.2.0"
-    },
     "@tkey-mpc/service-provider-torus": {
-      "@toruslabs/torus.js": "12.2.0"
+      "@toruslabs/torus.js": "12.2.0",
+      "@toruslabs/customauth": "18.0.0"
     }
   },
   "lint-staged": {

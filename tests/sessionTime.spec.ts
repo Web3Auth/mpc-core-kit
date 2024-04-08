@@ -39,24 +39,25 @@ const variable: TestVariable[] = [
 
 variable.forEach((testVariable) => {
   const { web3AuthNetwork, uxMode, manualSync, email, web3ClientID: web3AuthClientId, sessionTime } = variable[0];
-    const coreKitInstance = new Web3AuthMPCCoreKit({
-      web3AuthClientId,
-      web3AuthNetwork,
-      baseUrl: "http://localhost:3000",
-      uxMode,
-      tssLib: TssLib,
-      storageKey: "memory",
-      manualSync,
-      sessionTime,
-    });
+  const coreKitInstance = new Web3AuthMPCCoreKit({
+    web3AuthClientId,
+    web3AuthNetwork,
+    baseUrl: "http://localhost:3000",
+    uxMode,
+    tssLib: TssLib,
+    storageKey: "memory",
+    manualSync,
+    sessionTime,
+  });
 
-  test(`#Variable SessionTime test :  ${JSON.stringify({sessionTime: testVariable.sessionTime})}`, async (t) => {
+  test(`#Variable SessionTime test :  ${JSON.stringify({ sessionTime: testVariable.sessionTime })}`, async (t) => {
     t.before(async function () {
       if (coreKitInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(coreKitInstance);
     });
 
     t.after(async function () {
       // after all test tear down
+      await coreKitInstance.logout();
     });
 
     await t.test("`sessionTime` should be equal to `sessionTokenDuration` from #Login", async function () {

@@ -145,6 +145,7 @@ export interface Web3AuthState {
   userInfo?: UserInfo;
   tssShareIndex?: number;
   tssPubKey?: Buffer;
+  accountIndex: number;
   factorKey?: BN;
 }
 

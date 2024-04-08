@@ -65,7 +65,7 @@ import {
 } from "./utils";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
-  public state: Web3AuthState = {};
+  public state: Web3AuthState = { accountIndex: 0 };
 
   private options: Web3AuthOptionsWithDefaults;
 
@@ -508,6 +508,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  public setTssWalletIndex(accountIndex: number) {
+    this.updateState({ tssPubKey: Point.fromTkeyPoint(this.tKey.getTSSPub(accountIndex)).toBufferSEC1(false), accountIndex });
+  }
+
   public getCurrentFactorKey(): IFactorKey {
     this.checkReady();
     if (!this.state.factorKey) throw new Error("factorKey not present");
@@ -523,9 +527,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  // Deprecated soon
+  // use getPublicSync instead
   public getTssPublicKey(): TkeyPoint {
     this.checkReady();
-    return this.tKey.getTSSPub();
+    // pass this optional account index;
+    return this.tKey.getTSSPub(this.state.accountIndex);
   }
 
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
@@ -626,6 +633,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   // function for setting up provider
   public getPublic: () => Promise<Buffer> = async () => {
+    return this.getPublicSync();
+  };
+
+  public getPublicSync: () => Buffer = () => {
     let { tssPubKey } = this.state;
     if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
       tssPubKey = tssPubKey.subarray(1);
@@ -651,7 +662,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
 
     if (!this.state.factorKey) throw new Error("factorKey not present");
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
+    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
+      accountIndex: this.state.accountIndex,
+    });
     const tssNonce = this.getTssNonce();
 
     if (!tssPubKey || !torusNodeTSSEndpoints) {
@@ -713,9 +726,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const serverIndex = participatingServerDKGIndexes[i];
       serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
     }
-
-    client.precompute(tss, { signatures, server_coeffs: serverCoeffs });
-
+    client.precompute(tss, { signatures, server_coeffs: serverCoeffs, nonce: scalarBNToBufferSEC1(this.getNonce()).toString("base64") });
     await client.ready().catch((err) => {
       client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
       throw err;
@@ -789,7 +800,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
     const tkeyDetails = this.tKey.getKeyDetails();
-    const tssPubKey = this.state.tssPubKey ? this.tKey.getTSSPub() : undefined;
+    const tssPubKey = this.state.tssPubKey ? Point.fromBufferSEC1(this.state.tssPubKey).toTkeyPoint() : undefined;
 
     const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
     const keyDetails: MPCKeyDetails = {
@@ -889,6 +900,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.tKey.initialize({ useTSS: true, factorPub, deviceTSSShare, deviceTSSIndex });
       } else {
         await this.tKey.initialize();
+        await this.tKey.reconstructKey();
         await this.importTssKey(importTssKey, factorPub, deviceTSSIndex);
       }
 
@@ -910,14 +922,22 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
         // Initialize tkey with existing hashed share if available.
         const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
-        await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
-        await this.tKey.reconstructKey();
-        await this.finalizeTkey(hashedFactorKey);
+        try {
+          await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
+          await this.tKey.reconstructKey();
+          await this.finalizeTkey(hashedFactorKey);
+        } catch (err) {
+          log.error("error initializing tkey with hashed share", err);
+        }
       }
     }
   }
 
   private async finalizeTkey(factorKey: BN) {
+    if (this.state.accountIndex !== 0) {
+      log.warn("AccountIndex should be 0");
+      this.state.accountIndex = 0;
+    }
     // Read tss meta data.
     const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
     const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
@@ -959,7 +979,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         factorKey: new BN(result.factorKey, "hex"),
         oAuthKey: result.oAuthKey,
         tssShareIndex: result.tssShareIndex,
-        tssPubKey: Buffer.from(result.tssPubKey.padStart(FIELD_ELEMENT_HEX_LEN, "0"), "hex"),
+        tssPubKey: Point.fromTkeyPoint(this.tkey.getTSSPub()).toBufferSEC1(false),
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
@@ -978,7 +998,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.sessionManager.sessionId = sessionId;
       const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
       if (!this.state.factorKey) throw new Error("factorKey not present");
-      const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
+      const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
+        accountIndex: this.state.accountIndex,
+      });
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw new Error("User not logged in");
       }
@@ -1199,8 +1221,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (result.status !== 200) {
       // reset state on no mpc access
       this.resetState();
-      throw new Error("MPC access denied, please subscribe to our plan to use MPC");
+      const errMessage = (await result.json()) as { error: string };
+      throw new Error(errMessage.error);
     }
     return result.json();
   }
+
+  private getNonce = () => {
+    return this.tkey.computeAccountNonce(this.state.accountIndex);
+  };
 }

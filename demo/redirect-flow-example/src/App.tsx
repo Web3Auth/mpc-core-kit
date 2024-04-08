@@ -19,7 +19,7 @@ const uiConsole = (...args: any[]): void => {
   console.log(...args);
 };
 
-const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
+const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
 // performance options
 // const options = {
 //   manualSync: true,
@@ -302,6 +302,13 @@ function App() {
     uiConsole(chainId);
     return chainId;
   };
+
+  const setTSSWalletIndex = async (index=0) => {
+    await coreKitInstance.setTssWalletIndex(index);
+    // log new account details 
+    await getAccounts();
+  }
+
 
   const getAccounts = async () => {
     if (!web3) {
@@ -621,6 +628,16 @@ function App() {
 
         <button onClick={getAccounts} className="card">
           Get Accounts
+        </button>
+
+        <button onClick={() => setTSSWalletIndex(1)} className="card">
+          Switch to wallet index: 1
+        </button>
+        <button onClick={() => setTSSWalletIndex(2)} className="card">
+          Switch to wallet index: 2
+        </button>
+        <button onClick={() => setTSSWalletIndex(0)} className="card">
+          Switch to wallet index: 0/default
         </button>
 
         <button onClick={getBalance} className="card">
