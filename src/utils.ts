@@ -1,6 +1,7 @@
 import { getPubKeyPoint, Point, Point as TkeyPoint, randomSelection } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { safeatob } from "@toruslabs/openlogin-utils";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
@@ -59,9 +60,8 @@ export function storageAvailable(type: string): boolean {
  * @returns Extracted JSON payload from the token
  */
 export function parseToken(token: string) {
-  const base64Url = token.split(".")[1];
-  const base64 = base64Url.replace("-", "+").replace("_", "/");
-  return JSON.parse(atob(base64 || ""));
+  const payload = token.split(".")[1];
+  return JSON.parse(safeatob(payload));
 }
 
 /**
