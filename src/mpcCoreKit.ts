@@ -16,7 +16,7 @@ import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type * as TssLib from "@toruslabs/tss-lib";
 import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
-import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
+import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import BN from "bn.js";
 import bowser from "bowser";
 
