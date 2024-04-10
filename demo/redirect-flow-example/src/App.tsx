@@ -455,6 +455,27 @@ function App() {
     setProvider(null);
   }
 
+  const exportTSSKey = async () => {
+    const { idToken, parsedToken } = await mockLogin(mockEmail!);
+    const verifierName = mockEmail!;
+    const verifierId = parsedToken.email;
+
+    const tssTag = coreKitInstance.tKey.tssTag;
+    const tssNonce = coreKitInstance.tKey.metadata.tssNonces ? coreKitInstance.tKey.metadata.tssNonces[tssTag] : 0;
+    const extendedVerifierID = `${verifierId}\u0015${tssTag}\u0016${tssNonce}`;;
+
+    const torusKey = await coreKitInstance.tKey.serviceProvider.customAuthInstance.getTorusKey(
+      verifierName,
+      verifierId,
+      {
+        verifier_id: verifierId,
+        extended_verifier_id: extendedVerifierID,
+      } as { verifier_id: string }, // Quick fix, because `getTorusKey` doesn't accept `extended_verifier_id` parameter, but will pass it on if provided. Should accept type `VerifierParams` instead.
+      idToken,
+    );
+    uiConsole(torusKey);
+  }
+
   const sendTransaction = async () => {
     if (!web3) {
       uiConsole("web3 not initialized yet");
@@ -556,6 +577,10 @@ function App() {
 
         <button onClick={async () => uiConsole(await coreKitInstance._UNSAFE_exportTssKey())} className="card">
           [CAUTION] Export TSS Private Key
+        </button>
+
+        <button onClick={exportTSSKey} className="card">
+          [CAUTION] Export TSS Private Key 2
         </button>
 
         <button onClick={logout} className="card">
