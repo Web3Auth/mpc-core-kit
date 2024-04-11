@@ -1,10 +1,11 @@
 import { getPubKeyPoint, Point, Point as TkeyPoint } from "@tkey/common-types";
 import { randomSelection, TKeyTSS } from "@tkey/tss";
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { EllipticCurve } from "@toruslabs/elliptic-wrapper";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
-import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import { DELIMITERS, SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -155,11 +156,88 @@ export const getHashedPrivateKey = (postboxKey: string, clientId: string): BN =>
 };
 
 /**
- * Converts a elliptic curve scalar represented by a BN to a byte buffer in SEC1
+ * Converts an elliptic curve scalar represented by a BN to a byte buffer in SEC1
  * format (i.e., padded to maximum length).
  * @param s - The scalar of type BN.
  * @returns The SEC1 encoded representation of the scalar.
  */
 export function scalarBNToBufferSEC1(s: BN): Buffer {
   return s.toArrayLike(Buffer, "be", SCALAR_LEN);
+}
+
+export interface ServerEndpoint {
+  index: number;
+  url: string;
+}
+
+export function sampleEndpoints(endpoints: ServerEndpoint[], n: number): ServerEndpoint[] {
+  if (n > endpoints.length) {
+    throw new Error("Invalid number of endpoints");
+  }
+  const shuffledEndpoints = endpoints.slice().sort(() => Math.random() - 0.5);
+  return shuffledEndpoints.slice(0, n).sort((a, b) => a.index - b.index);
+}
+
+export function fraction(curve: EllipticCurve, nom: BN, denom: BN): BN {
+  return nom.mul(denom.invm(curve.n)).umod(curve.n);
+}
+
+export function lagrangeCoefficient(curve: EllipticCurve, xCoords: BN[], targetCoeff: number, targetX: BN): BN {
+  return xCoords
+    .filter((_, i) => i !== targetCoeff)
+    .reduce((prev, cur) => {
+      const frac = fraction(curve, targetX.sub(cur), xCoords[targetCoeff].sub(cur));
+      return prev.mul(frac).umod(curve.n);
+    }, new BN(1));
+}
+
+export function lagrangeCoefficients(curve: EllipticCurve, xCoords: BN[] | number[], targetX: BN | number): BN[] {
+  const xCoordsBN = xCoords.map((i) => new BN(i));
+  const targetXBN = new BN(targetX);
+  return xCoordsBN.map((_value, i) => lagrangeCoefficient(curve, xCoordsBN, i, targetXBN));
+}
+
+const SERVER_INDEX_L1 = 1;
+const CLIENT_INDEX_L1 = 2;
+
+/**
+ * Derive share coefficients for client and servers.
+ *
+ * @param curve - The curve to be used.
+ * @param serverXCoords - The x-coordinates of the selected servers.
+ * @returns - The share coefficients for the client and the servers, and the
+ * remapped x-coordinate of the client.
+ */
+export function deriveShareCoefficients(
+  ec: EllipticCurve,
+  serverXCoords: number[],
+  clientXCoord: number
+): { serverCoefficients: BN[]; clientCoefficient: BN } {
+  const l1Coefficients = lagrangeCoefficients(ec, [SERVER_INDEX_L1, CLIENT_INDEX_L1], 0);
+  const l2Coefficients = lagrangeCoefficients(ec, serverXCoords, 0);
+
+  if (serverXCoords.includes(clientXCoord)) {
+    throw new Error(`Invalid server x-coordinates: overlapping with client x-coordinate: ${serverXCoords} ${clientXCoord}`);
+  }
+
+  const targetCoefficients = lagrangeCoefficients(ec, [clientXCoord, ...serverXCoords], 0);
+
+  // Derive server coefficients.
+  const serverCoefficients = l2Coefficients.map((coeff, i) => fraction(ec, l1Coefficients[0].mul(coeff), targetCoefficients[i + 1]));
+
+  // Derive client coefficient.
+  const clientCoefficient = fraction(ec, l1Coefficients[1], targetCoefficients[0]);
+
+  return {
+    serverCoefficients,
+    clientCoefficient,
+  };
+}
+
+export function generateSessionNonce() {
+  return keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8"));
+}
+
+export function getSessionId(verifier: string, verifierId: string, tssTag: string, tssNonce: number, sessionNonce: string) {
+  return `${verifier}${DELIMITERS.Delimiter1}${verifierId}${DELIMITERS.Delimiter2}${tssTag}${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}${sessionNonce}`;
 }

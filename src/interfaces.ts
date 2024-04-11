@@ -278,6 +278,11 @@ export interface Web3AuthOptions {
   web3AuthClientId: string;
 
   /**
+   * The type of the signing key (e.g., `secp256k1`, `ed25519`).
+   */
+  tssKeyType: string;
+
+  /**
    * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.
    */
   chainConfig?: CustomChainConfig;

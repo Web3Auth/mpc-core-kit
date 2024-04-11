@@ -9,11 +9,12 @@ import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
-import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
+import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
 import type * as TssLib from "@toruslabs/tss-lib";
 import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
@@ -21,9 +22,8 @@ import BN from "bn.js";
 import bowser from "bowser";
 
 import {
-  CURVE,
+  CURVE_SECP256K1,
   DEFAULT_CHAIN_CONFIG,
-  DELIMITERS,
   ERRORS,
   FactorKeyTypeShareDescription,
   FIELD_ELEMENT_HEX_LEN,
@@ -57,10 +57,14 @@ import { Point } from "./point";
 import {
   addFactorAndRefresh,
   deleteFactorAndRefresh,
+  deriveShareCoefficients,
   generateFactorKey,
+  generateSessionNonce,
   generateTSSEndpoints,
   getHashedPrivateKey,
+  getSessionId,
   parseToken,
+  sampleEndpoints,
   scalarBNToBufferSEC1,
 } from "./utils";
 
@@ -89,6 +93,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
+  private _tssKeyType: string;
+
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
@@ -97,6 +103,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.web3AuthClientId) {
       throw new Error("You must specify a web3auth clientId.");
     }
+
+    this._tssKeyType = options.tssKeyType;
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
@@ -262,6 +270,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
       },
+      tssKeyType: this._tssKeyType,
     });
 
     this.storageLayer = new TorusStorageLayer({
@@ -279,6 +288,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       modules: {
         shareSerialization: shareSerializationModule,
       },
+      tssKeyType: this._tssKeyType,
     });
 
     if (this.isRedirectMode) {
@@ -633,13 +643,82 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   };
 
   public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {
-    // if (this.state.remoteClient) {
-    //   return this.remoteSign(msgHash);
-    // }
-    return this.localSign(msgHash);
+    if (this._tssKeyType === "secp256k1") {
+      return this.localSignSecp256k1(msgHash);
+    }
+    throw new Error(`sign hash not supported for key type ${this._tssKeyType}`);
   };
 
-  public localSign = async (msgHash: Buffer) => {
+  public signMessage = async (msg: Buffer): Promise<Buffer> => {
+    if (this._tssKeyType !== "ed25519") {
+      throw new Error(`sign message not supported for key type ${this._tssKeyType}`);
+    }
+
+    // TODO implement fetch node details for ed25519.
+    // const { nodeIndexes, torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails(
+    //   {
+    //     verifier: "test-verifier",
+    //     verifierId: "test@example.com",
+    //     keyType: "ed25519",
+    //   },
+    // );
+
+    const ED25519_ENDPOINTS = [
+      { index: 1, url: "https://sapphire-dev-2-1.authnetwork.dev/tss-frost/" },
+      { index: 2, url: "https://sapphire-dev-2-2.authnetwork.dev/tss-frost/" },
+      { index: 3, url: "https://sapphire-dev-2-3.authnetwork.dev/tss-frost/" },
+      { index: 4, url: "https://sapphire-dev-2-4.authnetwork.dev/tss-frost/" },
+      { index: 5, url: "https://sapphire-dev-2-5.authnetwork.dev/tss-frost/" },
+    ];
+
+    // Select endpoints and derive party indices.
+    const serverThreshold = 3;
+    const endpoints = sampleEndpoints(ED25519_ENDPOINTS, serverThreshold);
+    const serverXCoords = endpoints.map((x) => x.index);
+    const clientXCoord = Math.max(...endpoints.map((ep) => ep.index)) + 1;
+
+    // Derive share coefficients for flat hierarchy.
+    const ec = new Ed25519Curve();
+    const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord);
+
+    // Get pub key.
+    const tssPubKey = await this.getPublic();
+    const tssPubKeyPoint = ec.keyFromPublic(tssPubKey).getPublic();
+
+    // Get client key share and adjust by coefficient.
+    if (this.state.accountIndex !== 0) {
+      throw new Error("Account index not supported for ed25519");
+    }
+    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
+    const clientShareAdjusted = tssShare.mul(clientCoefficient).umod(ec.n);
+    const clientShareAdjustedHex = ec.scalarToBuffer(clientShareAdjusted, Buffer).toString("hex");
+
+    // Generate session identifier.
+    const tssNonce = this.getTssNonce();
+    const sessionNonce = generateSessionNonce();
+    const session = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, sessionNonce);
+
+    // Run signing protocol.
+    const serverURLs = endpoints.map((x) => x.url);
+    const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
+    const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
+    const signature = await signEd25519(
+      session,
+      this.signatures,
+      serverXCoords,
+      serverURLs,
+      clientXCoord,
+      clientShareAdjustedHex,
+      pubKeyHex,
+      msg,
+      serverCoefficientsHex
+    );
+
+    log.info(`signature: ${signature}`);
+    return Buffer.from(signature, "hex");
+  };
+
+  public localSignSecp256k1 = async (msgHash: Buffer) => {
     // PreSetup
     const { tssShareIndex } = this.state;
     let tssPubKey = await this.getPublic();
@@ -663,8 +742,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       tssPubKey = tssPubKey.subarray(1);
     }
 
-    const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
-    const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
+    // session is needed for authentication to the web3auth infrastructure holding the factor 1
+    const randomSessionNonce = generateSessionNonce();
+    const currentSession = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, randomSessionNonce);
 
     const parties = 4;
     const clientIndex = parties - 1;
@@ -677,10 +757,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       partyIndexes,
       nodeIndexesReturned: participatingServerDKGIndexes,
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
-    const randomSessionNonce = keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8")).toString("hex");
     const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
-    // session is needed for authentication to the web3auth infrastructure holding the factor 1
-    const currentSession = `${sessionId}${randomSessionNonce}`;
 
     let tss: typeof TssLib;
     if (this.isNodejsOrRN(this.options.uxMode)) {
@@ -693,7 +770,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
 
     const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
-    const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
+    const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE_SECP256K1.curve.n);
     const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
 
     if (!currentSession) {

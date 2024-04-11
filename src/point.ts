@@ -3,10 +3,10 @@ import type { BNString } from "@toruslabs/torus.js";
 import BN from "bn.js";
 import { curve } from "elliptic";
 
-import { CURVE } from "./constants";
+import { CURVE_SECP256K1 } from "./constants";
 
 type EllipticPoint = curve.base.BasePoint;
-const ZERO_POINT = CURVE.g.mul(new BN(0)) as EllipticPoint;
+const ZERO_POINT = CURVE_SECP256K1.g.mul(new BN(0)) as EllipticPoint;
 
 /**
  * Class `Point` represents an elliptic curve point over curve `CURVE`.
@@ -28,7 +28,7 @@ export class Point {
    * @returns The Point encoded by `p`.
    */
   public static fromPrivateKey(privateKey: BNString): Point {
-    const ep = CURVE.keyFromPrivate(privateKey.toString("hex")).getPublic();
+    const ep = CURVE_SECP256K1.keyFromPrivate(privateKey.toString("hex")).getPublic();
     return new Point(ep);
   }
 
@@ -38,7 +38,7 @@ export class Point {
    * @returns The Point encoded by `p`.
    */
   public static fromTkeyPoint(p: TkeyPoint): Point {
-    const ep = CURVE.keyFromPublic({ x: p.x.toString("hex"), y: p.y.toString("hex") }).getPublic();
+    const ep = CURVE_SECP256K1.keyFromPublic({ x: p.x.toString("hex"), y: p.y.toString("hex") }).getPublic();
     return new Point(ep);
   }
 
@@ -53,7 +53,7 @@ export class Point {
       return new Point(ZERO_POINT);
     }
 
-    const p = CURVE.keyFromPublic(buf.toString("hex"), "hex").getPublic();
+    const p = CURVE_SECP256K1.keyFromPublic(buf.toString("hex"), "hex").getPublic();
     return new Point(p);
   }
 
