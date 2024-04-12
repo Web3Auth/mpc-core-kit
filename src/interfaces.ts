@@ -75,6 +75,7 @@ export type MPCKeyDetails = {
   totalFactors: number;
   shareDescriptions: ShareDescriptionMap;
   tssPubKey?: TkeyPoint;
+  tssKeyType: string;
 };
 
 export type OauthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };

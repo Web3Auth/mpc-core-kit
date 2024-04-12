@@ -8,7 +8,6 @@ import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
-import { generatePrivate } from "@toruslabs/eccrypto";
 import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
@@ -20,6 +19,7 @@ import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } fr
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
 import bowser from "bowser";
+import { ec as EC } from "elliptic";
 
 import {
   CURVE_SECP256K1,
@@ -157,6 +157,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   get tKey(): TKeyTSS {
     if (this.tkey === null) throw new Error("Tkey not initialized");
     return this.tkey;
+  }
+
+  get tssKeyType(): string {
+    return this._tssKeyType;
   }
 
   get provider(): SafeEventEmitterProvider | null {
@@ -635,10 +639,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   };
 
   public getPublicSync: () => Buffer = () => {
-    let { tssPubKey } = this.state;
-    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
-      tssPubKey = tssPubKey.subarray(1);
-    }
+    const { tssPubKey } = this.state;
     return Buffer.from(tssPubKey);
   };
 
@@ -873,6 +874,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       shareDescriptions: this.tKey.getMetadata().getShareDescription(),
       metadataPubKey: tkeyDetails.pubKey,
       tssPubKey,
+      tssKeyType: this._tssKeyType,
     };
     return keyDetails;
   }
@@ -958,7 +960,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey);
       if (!importTssKey) {
-        const deviceTSSShare = new BN(generatePrivate());
+        const ec = new EC(this._tssKeyType);
+        const deviceTSSShare = ec.genKeyPair().getPrivate();
         await this.tKey.initialize({ factorPub, deviceTSSShare, deviceTSSIndex });
       } else {
         await this.tKey.initialize();

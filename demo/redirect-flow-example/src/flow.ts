@@ -12,6 +12,7 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
           uxMode: 'redirect',
           manualSync: params.manualSync,
           setupProviderOnInit: params.setupProviderOnInit,
+          tssKeyType: "ed25519",
         }
     );
     

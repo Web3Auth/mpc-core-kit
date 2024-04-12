@@ -45,7 +45,8 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     web3AuthNetwork: selectedNetwork,
     uxMode: 'redirect',
     manualSync: true,
-    setupProviderOnInit: false
+    setupProviderOnInit: false,
+    tssKeyType: "ed25519",
   }
 );
 
@@ -345,32 +346,39 @@ function App() {
   };
 
   const signMessage = async (): Promise<any> => {
-    if (!web3) {
-      uiConsole("web3 not initialized yet");
-      return;
+    if (coreKitInstance.tssKeyType === 'secp256k1') {
+      if (!web3) {
+        uiConsole("web3 not initialized yet");
+        return;
+      }
+      const fromAddress = (await web3.eth.getAccounts())[0];
+      const originalMessage = [
+        {
+          type: "string",
+          name: "fullName",
+          value: "Satoshi Nakamoto",
+        },
+        {
+          type: "uint32",
+          name: "userId",
+          value: "1212",
+        },
+      ];
+      const params = [originalMessage, fromAddress];
+      const method = "eth_signTypedData";
+      const signedMessage = await (web3.currentProvider as any)?.sendAsync({
+        id: 1,
+        method,
+        params,
+        fromAddress,
+      });
+
+      uiConsole(signedMessage);
+    } else if (coreKitInstance.tssKeyType === 'ed25519') {
+      const msg = Buffer.from("0xaabb");
+      const sig = await coreKitInstance.signMessage(msg);
+      uiConsole(sig.toString("hex"));
     }
-    const fromAddress = (await web3.eth.getAccounts())[0];
-    const originalMessage = [
-      {
-        type: "string",
-        name: "fullName",
-        value: "Satoshi Nakamoto",
-      },
-      {
-        type: "uint32",
-        name: "userId",
-        value: "1212",
-      },
-    ];
-    const params = [originalMessage, fromAddress];
-    const method = "eth_signTypedData";
-    const signedMessage = await (web3.currentProvider as any)?.sendAsync({
-      id: 1,
-      method,
-      params,
-      fromAddress,
-    });
-    uiConsole(signedMessage);
   };
 
   const switchChainSepolia = async () => {
