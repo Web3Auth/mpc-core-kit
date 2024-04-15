@@ -9,6 +9,8 @@ import { BN } from "bn.js";
 
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
+import { KeyType } from "@tkey/common-types";
+import { FACTOR_KEY_TYPE } from "@tkey/tss";
 
 
 const uiConsole = (...args: any[]): void => {
@@ -46,7 +48,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     uxMode: 'redirect',
     manualSync: true,
     setupProviderOnInit: false,
-    tssKeyType: "ed25519",
+    tssKeyType: KeyType.ed25519,
   }
 );
 
@@ -177,7 +179,7 @@ function App() {
         setProvider(coreKitInstance.provider);
       }
       else {
-        coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
+        coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then(() => {
           
           setProvider(coreKitInstance.provider);
         });
@@ -301,7 +303,7 @@ function App() {
     }
     const pubBuffer = Buffer.from(factorPubToDelete, 'hex');
     const pub = Point.fromBufferSEC1(pubBuffer);
-    await coreKitInstance.deleteFactor(pub.toTkeyPoint());
+    await coreKitInstance.deleteFactor(pub.toTkeyPoint(FACTOR_KEY_TYPE));
     uiConsole("factor deleted");
   }
 

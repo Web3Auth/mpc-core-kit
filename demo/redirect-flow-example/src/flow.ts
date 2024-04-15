@@ -1,4 +1,5 @@
 
+import { KeyType } from "@tkey/common-types";
 import { WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit, TssSecurityQuestion } from "@web3auth/mpc-core-kit";
 
 export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, manualSync: boolean, setupProviderOnInit: boolean, verifier: string, verifierId: string, idToken: string }) => {
@@ -11,8 +12,8 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
           web3AuthNetwork: params.selectedNetwork,
           uxMode: 'redirect',
           manualSync: params.manualSync,
-          setupProviderOnInit: params.setupProviderOnInit,
-          tssKeyType: "ed25519",
+            setupProviderOnInit: params.setupProviderOnInit,
+          tssKeyType: KeyType.ed25519,
         }
     );
     

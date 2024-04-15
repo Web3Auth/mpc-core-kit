@@ -1,4 +1,4 @@
-import { Point as TkeyPoint } from "@tkey/common-types";
+import { KeyType, Point as TkeyPoint } from "@tkey/common-types";
 import type { BNString } from "@toruslabs/torus.js";
 import BN from "bn.js";
 import { curve } from "elliptic";
@@ -63,14 +63,14 @@ export class Point {
    * @throws If this point cannot be represented by a TKey Point. For example,
    * if this point encodes the point at infinity.
    */
-  public toTkeyPoint(): TkeyPoint {
+  public toTkeyPoint(keyType: KeyType): TkeyPoint {
     if (this.p.isInfinity()) {
       throw new Error("Point at infinity can't be represented as tkey point.");
     }
 
     const x = this.p.getX().toString("hex");
     const y = this.p.getY().toString("hex");
-    return new TkeyPoint(x, y);
+    return new TkeyPoint(x, y, keyType);
   }
 
   /**

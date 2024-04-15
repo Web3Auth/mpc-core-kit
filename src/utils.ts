@@ -1,5 +1,5 @@
 import { getPubKeyPoint, Point, Point as TkeyPoint } from "@tkey/common-types";
-import { randomSelection, TKeyTSS } from "@tkey/tss";
+import { FACTOR_KEY_TYPE, randomSelection, TKeyTSS } from "@tkey/tss";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { EllipticCurve } from "@toruslabs/elliptic-wrapper";
 import { keccak256 } from "@toruslabs/torus.js";
@@ -9,7 +9,7 @@ import { DELIMITERS, SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
-  const factorPub = getPubKeyPoint(factorKey);
+  const factorPub = getPubKeyPoint(factorKey, FACTOR_KEY_TYPE);
   return { private: factorKey, pub: factorPub };
 };
 

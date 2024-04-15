@@ -1,13 +1,13 @@
-import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
 import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
   LoginWindowResponse,
+  PasskeyExtraParams,
   SubVerifierDetails,
   TorusVerifierResponse,
   UX_MODE_TYPE,
-  WebAuthnExtraParams,
 } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
@@ -127,7 +127,7 @@ export interface IdTokenLoginParams {
   /**
    * Extra verifier params in case of a WebAuthn verifier type.
    */
-  extraVerifierParams?: WebAuthnExtraParams;
+  extraVerifierParams?: PasskeyExtraParams;
 
   /**
    * Any additional parameter (key value pair) you'd like to pass to the login function.
@@ -281,7 +281,7 @@ export interface Web3AuthOptions {
   /**
    * The type of the signing key (e.g., `secp256k1`, `ed25519`).
    */
-  tssKeyType: string;
+  tssKeyType: KeyType;
 
   /**
    * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.

@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 import { createSwappableProxy, SwappableProxy } from "@metamask/swappable-obj-proxy";
-import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
+import { BNString, encrypt, getPubKeyPoint, KeyType, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError, lagrangeInterpolation } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
+import { FACTOR_KEY_TYPE, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
@@ -93,7 +93,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
-  private _tssKeyType: string;
+  private _tssKeyType: KeyType;
 
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
@@ -159,7 +159,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tkey;
   }
 
-  get tssKeyType(): string {
+  get tssKeyType(): KeyType {
     return this._tssKeyType;
   }
 
@@ -249,7 +249,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       tssShares.push(tssShare);
     }
 
-    const finalKey = lagrangeInterpolation(tssShares, tssIndexesBN);
+    const finalKey = lagrangeInterpolation(tssShares, tssIndexesBN, this.tkey.keyType);
     // reset instance after recovery completed
     await this.init();
     return finalKey.toString("hex", 64);
@@ -292,6 +292,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       modules: {
         shareSerialization: shareSerializationModule,
       },
+      keyType: KeyType.secp256k1,
       tssKeyType: this._tssKeyType,
     });
 
@@ -573,7 +574,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
 
-      const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
+      const hashedFactorPub = getPubKeyPoint(hashedFactorKey, FACTOR_KEY_TYPE);
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
       await this.deleteMetadataShareBackup(hashedFactorKey);
 
@@ -615,7 +616,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       additionalMetadata = {};
     }
 
-    const factorPub = getPubKeyPoint(factorKey);
+    const factorPub = getPubKeyPoint(factorKey, FACTOR_KEY_TYPE);
 
     if (this.getTssFactorPub().includes(Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex"))) {
       throw new Error("Factor already exists");
@@ -813,7 +814,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
     if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
     const fpp = Point.fromTkeyPoint(factorPub);
-    const stateFpp = Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey));
+    const stateFpp = Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey, FACTOR_KEY_TYPE));
     if (fpp.equals(stateFpp)) {
       throw new Error("Cannot delete current active factor");
     }
@@ -831,7 +832,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // delete factorKey share metadata if factorkey is provided
     if (factorKey) {
       const factorKeyBN = new BN(factorKey, "hex");
-      const derivedFactorPub = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN));
+      const derivedFactorPub = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN, FACTOR_KEY_TYPE));
       // only delete if factorPub matches
       if (derivedFactorPub.equals(fpp)) {
         await this.deleteMetadataShareBackup(factorKeyBN);
@@ -863,7 +864,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
     const tkeyDetails = this.tKey.getKeyDetails();
-    const tssPubKey = this.state.tssPubKey ? Point.fromBufferSEC1(this.state.tssPubKey).toTkeyPoint() : undefined;
+    const tssPubKey = this.state.tssPubKey ? Point.fromBufferSEC1(this.state.tssPubKey).toTkeyPoint(this.tssKeyType) : undefined;
 
     const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
     const keyDetails: MPCKeyDetails = {
@@ -958,7 +959,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
       }
       const deviceTSSIndex = TssShareType.DEVICE;
-      const factorPub = getPubKeyPoint(factorKey);
+      const factorPub = getPubKeyPoint(factorKey, FACTOR_KEY_TYPE);
       if (!importTssKey) {
         const ec = new EC(this._tssKeyType);
         const deviceTSSShare = ec.genKeyPair().getPrivate();
@@ -1087,7 +1088,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async isMetadataPresent(privateKey: string) {
     const privateKeyBN = new BN(privateKey, "hex");
-    const metadata = await this.tKey?.storageLayer.getMetadata<{ message: string }>({ privKey: privateKeyBN });
+    const metadata = await this.tKey?.storageLayer.getMetadata<{ message: string }>({ privKey: privateKeyBN, keyType: FACTOR_KEY_TYPE });
     if (metadata && Object.keys(metadata).length > 0 && metadata.message !== "KEY_NOT_FOUND") {
       return true;
     }
@@ -1096,7 +1097,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async checkIfFactorKeyValid(factorKey: BN): Promise<boolean> {
     this.checkReady();
-    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey });
+    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey, keyType: FACTOR_KEY_TYPE });
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND" || factorKeyMetadata.message === "SHARE_DELETED") {
       return false;
     }
@@ -1106,7 +1107,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async getFactorKeyMetadata(factorKey: BN): Promise<ShareStore> {
     this.checkReady();
-    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey });
+    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey, keyType: FACTOR_KEY_TYPE });
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
       throw new Error("no metadata for your factor key, reset your account");
     }
@@ -1163,6 +1164,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       serverEncs: [],
     };
     this.tKey.metadata.addTSSData({
+      tssKeyType: this.tkey.tssKeyType,
       tssTag: this.tKey.tssTag,
       factorPubs: updatedFactorPubs,
       factorEncs,
@@ -1213,7 +1215,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     updateMetadata = true
   ) {
     const { tssIndex } = await this.tKey.getTSSShare(factorKey);
-    const tkeyPoint = getPubKeyPoint(factorKey);
+    const tkeyPoint = getPubKeyPoint(factorKey, FACTOR_KEY_TYPE);
     const factorPub = Point.fromTkeyPoint(tkeyPoint).toBufferSEC1(true).toString("hex");
     const params = {
       module: shareDescription,
