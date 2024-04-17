@@ -4,10 +4,10 @@ import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
   LoginWindowResponse,
+  PasskeyExtraParams,
   SubVerifierDetails,
   TorusVerifierResponse,
   UX_MODE_TYPE,
-  WebAuthnExtraParams,
 } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
@@ -126,7 +126,7 @@ export interface IdTokenLoginParams {
   /**
    * Extra verifier params in case of a WebAuthn verifier type.
    */
-  extraVerifierParams?: WebAuthnExtraParams;
+  extraVerifierParams?: PasskeyExtraParams;
 
   /**
    * Any additional parameter (key value pair) you'd like to pass to the login function.
