@@ -513,6 +513,78 @@ function App() {
     await coreKitInstance.commitChanges();
   }
 
+  const exportTssKey= async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    const key = await coreKitInstance._UNSAFE_exportTssKey();
+    let web3Local = new Web3()
+    let account = web3Local.eth.accounts.privateKeyToAccount(key)
+    let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" })
+    console.log(signedTx)
+    return key
+  }
+
+  const importTssKey = async (newOauthLogin: string, importTssKey: string) => {
+    // import key to new instance
+    let { idToken, parsedToken } = await mockLogin(newOauthLogin);
+
+    const newCoreKitInstance = new Web3AuthMPCCoreKit(
+      {
+        web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
+        web3AuthNetwork: selectedNetwork,
+        uxMode: 'redirect',
+        manualSync: true,
+        setupProviderOnInit: false,
+        // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
+      }
+    );
+    newCoreKitInstance.init({ handleRedirectResult: false, rehydrate :false });
+    
+    uiConsole("TSS Private Key: ", importTssKey);
+
+    await newCoreKitInstance.loginWithJWT({
+      verifier: 'torus-test-health',
+      verifierId: parsedToken.email,
+      idToken: idToken,
+      importTssKey: importTssKey
+    });
+    uiConsole("TSS Private Key: ", importTssKey);
+  }
+
+
+  const recoverTssKey = async (factorKeys: string[], newOauthLogin: string) => {
+    const recoverMpcInstance = new Web3AuthMPCCoreKit(
+      {
+        web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
+        web3AuthNetwork: selectedNetwork,
+        uxMode: 'redirect',
+        manualSync: true,
+        setupProviderOnInit: false,
+        // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
+      }
+    );
+    await recoverMpcInstance.init({ handleRedirectResult: false, rehydrate: false });
+    
+    let recoveredTssKey = await recoverMpcInstance._UNSAFE_recoverTssKey(factorKeys);
+    uiConsole("Recovered TSS Private Key: ", recoveredTssKey);
+    let web3Local = new Web3()
+    let account = web3Local.eth.accounts.privateKeyToAccount(recoveredTssKey)
+    let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" })
+    console.log(signedTx)
+    return recoveredTssKey
+  }
+
+  const exportTssKeyImportTssKey = async (newOauthLogin: string) => {
+    let key = await exportTssKey();
+    await importTssKey(newOauthLogin, key);
+  }
+
+  const recoverTssKeyImportTssKey = async (factorKeys: string[], newOauthLogin: string) => {
+    let key = await recoverTssKey(factorKeys, newOauthLogin);
+    await importTssKey(newOauthLogin, key);
+  }
+
   const loggedInView = (
     <>
       <h2 className="subtitle">Account Details</h2>
