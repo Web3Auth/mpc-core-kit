@@ -331,6 +331,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
     const { importTssKey } = params;
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
+
+    // workaround for atomic sync
+    this.tkey.manualSync = true;
+
     try {
       // oAuth login.
       const verifierParams = params as SubVerifierDetailsParams;
@@ -369,6 +373,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
       }
       throw new Error((err as Error).message);
+    } finally {
+      // workaround for atomic sync, restore manual sync
+      await this.commitChanges();
+      this.tkey.manualSync = this.options.manualSync;
     }
   }
 
@@ -391,6 +399,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
     (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
+
+    // workaround for atomic sync
+    this.tkey.manualSync = true;
     try {
       // prefetch tss pub key
       const prefetchTssPubs = [];
@@ -440,6 +451,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
       }
       throw new Error((err as Error).message);
+    } finally {
+      // workaround for atomic sync, restore manual sync
+      await this.commitChanges();
+      this.tkey.manualSync = this.options.manualSync;
     }
   }
 
