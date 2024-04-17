@@ -225,12 +225,9 @@ function App() {
     }
 
     const factorStr = mnemonicToKey(backupFactorKey)
-    console.log("factorStr", factorStr);
     const factorKey = new BN(factorStr, "hex");
-    console.log("factorKeyBN", factorKey);
-
     await coreKitInstance.inputFactorKey(factorKey);
-    console.log("coreKitInstance.status", coreKitInstance.status);
+
     if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
       uiConsole(
         "required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]"
