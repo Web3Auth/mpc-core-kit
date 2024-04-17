@@ -367,6 +367,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       await this.setupTkey(importTssKey);
+
+      // workaround for atomic sync, commit changes if not manualSync
+      if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -375,7 +378,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error((err as Error).message);
     } finally {
       // workaround for atomic sync, restore manual sync
-      await this.commitChanges();
       this.tkey.manualSync = this.options.manualSync;
     }
   }
@@ -445,6 +447,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await Promise.all(prefetchTssPubs);
 
       await this.setupTkey(importTssKey);
+
+      // workaround for atomic sync, commit changes if not manualSync
+      if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -452,8 +457,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       throw new Error((err as Error).message);
     } finally {
-      // workaround for atomic sync, restore manual sync
-      await this.commitChanges();
+      // workaround for atomic syn, restore manual sync
       this.tkey.manualSync = this.options.manualSync;
     }
   }
