@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
 import "./App.css";
-import { SafeEventEmitterProvider } from "@web3auth/base";
+import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
 import { BN } from "bn.js";
+
+import jwt, { Algorithm } from "jsonwebtoken";
+import { flow } from "./flow";
+
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -15,7 +19,13 @@ const uiConsole = (...args: any[]): void => {
   console.log(...args);
 };
 
-const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
+const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
+// performance options
+// const options = {
+//   manualSync: true,
+//   prefetchTssPub: 2,
+//   setupProvdiverOnInit: false,
+// }
 
 const coreKitInstance = new Web3AuthMPCCoreKit(
   {
@@ -23,10 +33,39 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     web3AuthNetwork: selectedNetwork,
     uxMode: 'redirect',
     manualSync: true,
+    setupProviderOnInit: false
   }
 );
 
+const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
+const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
+const alg: Algorithm = "ES256";
+export const mockLogin = async (email: string) => {
+  const iat = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: "torus-key-test",
+    aud: "torus-key-test",
+    name: email,
+    email,
+    scope: "email",
+    iat,
+    eat: iat + 120,
+  };
+
+  const algo = {
+    expiresIn: 120,
+    algorithm: alg,
+  };
+
+  const token = jwt.sign(payload, jwtPrivateKey, algo);
+  const idToken = token;
+  const parsedToken = parseToken(idToken);
+  return { idToken, parsedToken };
+};
+
 function App() {
+  const [mockEmail, setMockEmail] = useState<string | undefined>(undefined);
+
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
   const [provider, setProvider] = useState<SafeEventEmitterProvider | null>(null);
   const [web3, setWeb3] = useState<any>(undefined)
@@ -38,6 +77,9 @@ function App() {
   const [question, setQuestion] = useState<string | undefined>(undefined);
   const [newQuestion, setNewQuestion] = useState<string | undefined>(undefined);
 
+
+
+
   const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
 
   // decide whether to rehydrate session
@@ -45,19 +87,26 @@ function App() {
   useEffect(() => {
     const init = async () => {
       // Example config to handle redirect result manually
-      await coreKitInstance.init({ handleRedirectResult: false, rehydrate});
+      await coreKitInstance.init({ handleRedirectResult: false, rehydrate });
       if (window.location.hash.includes("#state")) {
         await coreKitInstance.handleRedirectResult();
       }
 
       if (coreKitInstance.provider) {
         setProvider(coreKitInstance.provider);
+      } else {
+        if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+          coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then(() => {
+            setProvider(coreKitInstance.provider);
+          });
+        }
       }
 
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
         uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
       }
 
+      console.log("coreKitInstance.status", coreKitInstance.status)
       setCoreKitStatus(coreKitInstance.status);
 
       try {
@@ -78,7 +127,7 @@ function App() {
     }
   }, [provider])
 
-  
+
   const keyDetails = async () => {
     if (!coreKitInstance) {
       throw new Error('coreKitInstance not found');
@@ -99,6 +148,45 @@ function App() {
     });
     uiConsole(pubsHex);
   };
+
+  const loginWithMock = async () => {
+    try {
+      if (!mockEmail) {
+        throw new Error('mockEmail not found');
+      }
+      const { idToken, parsedToken } = await mockLogin(mockEmail);
+      await coreKitInstance.loginWithJWT({
+        verifier: 'torus-test-health',
+        verifierId: parsedToken.email,
+        idToken,
+      }, {prefetchTssPublicKeys: 1} );
+      if (coreKitInstance.provider) {
+        setProvider(coreKitInstance.provider);
+      }
+      else {
+        coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
+          
+          setProvider(coreKitInstance.provider);
+        });
+      }
+      setCoreKitStatus(coreKitInstance.status);
+    } catch (error: unknown) {
+      console.error(error);
+    }
+  }
+
+  const timedFlow = async () => {
+    try {
+      if (!mockEmail) {
+        throw new Error('mockEmail not found');
+      }
+      const { idToken, parsedToken } = await mockLogin(mockEmail);
+      await flow({ selectedNetwork, manualSync: true, setupProviderOnInit: false,  verifier: 'torus-test-health', verifierId: parsedToken.email, idToken });
+    }
+    catch (error: unknown) {
+      console.error(error);
+    }
+  }
 
   const login = async () => {
     try {
@@ -155,7 +243,7 @@ function App() {
     if (!answer) {
       throw new Error("backupFactorKey not found");
     }
-    
+
     let factorKey = await securityQuestion.recoverFactor(coreKitInstance, answer);
     setBackupFactorKey(factorKey);
     uiConsole("Security Question share: ", factorKey);
@@ -168,6 +256,7 @@ function App() {
     await coreKitInstance.logout();
     uiConsole("Log out");
     setProvider(null);
+    setCoreKitStatus(coreKitInstance.status);
   };
 
   const getUserInfo = (): void => {
@@ -190,7 +279,7 @@ function App() {
 
     uiConsole("Export factor key: ", factorKey);
     console.log("menmonic : ", mnemonic);
-    console.log("key: ", key);  
+    console.log("key: ", key);
   }
 
   const deleteFactor = async (): Promise<void> => {
@@ -212,6 +301,13 @@ function App() {
     uiConsole(chainId);
     return chainId;
   };
+
+  const setTSSWalletIndex = async (index=0) => {
+    await coreKitInstance.setTssWalletIndex(index);
+    // log new account details 
+    await getAccounts();
+  }
+
 
   const getAccounts = async () => {
     if (!web3) {
@@ -265,6 +361,69 @@ function App() {
     uiConsole(signedMessage);
   };
 
+  const switchChainSepolia = async () => {
+    if (!provider) {
+      uiConsole("provider not initialized yet");
+      return;
+    }
+    const newChainConfig = {
+      chainId: "0xaa36a7", // for wallet connect make sure to pass in this chain in the loginSettings of the adapter.
+      displayName: "Ethereum Sepolia",
+      chainNamespace: CHAIN_NAMESPACES.EIP155,
+      tickerName: "Ethereum Sepolia",
+      ticker: "ETH",
+      decimals: 18,
+      rpcTarget: "https://rpc.ankr.com/eth_sepolia",
+      blockExplorer: "https://sepolia.etherscan.io",
+      logo: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+    };
+    await coreKitInstance.switchChain(newChainConfig);
+    setProvider(coreKitInstance.provider);
+    uiConsole("Changed to Sepolia Network");
+  };
+
+  const switchChainPolygon = async () => {
+    if (!provider) {
+      uiConsole("provider not initialized yet");
+      return;
+    }
+    const newChainConfig = {
+      chainNamespace: CHAIN_NAMESPACES.EIP155,
+      chainId: "0x89", // hex of 137, polygon mainnet
+      rpcTarget: "https://rpc.ankr.com/polygon",
+      // Avoid using public rpcTarget in production.
+      // Use services like Infura, Quicknode etc
+      displayName: "Polygon Mainnet",
+      blockExplorer: "https://polygonscan.com",
+      ticker: "MATIC",
+      tickerName: "MATIC",
+    };
+    await coreKitInstance.switchChain(newChainConfig);
+    setProvider(coreKitInstance.provider);
+    uiConsole("Changed to Sepolia Network");
+  };
+
+  const switchChainOPBNB = async () => {
+    if (!provider) {
+      uiConsole("provider not initialized yet");
+      return;
+    }
+    const newChainConfig = {
+      chainNamespace: CHAIN_NAMESPACES.EIP155,
+      chainId: "0xCC", // hex of 1261120
+      rpcTarget: "https://opbnb-mainnet-rpc.bnbchain.org",
+      // Avoid using public rpcTarget in production.
+      // Use services like Infura, Quicknode etc
+      displayName: "opBNB Mainnet",
+      blockExplorer: "https://opbnbscan.com",
+      ticker: "BNB",
+      tickerName: "opBNB",
+    };
+    await coreKitInstance.switchChain(newChainConfig);
+    setProvider(coreKitInstance.provider);
+    uiConsole("Changed to Sepolia Network");
+  };
+
   const criticalResetAccount = async (): Promise<void> => {
     // This is a critical function that should only be used for testing purposes
     // Resetting your account means clearing all the metadata associated with it from the metadata server
@@ -304,8 +463,8 @@ function App() {
     uiConsole(receipt);
   };
 
-  const createSecurityQuestion = async ( question: string, answer: string ) => {
-    if (!coreKitInstance) { 
+  const createSecurityQuestion = async (question: string, answer: string) => {
+    if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
     await securityQuestion.setSecurityQuestion({ mpcCoreKit: coreKitInstance, question, answer, shareType: TssShareType.RECOVERY });
@@ -316,8 +475,8 @@ function App() {
     }
   }
 
-  const changeSecurityQuestion = async ( newQuestion: string, newAnswer: string, answer: string) => {
-    if (!coreKitInstance) { 
+  const changeSecurityQuestion = async (newQuestion: string, newAnswer: string, answer: string) => {
+    if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
     await securityQuestion.changeSecurityQuestion({ mpcCoreKit: coreKitInstance, newQuestion, newAnswer, answer });
@@ -336,7 +495,7 @@ function App() {
 
   }
 
-  const enableMFA = async () => { 
+  const enableMFA = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
@@ -351,7 +510,7 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     await coreKitInstance.commitChanges();
-  } 
+  }
 
   const loggedInView = (
     <>
@@ -404,7 +563,7 @@ function App() {
         <div className="flex-container">
 
           <label>Share Type:</label>
-          <select value={exportTssShareType}onChange={(e) => setExportTssShareType(parseInt(e.target.value))}>
+          <select value={exportTssShareType} onChange={(e) => setExportTssShareType(parseInt(e.target.value))}>
             <option value={TssShareType.DEVICE}>Device Share</option>
             <option value={TssShareType.RECOVERY}>Recovery Share</option>
           </select>
@@ -413,14 +572,14 @@ function App() {
           </button>
         </div>
         <div className="flex-container">
-        <label>Factor pub:</label>
+          <label>Factor pub:</label>
           <input value={factorPubToDelete} onChange={(e) => setFactorPubToDelete(e.target.value)}></input>
           <button onClick={deleteFactor} className="card">
             Delete Factor
           </button>
         </div>
         <div className="flex-container">
-        <input value={backupFactorKey} onChange={(e) => setBackupFactorKey(e.target.value)}></input>
+          <input value={backupFactorKey} onChange={(e) => setBackupFactorKey(e.target.value)}></input>
           <button onClick={() => inputBackupFactorKey()} className="card">
             Input Factor Key
           </button>
@@ -429,9 +588,9 @@ function App() {
 
         <h4>Security Question</h4>
 
-        <div>{ question }</div>
+        <div>{question}</div>
         <div className="flex-container">
-          <div className={ question ? " disabledDiv": ""}>
+          <div className={question ? " disabledDiv" : ""}>
             <label>Set Security Question:</label>
             <input value={question} placeholder="question" onChange={(e) => setNewQuestion(e.target.value)}></input>
             <input value={answer} placeholder="answer" onChange={(e) => setAnswer(e.target.value)}></input>
@@ -440,19 +599,19 @@ function App() {
             </button>
           </div>
 
-          <div className={ !question ? " disabledDiv": ""}>
+          <div className={!question ? " disabledDiv" : ""}>
             <label>Change Security Question:</label>
             <input value={newQuestion} placeholder="newQuestion" onChange={(e) => setNewQuestion(e.target.value)}></input>
-            <input value={newAnswer} placeholder="newAnswer"  onChange={(e) => setNewAnswer(e.target.value)}></input>
+            <input value={newAnswer} placeholder="newAnswer" onChange={(e) => setNewAnswer(e.target.value)}></input>
             <input value={answer} placeholder="oldAnswer" onChange={(e) => setAnswer(e.target.value)}></input>
             <button onClick={() => changeSecurityQuestion(newQuestion!, newAnswer!, answer!)} className="card">
               Change Security Question
             </button>
-              
+
           </div>
         </div>
         <div className="flex-container">
-        <div className={ !question ? "disabledDiv": ""}>
+          <div className={!question ? "disabledDiv" : ""}>
             <button onClick={() => deleteSecurityQuestion()} className="card">
               Delete Security Question
             </button>
@@ -470,6 +629,16 @@ function App() {
           Get Accounts
         </button>
 
+        <button onClick={() => setTSSWalletIndex(1)} className="card">
+          Switch to wallet index: 1
+        </button>
+        <button onClick={() => setTSSWalletIndex(2)} className="card">
+          Switch to wallet index: 2
+        </button>
+        <button onClick={() => setTSSWalletIndex(0)} className="card">
+          Switch to wallet index: 0/default
+        </button>
+
         <button onClick={getBalance} className="card">
           Get Balance
         </button>
@@ -481,16 +650,33 @@ function App() {
         <button onClick={sendTransaction} className="card">
           Send Transaction
         </button>
+
+        <button onClick={switchChainSepolia} className="card">
+          switchChainSepolia
+        </button>
+
+        <button onClick={switchChainPolygon} className="card">
+          switchChainPolygon
+        </button>
+
+        <button onClick={switchChainOPBNB} className="card">
+          switchChainOPBNB
+        </button>
       </div>
     </>
   );
 
   const unloggedInView = (
     <>
+      <input value={mockEmail} onChange={(e) => setMockEmail(e.target.value)}></input>
+      <button onClick={() => loginWithMock()} className="card">
+        MockLogin
+      </button>
+
       <button onClick={() => login()} className="card">
         Login
       </button>
-      <div className={coreKitStatus=== COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv" } >
+      <div className={coreKitStatus === COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv"} >
 
         <button onClick={() => getDeviceShare()} className="card">
           Get Device Share
@@ -505,17 +691,21 @@ function App() {
         </button>
 
 
-        <div className={ !question ? "disabledDiv" : ""}>
+        <div className={!question ? "disabledDiv" : ""}>
 
-        <label>Recover Using Security Answer:</label>
+          <label>Recover Using Security Answer:</label>
           <label>{question}</label>
           <input value={answer} onChange={(e) => setAnswer(e.target.value)}></input>
           <button onClick={() => recoverSecurityQuestionFactor()} className="card">
             Recover Using Security Answer
           </button>
         </div>
+
       </div>
-      
+      <button onClick={() => timedFlow()} className="card">
+        Timed Flow 
+      </button>
+
     </>
   );
 
@@ -523,12 +713,12 @@ function App() {
     <div className="container">
       <h1 className="title">
         <a target="_blank" href="https://web3auth.io/docs/guides/mpc" rel="noreferrer">
-          Web3Auth MPC Core Kit 
+          Web3Auth MPC Core Kit
         </a> {" "}
         Redirect Flow Example
       </h1>
 
-      <div className="grid">{provider ? loggedInView : unloggedInView}</div>
+      <div className="grid">{coreKitStatus === COREKIT_STATUS.LOGGED_IN ? loggedInView : unloggedInView}</div>
       <div id="console" style={{ whiteSpace: "pre-line" }}>
         <p style={{ whiteSpace: "pre-line" }}></p>
       </div>

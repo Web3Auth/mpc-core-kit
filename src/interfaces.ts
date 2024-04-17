@@ -20,6 +20,11 @@ export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
+export interface IAsyncStorage {
+  async?: boolean;
+  getItem(key: string): Promise<string | null>;
+  setItem(key: string, value: string): Promise<void>;
+}
 
 export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
 
@@ -147,6 +152,7 @@ export interface Web3AuthState {
   userInfo?: UserInfo;
   tssShareIndex?: number;
   tssPubKey?: Buffer;
+  accountIndex: number;
   factorKey?: BN;
   remoteClient?: IRemoteClientState;
 }
@@ -307,6 +313,13 @@ export interface Web3AuthOptions {
   storageKey?: SupportedStorageType;
 
   /**
+   *  asyncStorageKey take precedence over storageKey.
+   *  if asyncStorageKey is provided, storageKey will be ignored.
+   * @defaultValue `undefined`
+   */
+  asyncStorageKey?: IAsyncStorage;
+
+  /**
    * @defaultValue 86400
    */
   sessionTime?: number;
@@ -384,6 +397,12 @@ export interface Web3AuthOptions {
    * Do not use this unless you know what you are doing.
    */
   hashedFactorNonce?: string;
+
+  /**
+   * @defaultValue `true`
+   * Setup Provider after `login success` reconstruct.
+   */
+  setupProviderOnInit?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;

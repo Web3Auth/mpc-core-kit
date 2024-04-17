@@ -2,6 +2,7 @@ import { FactorEnc, getPubKeyPoint, Point as TkeyPoint, PointHex, randomSelectio
 import ThresholdKey from "@tkey-mpc/core";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { post } from "@toruslabs/http-helpers";
+import { safeatob } from "@toruslabs/openlogin-utils";
 import { keccak256, StringifiedType } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
@@ -61,9 +62,8 @@ export function storageAvailable(type: string): boolean {
  * @returns Extracted JSON payload from the token
  */
 export function parseToken(token: string) {
-  const base64Url = token.split(".")[1];
-  const base64 = base64Url.replace("-", "+").replace("_", "/");
-  return JSON.parse(atob(base64 || ""));
+  const payload = token.split(".")[1];
+  return JSON.parse(safeatob(payload));
 }
 
 /**
@@ -286,18 +286,19 @@ export function scalarBNToBufferSEC1(s: BN): Buffer {
   return s.toArrayLike(Buffer, "be", SCALAR_LEN);
 }
 
-export function Web3AuthStateFromJSON(result: StringifiedType): Web3AuthState {
-  if (!result.factorKey) throw new Error("factorKey not found in JSON");
-  if (!result.tssShareIndex) throw new Error("tssShareIndex not found in JSON");
+// export function Web3AuthStateFromJSON(result: StringifiedType): Web3AuthState {
+//   if (!result.factorKey) throw new Error("factorKey not found in JSON");
+//   if (!result.tssShareIndex) throw new Error("tssShareIndex not found in JSON");
 
-  const factorKey = new BN(result.factorKey as string, "hex");
-  const tssPubKey = Buffer.from(result.tssPubKey as Buffer);
-  return {
-    factorKey,
-    oAuthKey: result.oAuthKey as string,
-    tssShareIndex: parseInt(result.tssShareIndex as string),
-    tssPubKey,
-    signatures: result.signatures as string[],
-    userInfo: result.userInfo as UserInfo,
-  };
-}
+//   const factorKey = new BN(result.factorKey as string, "hex");
+//   const tssPubKey = Buffer.from(result.tssPubKey as Buffer);
+//   return {
+//     accountIndex: result.
+//     factorKey,
+//     oAuthKey: result.oAuthKey as string,
+//     tssShareIndex: parseInt(result.tssShareIndex as string),
+//     tssPubKey,
+//     signatures: result.signatures as string[],
+//     userInfo: result.userInfo as UserInfo,
+//   };
+// }

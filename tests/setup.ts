@@ -2,7 +2,7 @@ import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 
-import { parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { IAsyncStorage, parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -29,7 +29,7 @@ export const criticalResetAccount = async (coreKitInstance: Web3AuthMPCCoreKit):
   }
 
   await coreKitInstance.tKey.storageLayer.setMetadata({
-    privKey: new BN(coreKitInstance.metadataKey!, "hex"),
+    privKey: new BN(coreKitInstance.state.oAuthKey!, "hex"),
     input: { message: "KEY_NOT_FOUND" },
   });
 };
@@ -38,7 +38,23 @@ const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZ
 const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
 const alg: Algorithm = "ES256";
 
-export const mockLogin = async (email: string) => {
+export function stringGen(len: number) {
+  let text = "";
+  const charset = "abcdefghijklmnopqrstuvwxyz0123456789";
+
+  for (let i = 0; i < len; i++) {
+    text += charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+
+  return text;
+}
+
+export const mockLogin = async (email?: string) => {
+  // if email is not passed generate a random email
+  if (!email) {
+    email = `${stringGen(10)}@${stringGen(5)}.${stringGen(3)}`;
+  }
+
   const iat = Math.floor(Date.now() / 1000);
   const payload = {
     iss: "torus-key-test",
@@ -92,3 +108,15 @@ export const newCoreKitLogInInstance = async ({
 
   return instance;
 };
+
+export class AsyncMemoryStorage implements IAsyncStorage {
+  private _store: Record<string, string> = {};
+
+  async getItem(key: string): Promise<string | null> {
+    return this._store[key] || null;
+  }
+
+  async setItem(key: string, value: string): Promise<void> {
+    this._store[key] = value;
+  }
+}

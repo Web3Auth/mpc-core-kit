@@ -5,7 +5,7 @@ import test from "node:test";
 import * as TssLib from "@toruslabs/tss-lib-node";
 import { log } from "@web3auth/base";
 
-import { IdTokenLoginParams, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
+import { BrowserStorage, IdTokenLoginParams, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin, newCoreKitLogInInstance } from "./setup";
 
 type ImportKeyTestVariable = {
@@ -23,6 +23,15 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       });
       await criticalResetAccount(instance);
       await instance.logout();
+
+      const instance2 = await newCoreKitLogInInstance({
+        network: WEB3AUTH_NETWORK.DEVNET,
+        manualSync: testVariable.manualSync,
+        email: testVariable.importKeyEmail,
+      });
+      await criticalResetAccount(instance2);
+      await instance2.logout();
+      BrowserStorage.getInstance("memory").resetStore();
     });
 
     await t.test("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
@@ -99,7 +108,10 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
   });
 };
 
-const variable: ImportKeyTestVariable[] = [{ manualSync: false, email: "emailexport", importKeyEmail: "emailimport" }];
+const variable: ImportKeyTestVariable[] = [
+  { manualSync: false, email: "emailexport", importKeyEmail: "emailimport" },
+  { manualSync: true, email: "emailexport", importKeyEmail: "emailimport" },
+];
 
 variable.forEach(async (testVariable) => {
   await ImportTest(testVariable);

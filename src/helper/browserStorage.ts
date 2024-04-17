@@ -1,7 +1,7 @@
 import BN from "bn.js";
 
 import { FIELD_ELEMENT_HEX_LEN } from "../constants";
-import { ICoreKit, IStorage, SupportedStorageType, TkeyLocalStoreData } from "../interfaces";
+import { IAsyncStorage, ICoreKit, IStorage, SupportedStorageType, TkeyLocalStoreData } from "../interfaces";
 import { storageAvailable } from "../utils";
 
 export class MemoryStorage implements IStorage {
@@ -97,6 +97,87 @@ export class BrowserStorage {
     delete store[key];
     this.storage.setItem(this._storeKey, JSON.stringify(store));
   }
+}
+
+export class AsyncStorage {
+  // eslint-disable-next-line no-use-before-define
+  private static instance: AsyncStorage;
+
+  public storage: IAsyncStorage;
+
+  private _storeKey: string;
+
+  private constructor(storeKey: string, storage: IAsyncStorage) {
+    this.storage = storage;
+    this._storeKey = storeKey;
+  }
+
+  static getInstance(key: string, storageKey: IAsyncStorage): AsyncStorage {
+    if (!this.instance) {
+      const storage: IAsyncStorage = storageKey;
+      if (!storage) {
+        throw new Error("No valid storage available");
+      }
+      this.instance = new this(key, storage);
+    }
+    return this.instance;
+  }
+
+  async toJSON(): Promise<string> {
+    const result = await this.storage.getItem(this._storeKey);
+    if (!result) throw new Error(`storage ${this._storeKey} is null`);
+    return result;
+  }
+
+  async resetStore(): Promise<Record<string, unknown>> {
+    const currStore = await this.getStore();
+    await this.storage.setItem(this._storeKey, JSON.stringify({}));
+    return currStore;
+  }
+
+  async getStore(): Promise<Record<string, unknown>> {
+    return JSON.parse((await this.storage.getItem(this._storeKey)) || "{}");
+  }
+
+  async get<T>(key: string): Promise<T> {
+    const store = JSON.parse((await this.storage.getItem(this._storeKey)) || "{}");
+    return store[key];
+  }
+
+  async set<T>(key: string, value: T): Promise<void> {
+    const store = JSON.parse((await this.storage.getItem(this._storeKey)) || "{}");
+    store[key] = value;
+    await this.storage.setItem(this._storeKey, JSON.stringify(store));
+  }
+
+  async remove(key: string): Promise<void> {
+    const store = JSON.parse((await this.storage.getItem(this._storeKey)) || "{}");
+    delete store[key];
+    await this.storage.setItem(this._storeKey, JSON.stringify(store));
+  }
+}
+
+export async function asyncStoreFactor(factorKey: BN, mpcCoreKit: ICoreKit, storageKey: IAsyncStorage): Promise<void> {
+  const metadata = mpcCoreKit.tKey.getMetadata();
+  const currentStorage = AsyncStorage.getInstance("mpc_corekit_store", storageKey);
+
+  const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+  await currentStorage.set(
+    tkeyPubX,
+    JSON.stringify({
+      factorKey: factorKey.toString("hex").padStart(64, "0"),
+    } as TkeyLocalStoreData)
+  );
+}
+
+export async function asyncGetFactor(mpcCoreKit: ICoreKit, storageKey: IAsyncStorage): Promise<string | undefined> {
+  const metadata = mpcCoreKit.tKey.getMetadata();
+  const currentStorage = AsyncStorage.getInstance("mpc_corekit_store", storageKey);
+
+  const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+  const tKeyLocalStoreString = await currentStorage.get<string>(tkeyPubX);
+  const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
+  return tKeyLocalStore.factorKey;
 }
 
 export async function storeWebBrowserFactor(factorKey: BN, mpcCoreKit: ICoreKit, storageKey: SupportedStorageType = "local"): Promise<void> {
