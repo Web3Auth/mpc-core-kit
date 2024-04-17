@@ -20,7 +20,7 @@ type TestVariable = {
   email: string;
 };
 
-const defaultTestEmail = "testEmailForLogin";
+const defaultTestEmail = "testEmail1";
 const variable: TestVariable[] = [
   { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: "nodejs", email: defaultTestEmail },
   // { web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET, uxMode: UX_MODE.REDIRECT, email: defaultTestEmail },

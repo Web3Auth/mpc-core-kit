@@ -116,7 +116,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     if (!options.sessionTime) options.sessionTime = 86400;
-    if (!options.serverTimeOffset) options.serverTimeOffset = 0;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
@@ -263,7 +262,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
-        serverTimeOffset: this.options.serverTimeOffset,
       },
       nodeEndpoints: nodeDetails.torusNodeEndpoints,
       nodePubKeys: nodeDetails.torusNodePub.map((i) => ({ x: i.X, y: i.Y })),
@@ -306,7 +304,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else if (params.rehydrate && this.sessionManager.sessionId) {
       // swallowed, should not throw on rehydrate timed out session
       const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
-        log.error("rehydrate session error", err);
+        log.info("rehydrate session error", err);
       });
 
       // try rehydrate session
@@ -315,12 +313,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         // feature gating on no session rehydration
         await this.featureRequest();
-        TorusUtils.setSessionTime(this.options.sessionTime);
       }
     } else {
       // feature gating if not redirect flow or session rehydration
       await this.featureRequest();
-      TorusUtils.setSessionTime(this.options.sessionTime);
     }
 
     // if not redirect flow or session rehydration, ask for factor key to login
@@ -716,7 +712,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`sessionAuth does not exist ${currentSession}`);
     }
 
-    const signatures = await this.getSigningSignatures();
+    const signatures = await this.getSigningSignatures(msgHash.toString("hex"));
     if (!signatures) {
       throw new Error(`Signature does not exist ${signatures}`);
     }
@@ -1036,6 +1032,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND" || factorKeyMetadata.message === "SHARE_DELETED") {
       return false;
     }
+    log.info("factorKeyMetadata", factorKeyMetadata);
     return true;
   }
 
@@ -1195,8 +1192,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
   }
 
-  private async getSigningSignatures(): Promise<string[]> {
+  private async getSigningSignatures(data: string): Promise<string[]> {
     if (!this.signatures) throw new Error("signatures not present");
+    log.info("data", data);
     return this.signatures;
   }
 
@@ -1213,7 +1211,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       client_id: this.options.web3AuthClientId,
       is_mpc_core_kit: "true",
       enable_gating: "true",
-      session_time: this.options.sessionTime.toString(),
     };
     const url = new URL(`${accessUrl}/api/feature-access`);
     url.search = new URLSearchParams(accessRequest).toString();

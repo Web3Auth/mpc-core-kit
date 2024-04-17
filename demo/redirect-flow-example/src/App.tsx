@@ -33,8 +33,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     web3AuthNetwork: selectedNetwork,
     uxMode: 'redirect',
     manualSync: true,
-    setupProviderOnInit: false,
-    // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
+    setupProviderOnInit: false
   }
 );
 
