@@ -1,5 +1,6 @@
 .container {
 	width: 60%;
+	min-width: 400px;
 	margin: auto;
 	padding: 0 2rem;
 }
@@ -82,9 +83,9 @@
 }
 
 @media (max-width: 1200px) {
-	.container {
+	/* .container {
 		width: 100%;
-	}
+	} */
 }
 
 .flex-container {
@@ -117,9 +118,39 @@
 .disabledDiv {
 	pointer-events: none;
 	opacity: 0.4;
-  }
+}
+
+.hidden {
+	display: none;
+}
   
 .flex-column {
 display: flex;
 flex-direction: column;
+}
+
+.recover-account-div {
+	width: 100%;
+}
+
+.recover-account-div .recovery-form {
+	display: flex;
+	width: 100%;
+	justify-content: center;
+	margin-bottom: 10px;
+}
+
+.recover-account-div .recovery-form .right,.left {
+	width: 50%;
+}
+
+.recover-account-div label {
+	font-size: 0.8rem;
+}
+
+.recover-account-div input {
+	display: block;
+	width: 70%;
+	font-size: 0.9rem;
+	padding: 5px;
 }
