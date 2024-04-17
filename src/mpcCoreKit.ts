@@ -39,6 +39,7 @@ import {
   FactorKeyTypeShareDescription,
   FIELD_ELEMENT_HEX_LEN,
   MAX_FACTORS,
+  OPS,
   SOCIAL_TKEY_INDEX,
   TssShareType,
   VALID_SHARE_INDICES,
@@ -70,6 +71,7 @@ import {
   deleteFactorAndRefresh,
   generateFactorKey,
   generateTSSEndpoints,
+  getAttestationServerUrls,
   getHashedPrivateKey,
   parseToken,
   scalarBNToBufferSEC1,
@@ -736,7 +738,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`sessionAuth does not exist ${currentSession}`);
     }
 
-    const signatures = await this.getSigningSignatures();
+    const signatures = await this.getSigningSignatures(OPS.LOCAL_SIGN);
     if (!signatures) {
       throw new Error(`Signature does not exist ${signatures}`);
     }
@@ -772,7 +774,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
     const fpp = Point.fromTkeyPoint(factorPub);
 
-    const signatures = await this.getSigningSignatures("delete factor");
+    const signatures = await this.getSigningSignatures(OPS.DELETE_FACTOR);
     if (this.state.remoteClient) {
       const remoteStateFpp = this.state.remoteClient.remoteFactorPub;
       if (fpp.equals(Point.fromTkeyPoint(getPubKeyPoint(new BN(remoteStateFpp, "hex"))))) {
@@ -1160,7 +1162,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.tKey.metadata.factorPubs[this.tKey.tssTag].length >= MAX_FACTORS) {
       throw new Error("Maximum number of factors reached");
     }
-    const signatures = await this.getSigningSignatures("create factor");
+    const signatures = await this.getSigningSignatures(OPS.CREATE_FACTOR);
     if (this.state.tssShareIndex !== newFactorTSSIndex) {
       // Generate new share.
       if (!this.state.remoteClient) {
@@ -1364,34 +1366,38 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return { v: parseInt(v), r: Buffer.from(r, "hex"), s: Buffer.from(s, "hex") };
   }
 
-  // private async getSigningSignatures(data: string): Promise<string[]> {
-  //   if (!this.signatures) throw new Error("signatures not present");
-  //   log.info("data", data);
-  //   return this.signatures;
-  // }
-
   private async getSigningSignatures(data: string): Promise<string[]> {
     if (!this.signatures) throw new Error("signatures not present");
-    // if (this.options.authorizationUrl.length === 0) {
-    //   if (this.state.remoteClient && !this.options.allowNoAuthorizationForRemoteClient) {
-    //     throw new Error("remote client is present, authorizationUrl is required");
-    //   }
-    //   return this.signatures;
-    // }
-    // const sigPromise = this.options.authorizationUrl.map(async (url) => {
-    //   const { sig } = await post<{ sig?: string }>(url, {
-    //     signatures: this.signatures,
-    //     verifier: this.verifier,
-    //     verifierID: this.verifierId,
-    //     clientID: this.options.web3AuthClientId,
-    //     data,
-    //   });
+    if (this.state.remoteClient) {
+      if (!this.nodeDetailManager._nodeDetails) {
+        if (!this.signatures) throw new Error("SDK is not initialized, please call `init` function");
+      }
+      const attestationServerUrls = getAttestationServerUrls(this.nodeDetailManager._nodeDetails);
+      // fetch one time sigs for giving authorization to remote client to make sign request to w3a tss server
+      const sigPromises = attestationServerUrls.map(async (url) => {
+        const pr = post<{ sig?: string } | undefined>(url, {
+          signatures: this.signatures,
+          verifier: this.verifier,
+          verifierID: this.verifierId,
+          clientID: this.options.web3AuthClientId,
+          data,
+        }).catch((err: unknown) => {
+          log.error("Error while fetching attestation sig", err);
+        });
 
-    //   return sig;
-    // });
-    // return Promise.all(sigPromise);
+        return pr;
+      });
 
-    log.info("data", data);
+      const resolvedPromises = await Promise.all(sigPromises);
+      const sigs: string[] = [];
+      resolvedPromises.forEach((pr) => {
+        if (pr && pr.sig) {
+          sigs.push(pr.sig);
+        }
+      });
+      return sigs;
+    }
+
     return this.signatures;
   }
 

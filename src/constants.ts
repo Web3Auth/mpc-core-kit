@@ -65,3 +65,9 @@ export const CURVE = new EllipticCurve("secp256k1");
 
 export const MAX_FACTORS = 10; // Maximum number of factors that can be added to an account.
 export const SOCIAL_TKEY_INDEX = 1;
+
+export const OPS = {
+  DELETE_FACTOR: "delete_factor",
+  CREATE_FACTOR: "created_factor",
+  LOCAL_SIGN: "local_sign",
+};

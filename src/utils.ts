@@ -1,13 +1,14 @@
 import { FactorEnc, getPubKeyPoint, Point as TkeyPoint, PointHex, randomSelection } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
+import { INodeDetails } from "@toruslabs/constants";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { post } from "@toruslabs/http-helpers";
 import { safeatob } from "@toruslabs/openlogin-utils";
-import { keccak256, StringifiedType } from "@toruslabs/torus.js";
+import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
 import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
-import { IRemoteClientState, UserInfo, Web3AuthState } from "./interfaces";
+import { IRemoteClientState } from "./interfaces";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -302,3 +303,10 @@ export function scalarBNToBufferSEC1(s: BN): Buffer {
 //     userInfo: result.userInfo as UserInfo,
 //   };
 // }
+
+// TODO: add these urls in fnd package
+export const getAttestationServerUrls = (nodeDetails: INodeDetails) => {
+  return nodeDetails.torusNodeEndpoints.map((ep) => {
+    return `${ep}/authorization`;
+  });
+};
