@@ -87,7 +87,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private enableLogging = false;
 
-  private ready = false;
+  ready = false;
 
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
