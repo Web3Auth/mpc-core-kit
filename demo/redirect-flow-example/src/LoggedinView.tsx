@@ -4,6 +4,7 @@ import SecurityQuestion from "./components/SecurityQuestion";
 import BlockchainCalls from "./components/BlockchainCalls";
 import { CHAIN_NAMESPACE } from "./utils";
 import Web3 from "web3";
+import LoadingSpinner from "./components/LoadingIndicator";
 
 interface ILoggedinViewProps {
   web3: Web3;
@@ -27,6 +28,7 @@ function LoggedinView({ web3, coreKitInstance, criticalResetAccount, logout, inp
   const [exportTssShareType, setExportTssShareType] = useState<TssShareType>(TssShareType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
+  const [loading, setLoading] = useState<boolean>(false);
 
   const getUserInfo = async () => {
     const userInfo = coreKitInstance.getUserInfo();
@@ -62,6 +64,7 @@ function LoggedinView({ web3, coreKitInstance, criticalResetAccount, logout, inp
   };
 
   const enableMFA = async () => {
+    setLoading(true);
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
@@ -69,6 +72,7 @@ function LoggedinView({ web3, coreKitInstance, criticalResetAccount, logout, inp
     const factorKeyMnemonic = keyToMnemonic(factorKey);
 
     uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
+    setLoading(false);
   };
 
   const exportFactor = async (): Promise<void> => {
@@ -194,6 +198,8 @@ function LoggedinView({ web3, coreKitInstance, criticalResetAccount, logout, inp
       </div>
 
       <BlockchainCalls coreKitInstance={coreKitInstance} web3={web3} switchChain={switchChain} />
+
+      {loading && <LoadingSpinner />}
     </div>
   );
 }

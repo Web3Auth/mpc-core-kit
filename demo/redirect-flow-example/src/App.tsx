@@ -14,13 +14,14 @@ import Web3 from "web3";
 import type { provider } from "web3-core";
 
 import "./App.css";
-import { SafeEventEmitterProvider, isHexStrict } from "@web3auth/base";
+import { SafeEventEmitterProvider } from "@web3auth/base";
 import { BN } from "bn.js";
 
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
 import LoggedinView from "./LoggedinView";
 import { CHAIN_CONFIGS, CHAIN_NAMESPACE, isHex } from "./utils";
+import LoadingSpinner from "./components/LoadingIndicator";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -75,7 +76,7 @@ export const mockLogin = async (email: string) => {
 
 function App() {
   const [mockEmail, setMockEmail] = useState<string>("testuser@corp.com");
-
+  const [loading, setLoading] = useState<boolean>(false);
   const [backupFactorKey, setBackupFactorKey] = useState<string>("");
   const [deviceFactorKey, setDeviceFactorKey] = useState<string>("");
   const [recoveryFactor, setRecoveryFactor] = useState<string>("");
@@ -130,6 +131,7 @@ function App() {
   useEffect(() => {
     if (provider) {
       const web3 = new Web3(provider as provider);
+      console.log('setting web3');
       setWeb3(web3);
     }
   }, [provider]);
@@ -222,7 +224,7 @@ function App() {
     if (!backupFactorKey) {
       throw new Error("backupFactorKey not found");
     }
-
+    setLoading(true);
     const factorStr = isHex(backupFactorKey) ? backupFactorKey : mnemonicToKey(backupFactorKey)
     console.log("factorStr", factorStr);
     const factorKey = new BN(factorStr, "hex");
@@ -242,6 +244,7 @@ function App() {
     if (coreKitInstance.provider) {
       setProvider(coreKitInstance.provider);
     }
+    setLoading(false);
   };
 
   const recoverSecurityQuestionFactor = async () => {
@@ -314,9 +317,17 @@ function App() {
     return key;
   };
 
-  const importTssKey = async (newOauthLogin: string, importedTssKey: string) => {
+  const importTssKey = async (importedTssKey: string) => {
+    let email = window.prompt("Enter new email to import your key");
+    while (email == null) {
+      window.alert("Please enter valid/non-empty email");
+      email = window.prompt("Enter new email to import your key");
+    }
+
+    setMockEmail(email);
+    setLoading(true);
     // import key to new instance
-    let { idToken, parsedToken } = await mockLogin(newOauthLogin);
+    let { idToken, parsedToken } = await mockLogin(email);
 
     const newCoreKitInstance = new Web3AuthMPCCoreKit({
       web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
@@ -339,10 +350,13 @@ function App() {
       coreKitStatus: newCoreKitInstance.status,
     }));
     coreKitInstance = newCoreKitInstance;
+    
+    setUpProvider();
     setCoreKitStatus(newCoreKitInstance.status);
+    setLoading(false);
   };
 
-  const recoverTssKey = async (factorKeys: string[], newOauthLogin: string) => {
+  const recoverTssKey = async (factorKeys: string[]) => {
     const recoverMpcInstance = new Web3AuthMPCCoreKit({
       web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
       web3AuthNetwork: selectedNetwork,
@@ -355,10 +369,10 @@ function App() {
 
     let recoveredTssKey = await recoverMpcInstance._UNSAFE_recoverTssKey(factorKeys);
     uiConsole("Recovered TSS Private Key: ", recoveredTssKey);
-    let web3Local = new Web3("https://eth.llamarpc.com");
-    let account = web3Local.eth.accounts.privateKeyToAccount(recoveredTssKey);
-    let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" });
-    console.log(signedTx);
+    // let web3Local = new Web3("https://eth.llamarpc.com");
+    // let account = web3Local.eth.accounts.privateKeyToAccount(recoveredTssKey);
+    // let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" });
+    // console.log(signedTx);
     return recoveredTssKey;
   };
 
@@ -369,13 +383,15 @@ function App() {
     await logout();
     // wait for 2 sec before import and login
     await new Promise(r => setTimeout(r, 2000));
-    await importTssKey(newOauthLogin || mockEmail, key);
+    await importTssKey(key);
   };
 
   const recoverTssKeyImportTssKey = async () => {
-    const factorKeys = [mnemonicToKey(deviceFactorKey), mnemonicToKey(recoveryFactor)];
-    let key = await recoverTssKey(factorKeys, mockEmail);
-    await importTssKey(mockEmail, key);
+    const deviceShare = isHex(deviceFactorKey) ? deviceFactorKey : mnemonicToKey(deviceFactorKey);
+    const recoveryShare = isHex(recoveryFactor) ? recoveryFactor : mnemonicToKey(recoveryFactor);
+    const factorKeys = [deviceShare, recoveryShare];
+    let key = await recoverTssKey(factorKeys);
+    await importTssKey(key);
   };
 
   const unloggedInView = (
@@ -418,17 +434,18 @@ function App() {
         <h4>Recover account with factors</h4>
         <div className="recovery-form">
           <div className="left">
-            <label>Device Factor (Mnemonic): </label>
+            <label>Device Factor: </label>
             <input value={deviceFactorKey} onChange={(e) => setDeviceFactorKey(e.target.value)} />
           </div>
           <div className="right">
-            <label>Recovery Factor (Mnemonic): </label>
+            <label>Recovery Factor: </label>
             <input value={recoveryFactor} onChange={(e) => setRecoveryFactor(e.target.value)} />
           </div>
         </div>
         <button onClick={() => recoverTssKeyImportTssKey()} className="card">
           Recover Account with Factor Keys
         </button>
+        {loading && <LoadingSpinner />}
       </div>
     </>
   );
