@@ -126,12 +126,12 @@ export interface IdTokenLoginParams {
   /**
    * Extra verifier params in case of a WebAuthn verifier type.
    */
-  extraVerifierParams?: ExtraParams;
+  extraVerifierParams?: WebAuthnExtraParams;
 
   /**
    * Any additional parameter (key value pair) you'd like to pass to the login function.
    */
-  additionalParams?: WebAuthnExtraParams;
+  additionalParams?: ExtraParams;
 
   /**
    * Key to import key into Tss during first time login.
