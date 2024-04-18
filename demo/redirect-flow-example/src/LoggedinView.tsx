@@ -101,6 +101,13 @@ function LoggedinView({ web3, coreKitInstance, criticalResetAccount, logout, inp
 
   const unsafeExportTssKey = async () => {
     const exportedTssKey = await coreKitInstance._UNSAFE_exportTssKey();
+    let web3Local = new Web3("https://eth.llamarpc.com");
+
+    let account = web3Local.eth.accounts.privateKeyToAccount(`0x${exportedTssKey}`);
+    console.log('account', account);
+    let gas = await web3Local.eth.estimateGas({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" })
+    let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000", gas: gas});
+    console.log('signedTx', signedTx);
     uiConsole(exportedTssKey);
   }
 

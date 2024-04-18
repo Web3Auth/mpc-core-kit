@@ -304,12 +304,14 @@ function App() {
     }
     const key = await coreKitInstance._UNSAFE_exportTssKey();
     console.log('key', key);
-    let web3Local = new Web3();
+    let web3Local = new Web3("https://eth.llamarpc.com");
+
 
     let account = web3Local.eth.accounts.privateKeyToAccount(`0x${key}`);
     console.log('account', account);
-    // let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" });
-    // console.log('signedTx', signedTx);
+    let gas = await web3Local.eth.estimateGas({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" })
+    let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000", gas: gas});
+    console.log('signedTx', signedTx);
     return key;
   };
 
@@ -354,10 +356,10 @@ function App() {
 
     let recoveredTssKey = await recoverMpcInstance._UNSAFE_recoverTssKey(factorKeys);
     uiConsole("Recovered TSS Private Key: ", recoveredTssKey);
-    // let web3Local = new Web3();
-    // let account = web3Local.eth.accounts.privateKeyToAccount(recoveredTssKey);
-    // let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" });
-    // console.log(signedTx);
+    let web3Local = new Web3("https://eth.llamarpc.com");
+    let account = web3Local.eth.accounts.privateKeyToAccount(recoveredTssKey);
+    let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" });
+    console.log(signedTx);
     return recoveredTssKey;
   };
 
