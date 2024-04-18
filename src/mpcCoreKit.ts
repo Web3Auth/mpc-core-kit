@@ -732,7 +732,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (!this.state.factorKey) throw new Error("factorKey not present");
     const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
-      accountIndex: this.state.accountIndex,
+      accountIndex: 0,
     });
     const tssNonce = this.getTssNonce();
 
@@ -773,7 +773,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
     const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE_SECP256K1.curve.n);
-    const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
+    const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
+    const derivedShare = denormalisedShare.add(accountNonce).umod(CURVE_SECP256K1.curve.n);
+    const share = scalarBNToBufferSEC1(derivedShare).toString("base64");
 
     if (!currentSession) {
       throw new Error(`sessionAuth does not exist ${currentSession}`);
