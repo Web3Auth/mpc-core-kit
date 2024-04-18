@@ -14,13 +14,13 @@ import Web3 from "web3";
 import type { provider } from "web3-core";
 
 import "./App.css";
-import { SafeEventEmitterProvider } from "@web3auth/base";
+import { SafeEventEmitterProvider, isHexStrict } from "@web3auth/base";
 import { BN } from "bn.js";
 
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
 import LoggedinView from "./LoggedinView";
-import { CHAIN_CONFIGS, CHAIN_NAMESPACE } from "./utils";
+import { CHAIN_CONFIGS, CHAIN_NAMESPACE, isHex } from "./utils";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -210,7 +210,6 @@ function App() {
     const factorKey = await getWebBrowserFactor(coreKitInstance!);
     console.log('DeviceShare', factorKey);
     if (factorKey) {
-      setDeviceFactorKey(factorKey);
       setBackupFactorKey(factorKey);
       uiConsole("Device share: ", factorKey);
     }
@@ -224,7 +223,7 @@ function App() {
       throw new Error("backupFactorKey not found");
     }
 
-    const factorStr = mnemonicToKey(backupFactorKey)
+    const factorStr = isHex(backupFactorKey) ? backupFactorKey : mnemonicToKey(backupFactorKey)
     console.log("factorStr", factorStr);
     const factorKey = new BN(factorStr, "hex");
     console.log("factorKeyBN", factorKey);
@@ -419,11 +418,11 @@ function App() {
         <h4>Recover account with factors</h4>
         <div className="recovery-form">
           <div className="left">
-            <label>Device Factor: </label>
+            <label>Device Factor (Mnemonic): </label>
             <input value={deviceFactorKey} onChange={(e) => setDeviceFactorKey(e.target.value)} />
           </div>
           <div className="right">
-            <label>Recovery Factor: </label>
+            <label>Recovery Factor (Mnemonic): </label>
             <input value={recoveryFactor} onChange={(e) => setRecoveryFactor(e.target.value)} />
           </div>
         </div>

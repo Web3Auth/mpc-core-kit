@@ -7,6 +7,7 @@ import type {
   SubVerifierDetails,
   TorusVerifierResponse,
   UX_MODE_TYPE,
+  WebAuthnExtraParams,
 } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
@@ -130,7 +131,7 @@ export interface IdTokenLoginParams {
   /**
    * Any additional parameter (key value pair) you'd like to pass to the login function.
    */
-  additionalParams?: ExtraParams;
+  additionalParams?: WebAuthnExtraParams;
 
   /**
    * Key to import key into Tss during first time login.

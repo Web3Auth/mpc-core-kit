@@ -44,3 +44,7 @@ export const CHAIN_CONFIGS = {
   },
 }
 export type CHAIN_NAMESPACE = keyof typeof CHAIN_CONFIGS;
+
+export function isHex(val: string) {
+  return Boolean(val.match(/^(0x)?[0-9a-f]+$/i))
+}
