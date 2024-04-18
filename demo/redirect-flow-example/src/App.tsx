@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
@@ -18,8 +18,21 @@ const uiConsole = (...args: any[]): void => {
   }
   console.log(...args);
 };
+const DEFAULT_CHAIN_CONFIG = {
+  chainId: "0xaa36a7", // for wallet connect make sure to pass in this chain in the loginSettings of the adapter.
+  displayName: "Ethereum Sepolia",
+  chainNamespace: CHAIN_NAMESPACES.EIP155,
+  tickerName: "Ethereum Sepolia",
+  ticker: "ETH",
+  decimals: 18,
+  rpcTarget: "https://rpc.ankr.com/eth_sepolia",
+  blockExplorer: "https://sepolia.etherscan.io",
+  logo: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
+};
 
-const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
+
+
+const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
 // performance options
 // const options = {
 //   manualSync: true,
@@ -33,7 +46,8 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     web3AuthNetwork: selectedNetwork,
     uxMode: 'redirect',
     manualSync: true,
-    setupProviderOnInit: false
+    setupProviderOnInit: false,
+    chainConfig: DEFAULT_CHAIN_CONFIG,
   }
 );
 
@@ -225,12 +239,14 @@ function App() {
       throw new Error("backupFactorKey not found");
     }
     const factorKey = new BN(backupFactorKey, "hex")
+    console.log("inputting factor key", coreKitInstance.status, factorKey.toString('hex'));
     await coreKitInstance.inputFactorKey(factorKey);
+    console.log("done inputting factor key", coreKitInstance.status);
 
     if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
       uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
     }
-
+    setCoreKitStatus(coreKitInstance.status);
     if (coreKitInstance.provider) {
       setProvider(coreKitInstance.provider);
     }
