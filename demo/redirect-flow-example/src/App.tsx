@@ -22,6 +22,7 @@ import { flow } from "./flow";
 import LoggedinView from "./LoggedinView";
 import { CHAIN_CONFIGS, CHAIN_NAMESPACE, isHex } from "./utils";
 import LoadingSpinner from "./components/LoadingIndicator";
+import { ShareStore, StringifiedType } from "@tkey-mpc/common-types";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -394,6 +395,35 @@ function App() {
     await importTssKey(key);
   };
 
+  const getPubXFromFactorKey = async (recoveryFactor: string) => {
+    const factorKey = isHex(recoveryFactor) ? recoveryFactor : mnemonicToKey(recoveryFactor);
+    // start with a new initialized instance
+    const coreKitInst = new Web3AuthMPCCoreKit({
+      web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
+      web3AuthNetwork: selectedNetwork,
+      uxMode: "redirect",
+      manualSync: true,
+      setupProviderOnInit: false,
+    });
+    await coreKitInst.init({ handleRedirectResult: false, rehydrate: false });
+
+    const factorKeyBN = new BN(factorKey, "hex");
+
+    const factorKeyMetadata = await coreKitInst.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKeyBN });
+    if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
+      throw new Error("no metadata for your factor key, reset your account");
+    }
+
+    const shareStore0 = ShareStore.fromJSON(factorKeyMetadata);
+    await coreKitInst.tKey.initialize({ withShare: shareStore0 });
+    let pubX = coreKitInst.tKey.getMetadata().pubKey.x.toString("hex");
+    
+    // reset to initialized instance
+    await coreKitInst.init();
+    console.log('pubX', pubX);
+    return pubX;
+  }
+
   const unloggedInView = (
     <>
       <label>Mock Email:</label>
@@ -445,7 +475,10 @@ function App() {
         <button onClick={() => recoverTssKeyImportTssKey()} className="card">
           Recover Account with Factor Keys
         </button>
-        {loading && <LoadingSpinner />}
+        <button onClick={() => getPubXFromFactorKey(recoveryFactor)} className="card">
+          Get PubX from Factor Key
+        </button>
+        {loading && <LoadingSpinner />}```
       </div>
     </>
   );
