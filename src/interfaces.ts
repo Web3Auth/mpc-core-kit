@@ -284,6 +284,11 @@ export interface Web3AuthOptions {
   tssKeyType: KeyType;
 
   /**
+   * The URL of the WASM client library.
+   */
+  tssWasmURL: URL;
+
+  /**
    * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.
    */
   chainConfig?: CustomChainConfig;

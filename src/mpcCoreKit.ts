@@ -10,10 +10,11 @@ import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLog
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
+import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
-import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
+import { init as initEd25519, sign as signEd25519 } from "@toruslabs/tss-frost-client";
 import type * as TssLib from "@toruslabs/tss-lib";
 import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
@@ -95,6 +96,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _tssKeyType: KeyType;
 
+  private tssWasmURL: URL;
+
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
@@ -105,6 +108,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     this._tssKeyType = options.tssKeyType;
+    this.tssWasmURL = options.tssWasmURL;
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
@@ -413,13 +417,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           ...idTokenLoginParams.extraVerifierParams,
           ...idTokenLoginParams.additionalParams,
         });
-        this.torusSp.verifierType = "normal";
+        // this.torusSp.verifierType = "normal";
       } else {
         // aggregate verifier login
         loginResponse = await this.torusSp.customAuthInstance.getAggregateTorusKey(verifier, verifierId, [
           { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
         ]);
-        this.torusSp.verifierType = "aggregate";
+        // this.torusSp.verifierType = "aggregate";
       }
 
       const oAuthShare = this._getOAuthKey(loginResponse);
@@ -459,7 +463,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           userInfo: data.userInfo,
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
-        this.torusSp.verifierType = "normal";
+        // this.torusSp.verifierType = "normal";
         const userInfo = this.getUserInfo();
         this.torusSp.verifierName = userInfo.verifier;
       } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
@@ -470,7 +474,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           userInfo: data.userInfo[0],
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
-        this.torusSp.verifierType = "aggregate";
+        // this.torusSp.verifierType = "aggregate";
         const userInfo = this.getUserInfo();
         this.torusSp.verifierName = userInfo.aggregateVerifier;
       } else {
@@ -656,25 +660,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`sign message not supported for key type ${this._tssKeyType}`);
     }
 
-    // TODO implement fetch node details for ed25519.
-    // const { nodeIndexes, torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails(
-    //   {
-    //     verifier: "test-verifier",
-    //     verifierId: "test@example.com",
-    //     keyType: "ed25519",
-    //   },
-    // );
+    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
+    if (!nodeDetails.torusNodeTSSEndpoints) {
+      throw new Error("could not fetch tss node endpoints");
+    }
 
-    const ED25519_ENDPOINTS = [
-      { index: 1, url: "https://sapphire-dev-2-1.authnetwork.dev/tss-frost/" },
-      { index: 2, url: "https://sapphire-dev-2-2.authnetwork.dev/tss-frost/" },
-      { index: 3, url: "https://sapphire-dev-2-3.authnetwork.dev/tss-frost/" },
-      { index: 4, url: "https://sapphire-dev-2-4.authnetwork.dev/tss-frost/" },
-      { index: 5, url: "https://sapphire-dev-2-5.authnetwork.dev/tss-frost/" },
-    ];
+    const ED25519_ENDPOINTS = nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
 
     // Select endpoints and derive party indices.
-    const serverThreshold = 3;
+    const serverThreshold = Math.floor(ED25519_ENDPOINTS.length / 2) + 1;
     const endpoints = sampleEndpoints(ED25519_ENDPOINTS, serverThreshold);
     const serverXCoords = endpoints.map((x) => x.index);
     const clientXCoord = Math.max(...endpoints.map((ep) => ep.index)) + 1;
@@ -699,6 +693,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const tssNonce = this.getTssNonce();
     const sessionNonce = generateSessionNonce();
     const session = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, sessionNonce);
+
+    // Initialize wasm client.
+    await initEd25519(this.tssWasmURL);
 
     // Run signing protocol.
     const serverURLs = endpoints.map((x) => x.url);
@@ -759,14 +756,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       partyIndexes,
       nodeIndexesReturned: participatingServerDKGIndexes,
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
-    const tssImportUrl = `${torusNodeTSSEndpoints[0]}/v1/clientWasm`;
 
     let tss: typeof TssLib;
     if (this.isNodejsOrRN(this.options.uxMode)) {
       tss = this.options.tssLib as typeof TssLib;
     } else {
       tss = await import("@toruslabs/tss-lib");
-      await tss.default(tssImportUrl);
+      await tss.default(this.tssWasmURL);
     }
     // setup mock shares, sockets and tss wasm files.
     const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
@@ -786,7 +782,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`Signature does not exist ${signatures}`);
     }
 
-    const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKey.toString("base64"), true, tssImportUrl);
+    const client = new Client(
+      currentSession,
+      clientIndex,
+      partyIndexes,
+      endpoints,
+      sockets,
+      share,
+      tssPubKey.toString("base64"),
+      true,
+      this.tssWasmURL.toString()
+    );
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
       const serverIndex = participatingServerDKGIndexes[i];
@@ -920,8 +926,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
     if (!this.state.signatures) throw new Error("signatures not present");
 
-    const tssKeyBN = new BN(tssKey, "hex");
-    await this.tKey.importTssKey({ tag: this.tKey.tssTag, importKey: tssKeyBN, factorPub, newTSSIndex }, { authSignatures: this.state.signatures });
+    await this.tKey.importTssKey(
+      { tag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPub, newTSSIndex },
+      { authSignatures: this.state.signatures }
+    );
   }
 
   public async _UNSAFE_exportTssKey(): Promise<string> {
@@ -967,7 +975,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         const deviceTSSShare = ec.genKeyPair().getPrivate();
         await this.tKey.initialize({ factorPub, deviceTSSShare, deviceTSSIndex });
       } else {
-        await this.tKey.initialize();
+        await this.tKey.initialize({ skipTssInit: true });
         await this.tKey.reconstructKey();
         await this.importTssKey(importTssKey, factorPub, deviceTSSIndex);
       }
@@ -1037,7 +1045,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.torusSp.postboxKey = new BN(result.oAuthKey, "hex");
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
-      this.torusSp.verifierType = result.userInfo.aggregateVerifier ? "aggregate" : "normal";
+      // this.torusSp.verifierType = result.userInfo.aggregateVerifier ? "aggregate" : "normal";
       const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
       await this.tKey.initialize({ neverInitializeNewKey: true });
       await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);

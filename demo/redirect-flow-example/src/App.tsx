@@ -11,6 +11,7 @@ import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
 import { KeyType } from "@tkey/common-types";
 import { FACTOR_KEY_TYPE } from "@tkey/tss";
+import { wasm } from "@toruslabs/tss-frost-client-wasm";
 
 
 const uiConsole = (...args: any[]): void => {
@@ -49,6 +50,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     manualSync: true,
     setupProviderOnInit: false,
     tssKeyType: KeyType.ed25519,
+    tssWasmURL: wasm,
   }
 );
 
