@@ -58,7 +58,7 @@ export class BrowserStorage {
       }
 
       if (!storage) {
-        throw new Error("No valid storage available");
+        throw new Error("No valid storage option found.");
       }
       this.instance = new this(key, storage);
     }
@@ -67,7 +67,7 @@ export class BrowserStorage {
 
   toJSON(): string {
     const result = this.storage.getItem(this._storeKey);
-    if (!result) throw new Error(`storage ${this._storeKey} is null`);
+    if (!result) throw new Error(`No data found in storage under key '${this._storeKey}'.`);
     return result;
   }
 
@@ -116,7 +116,7 @@ export class AsyncStorage {
     if (!this.instance) {
       const storage: IAsyncStorage = storageKey;
       if (!storage) {
-        throw new Error("No valid storage available");
+        throw new Error("No valid storage option found.");
       }
       this.instance = new this(key, storage);
     }
@@ -125,7 +125,7 @@ export class AsyncStorage {
 
   async toJSON(): Promise<string> {
     const result = await this.storage.getItem(this._storeKey);
-    if (!result) throw new Error(`storage ${this._storeKey} is null`);
+    if (!result) throw new Error(`No data found in storage under key '${this._storeKey}'.`);
     return result;
   }
 
