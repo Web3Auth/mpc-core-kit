@@ -4,10 +4,10 @@ import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
   LoginWindowResponse,
+  PasskeyExtraParams,
   SubVerifierDetails,
   TorusVerifierResponse,
   UX_MODE_TYPE,
-  WebAuthnExtraParams,
 } from "@toruslabs/customauth";
 import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
@@ -126,7 +126,7 @@ export interface IdTokenLoginParams {
   /**
    * Extra verifier params in case of a WebAuthn verifier type.
    */
-  extraVerifierParams?: WebAuthnExtraParams;
+  extraVerifierParams?: PasskeyExtraParams;
 
   /**
    * Any additional parameter (key value pair) you'd like to pass to the login function.
@@ -139,6 +139,13 @@ export interface IdTokenLoginParams {
   importTssKey?: string;
 }
 
+export interface IRemoteClientState {
+  remoteFactorPub: string;
+  remoteClientUrl: string;
+  remoteClientToken: string;
+  metadataShare: string;
+}
+
 export interface Web3AuthState {
   oAuthKey?: string;
   signatures?: string[];
@@ -147,6 +154,7 @@ export interface Web3AuthState {
   tssPubKey?: Buffer;
   accountIndex: number;
   factorKey?: BN;
+  remoteClient?: IRemoteClientState;
 }
 
 export interface ICoreKit {
@@ -395,6 +403,8 @@ export interface Web3AuthOptions {
    * Setup Provider after `login success` reconstruct.
    */
   setupProviderOnInit?: boolean;
+
+  serverTimeOffset?: number;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
@@ -406,6 +416,7 @@ export interface SessionData {
   tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
+  remoteClient?: IRemoteClientState;
 }
 
 export interface TkeyLocalStoreData {

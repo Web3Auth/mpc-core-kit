@@ -1,10 +1,14 @@
-import { getPubKeyPoint, Point, Point as TkeyPoint, randomSelection } from "@tkey-mpc/common-types";
+import { FactorEnc, getPubKeyPoint, Point as TkeyPoint, PointHex, randomSelection } from "@tkey-mpc/common-types";
 import ThresholdKey from "@tkey-mpc/core";
+import { INodeDetails } from "@toruslabs/constants";
 import { generatePrivate } from "@toruslabs/eccrypto";
+import { post } from "@toruslabs/http-helpers";
+import { safeatob } from "@toruslabs/openlogin-utils";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
 import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import { IRemoteClientState } from "./interfaces";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -59,9 +63,8 @@ export function storageAvailable(type: string): boolean {
  * @returns Extracted JSON payload from the token
  */
 export function parseToken(token: string) {
-  const base64Url = token.split(".")[1];
-  const base64 = base64Url.replace("-", "+").replace("_", "/");
-  return JSON.parse(atob(base64 || ""));
+  const payload = token.split(".")[1];
+  return JSON.parse(safeatob(payload));
 }
 
 /**
@@ -73,9 +76,9 @@ export function parseToken(token: string) {
  * @param factorKeyForExistingTSSShare - Factor key for existing TSS share.
  * @param signatures - Signatures for authentication against RSS servers.
  */
-async function refreshTssShares(
+export async function refreshTssShares(
   tKey: ThresholdKey,
-  factorPubs: Point[],
+  factorPubs: TkeyPoint[],
   tssIndices: number[],
   factorKeyForExistingTSSShare: BN,
   signatures: string[],
@@ -100,12 +103,118 @@ async function refreshTssShares(
   });
 }
 
+export interface refreshRemoteTssType {
+  // from client
+  factorEnc: FactorEnc;
+
+  factorPubs: TkeyPoint[];
+  targetIndexes: number[];
+  verifierNameVerifierId: string;
+
+  tssTag: string;
+  tssCommits: TkeyPoint[];
+  tssNonce: number;
+  newTSSServerPub: TkeyPoint;
+  // nodeIndexes : number[],
+
+  serverOpts: {
+    serverEndpoints: string[];
+    serverPubKeys: PointHex[];
+    serverThreshold: number;
+    selectedServers: number[];
+    authSignatures: string[];
+  };
+}
+export interface refreshRemoteTssReturnType {
+  tssTag: string;
+  tssNonce: number;
+  tssPolyCommits: TkeyPoint[];
+  factorPubs: TkeyPoint[];
+  factorEncs: {
+    [factorPubID: string]: FactorEnc;
+  };
+}
+/**
+ * Refreshes TSS shares. Allows to change number of shares. New user shares are
+ * only produced for the target indices.
+ * @param tKey - Tkey instance to use.
+ * @param factorPubs - Factor pub keys after refresh.
+ * @param tssIndices - Target tss indices to generate new shares for.
+ * @param remoteFactorPub - Factor Pub for remote share.
+ * @param signatures - Signatures for authentication against RSS servers.
+ */
+export async function remoteRefreshTssShares(
+  tKey: ThresholdKey,
+  factorPubs: TkeyPoint[],
+  tssIndices: number[],
+  signatures: string[],
+  remoteClient: IRemoteClientState,
+  updateMetadata = false
+) {
+  const rssNodeDetails = await tKey._getRssNodeDetails();
+  const { serverEndpoints, serverPubKeys, serverThreshold } = rssNodeDetails;
+
+  const verifierNameVerifierId = tKey.serviceProvider.getVerifierNameVerifierId();
+
+  const tssCommits = tKey.metadata.tssPolyCommits[tKey.tssTag];
+  const tssNonce: number = tKey.metadata.tssNonces[tKey.tssTag] || 0;
+  const { pubKey: newTSSServerPub, nodeIndexes } = await tKey.serviceProvider.getTSSPubKey(tKey.tssTag, tssNonce + 1);
+
+  // move to pre-refresh
+  const finalSelectedServers = nodeIndexes.slice(0, Math.min(serverEndpoints.length, nodeIndexes.length));
+
+  const factorEnc = tKey.getFactorEncs(TkeyPoint.fromCompressedPub(remoteClient.remoteFactorPub));
+
+  const dataRequired = {
+    factorEnc,
+    factorPubs: factorPubs.map((pub) => pub.toJSON()),
+    targetIndexes: tssIndices,
+    verifierNameVerifierId,
+    tssTag: tKey.tssTag,
+    tssCommits: tssCommits.map((commit) => commit.toJSON()),
+    tssNonce,
+    newTSSServerPub: newTSSServerPub.toJSON(),
+    serverOpts: {
+      selectedServers: finalSelectedServers,
+      serverEndpoints,
+      serverPubKeys,
+      serverThreshold,
+      authSignatures: signatures,
+    },
+  };
+
+  const result = (
+    await post<{ data: refreshRemoteTssReturnType }>(
+      `${remoteClient.remoteClientUrl}/api/v3/mpc/refresh_tss`,
+      { dataRequired },
+      {
+        headers: {
+          Authorization: `Bearer ${remoteClient.remoteClientToken}`,
+        },
+      }
+    )
+  ).data;
+
+  tKey.metadata.addTSSData({
+    tssTag: result.tssTag,
+    tssNonce: result.tssNonce,
+    tssPolyCommits: result.tssPolyCommits.map((commit) => TkeyPoint.fromJSON(commit)),
+    factorPubs: result.factorPubs.map((pub) => TkeyPoint.fromJSON(pub)),
+    factorEncs: result.factorEncs,
+  });
+
+  if (updateMetadata) {
+    await tKey._syncShareMetadata();
+  }
+}
+
 export async function addFactorAndRefresh(
   tKey: ThresholdKey,
-  newFactorPub: Point,
+  newFactorPub: TkeyPoint,
   newFactorTSSIndex: number,
   factorKeyForExistingTSSShare: BN,
-  signatures: string[]
+  signatures: string[],
+  remoteClient?: IRemoteClientState
 ) {
   if (!tKey) {
     throw new Error("tkey does not exist, cannot add factor pub");
@@ -123,10 +232,20 @@ export async function addFactorAndRefresh(
   const existingTSSIndexes = existingFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
   const updatedTSSIndexes = existingTSSIndexes.concat([newFactorTSSIndex]);
 
-  await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
+  if (!remoteClient) {
+    await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
+  } else {
+    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, signatures, remoteClient);
+  }
 }
 
-export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDelete: Point, factorKeyForExistingTSSShare: BN, signatures: string[]) {
+export async function deleteFactorAndRefresh(
+  tKey: ThresholdKey,
+  factorPubToDelete: TkeyPoint,
+  factorKeyForExistingTSSShare: BN,
+  signatures: string[],
+  remoteClient?: IRemoteClientState
+) {
   if (!tKey) {
     throw new Error("tkey does not exist, cannot add factor pub");
   }
@@ -144,7 +263,11 @@ export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDele
   updatedFactorPubs.splice(factorIndex, 1);
   const updatedTSSIndexes = updatedFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
 
-  await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
+  if (!remoteClient) {
+    await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
+  } else {
+    await remoteRefreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, signatures, remoteClient);
+  }
 }
 
 export const getHashedPrivateKey = (postboxKey: string, clientId: string): BN => {
@@ -163,3 +286,27 @@ export const getHashedPrivateKey = (postboxKey: string, clientId: string): BN =>
 export function scalarBNToBufferSEC1(s: BN): Buffer {
   return s.toArrayLike(Buffer, "be", SCALAR_LEN);
 }
+
+// export function Web3AuthStateFromJSON(result: StringifiedType): Web3AuthState {
+//   if (!result.factorKey) throw new Error("factorKey not found in JSON");
+//   if (!result.tssShareIndex) throw new Error("tssShareIndex not found in JSON");
+
+//   const factorKey = new BN(result.factorKey as string, "hex");
+//   const tssPubKey = Buffer.from(result.tssPubKey as Buffer);
+//   return {
+//     accountIndex: result.
+//     factorKey,
+//     oAuthKey: result.oAuthKey as string,
+//     tssShareIndex: parseInt(result.tssShareIndex as string),
+//     tssPubKey,
+//     signatures: result.signatures as string[],
+//     userInfo: result.userInfo as UserInfo,
+//   };
+// }
+
+// TODO: add these urls in fnd package
+export const getAttestationServerUrls = (nodeDetails: INodeDetails) => {
+  return nodeDetails.torusNodeEndpoints.map((ep) => {
+    return `${ep}/authorization`;
+  });
+};

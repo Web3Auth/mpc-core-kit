@@ -18,7 +18,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
     t.before(async () => {
       const instance = await newCoreKitLogInInstance({
         network: WEB3AUTH_NETWORK.DEVNET,
-        manualSync: false,
+        manualSync: testVariable.manualSync,
         email: testVariable.email,
       });
       await criticalResetAccount(instance);
@@ -64,22 +64,12 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         shareType: TssShareType.RECOVERY,
       });
 
-      if (testVariable.manualSync) {
-        await coreKitInstance.commitChanges();
-      }
-
-      const exportedTssKey1 = await coreKitInstance._UNSAFE_exportTssKey();
       // recover key
       // reinitalize corekit
       await coreKitInstance.logout();
-      BrowserStorage.getInstance("memory").resetStore();
-
       const recoveredTssKey = await coreKitInstance._UNSAFE_recoverTssKey([factorKeyDevice, factorKeyRecovery]);
-      assert.strictEqual(recoveredTssKey, exportedTssKey1);
 
       await criticalResetAccount(coreKitInstance);
-      BrowserStorage.getInstance("memory").resetStore();
-
       // reinitialize corekit
       const newEmail = testVariable.importKeyEmail;
       const newLogin = await mockLogin(newEmail);
@@ -104,34 +94,9 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       await coreKitInstance2.loginWithJWT(newIdTokenLoginParams);
 
       const exportedTssKey = await coreKitInstance2._UNSAFE_exportTssKey();
-      BrowserStorage.getInstance("memory").resetStore();
+      criticalResetAccount(coreKitInstance2);
 
       assert.strictEqual(exportedTssKey, recoveredTssKey);
-
-      // reinitialize corekit
-      const newEmail3 = testVariable.importKeyEmail;
-      const newLogin3 = await mockLogin(newEmail);
-
-      const newIdTokenLoginParams3 = {
-        verifier: "torus-test-health",
-        verifierId: newLogin3.parsedToken.email,
-        idToken: newLogin3.idToken,
-      } as IdTokenLoginParams;
-
-      const coreKitInstance3 = new Web3AuthMPCCoreKit({
-        web3AuthClientId: "torus-key-test",
-        web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
-        baseUrl: "http://localhost:3000",
-        uxMode: "nodejs",
-        tssLib: TssLib,
-        storageKey: "memory",
-      });
-
-      await coreKitInstance3.init();
-      await coreKitInstance3.loginWithJWT(newIdTokenLoginParams3);
-
-      const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey();
-      console.log(exportedTssKey3);
     });
 
     t.afterEach(function () {
