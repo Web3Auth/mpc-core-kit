@@ -1,6 +1,7 @@
 import BN from "bn.js";
 
 import { FIELD_ELEMENT_HEX_LEN } from "../constants";
+import CoreKitError from "../errors";
 import { IAsyncStorage, ICoreKit, IStorage, SupportedStorageType, TkeyLocalStoreData } from "../interfaces";
 import { storageAvailable } from "../utils";
 
@@ -58,7 +59,7 @@ export class BrowserStorage {
       }
 
       if (!storage) {
-        throw new Error("No valid storage option found.");
+        throw CoreKitError.noValidStorageOptionFound();
       }
       this.instance = new this(key, storage);
     }
@@ -67,7 +68,9 @@ export class BrowserStorage {
 
   toJSON(): string {
     const result = this.storage.getItem(this._storeKey);
-    if (!result) throw new Error(`No data found in storage under key '${this._storeKey}'.`);
+    if (!result) {
+      throw CoreKitError.noDataFoundInStorage(`No data found in storage under key '${this._storeKey}'.`);
+    }
     return result;
   }
 
@@ -116,16 +119,17 @@ export class AsyncStorage {
     if (!this.instance) {
       const storage: IAsyncStorage = storageKey;
       if (!storage) {
-        throw new Error("No valid storage option found.");
+        throw CoreKitError.noValidStorageOptionFound();
       }
-      this.instance = new this(key, storage);
     }
     return this.instance;
   }
 
   async toJSON(): Promise<string> {
     const result = await this.storage.getItem(this._storeKey);
-    if (!result) throw new Error(`No data found in storage under key '${this._storeKey}'.`);
+    if (!result) {
+      throw CoreKitError.noDataFoundInStorage(`No data found in storage under key '${this._storeKey}'.`);
+    }
     return result;
   }
 
