@@ -1,13 +1,13 @@
 import { CustomError } from "ts-custom-error";
 
-export interface ICoreKitError extends CustomError {
+interface ICoreKitError extends CustomError {
   name: string;
   code: number;
   message: string;
   toString(): string;
 }
 
-export abstract class AbstractCoreKitError extends CustomError implements ICoreKitError {
+abstract class AbstractCoreKitError extends CustomError implements ICoreKitError {
   code: number;
 
   message: string;

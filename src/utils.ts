@@ -6,7 +6,7 @@ import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
 import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
-import CoreKitError from "./errors";
+import CoreKitError from "./helper/errors";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());

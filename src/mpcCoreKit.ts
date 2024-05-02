@@ -33,8 +33,8 @@ import {
   VALID_SHARE_INDICES,
   WEB3AUTH_NETWORK,
 } from "./constants";
-import CoreKitError from "./errors";
 import { AsyncStorage, asyncStoreFactor, BrowserStorage, storeWebBrowserFactor } from "./helper/browserStorage";
+import CoreKitError from "./helper/errors";
 import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
@@ -465,6 +465,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         if (!data) {
           throw CoreKitError.invalidTorusLoginResponse();
         }
+        this.updateState({
+          oAuthKey: this._getOAuthKey(data),
+          userInfo: data.userInfo,
+          signatures: this._getSignatures(data.sessionData.sessionTokenData),
+        });
         this.torusSp.verifierType = "normal";
         const userInfo = this.getUserInfo();
         this.torusSp.verifierName = userInfo.verifier;
@@ -770,10 +775,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   };
 
   async deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void> {
-    if (!this.state.factorKey) throw new Error("No 'factorKey' found in the current state when deleting a factor.");
-    if (!this.tKey.metadata.factorPubs) throw new Error("Factor pubs not present");
+    if (!this.state.factorKey) {
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
+    }
+    if (!this.tKey.metadata.factorPubs) {
+      throw CoreKitError.factorPubsMissing();
+    }
     const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
-    if (remainingFactors <= 1) throw new Error("Cannot delete the last remaining factor as at least one factor is required.");
+    if (remainingFactors <= 1) {
+      throw CoreKitError.factorInUseCannotBeDeleted();
+    }
     const fpp = Point.fromTkeyPoint(factorPub);
     const stateFpp = Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey));
     if (fpp.equals(stateFpp)) {

@@ -1,9 +1,9 @@
 import BN from "bn.js";
 
 import { FIELD_ELEMENT_HEX_LEN } from "../constants";
-import CoreKitError from "../errors";
 import { IAsyncStorage, ICoreKit, IStorage, SupportedStorageType, TkeyLocalStoreData } from "../interfaces";
 import { storageAvailable } from "../utils";
+import CoreKitError from "./errors";
 
 export class MemoryStorage implements IStorage {
   private _store: Record<string, string> = {};
@@ -121,6 +121,7 @@ export class AsyncStorage {
       if (!storage) {
         throw CoreKitError.noValidStorageOptionFound();
       }
+      this.instance = new this(key, storage);
     }
     return this.instance;
   }
