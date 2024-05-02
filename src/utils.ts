@@ -6,6 +6,7 @@ import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
 import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
+import CoreKitError from "./errors";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -108,13 +109,17 @@ export async function addFactorAndRefresh(
   signatures: string[]
 ) {
   if (!tKey) {
-    throw new Error("'tkey' instance is undefined. Ensure 'tKey' is initialized before attempting to add a factor public key.");
+    throw CoreKitError.tkeyInstanceUninitialized(
+      "'tkey' instance is undefined. Ensure 'tKey' is initialized before attempting to add a factor public key."
+    );
   }
   if (VALID_TSS_INDICES.indexOf(newFactorTSSIndex) === -1) {
-    throw new Error(`The new share index '${newFactorTSSIndex}' is not valid. It must be one of ${VALID_TSS_INDICES.join(", ")}.`);
+    throw CoreKitError.newShareIndexInvalid(
+      `The new share index '${newFactorTSSIndex}' is not valid. It must be one of ${VALID_TSS_INDICES.join(", ")}.`
+    );
   }
   if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
-    throw new Error(`No 'factorPubs' array found for the specified 'tssTag' (${tKey.tssTag}).`);
+    throw CoreKitError.factorPubsMissing(`No 'factorPubs' array found for the specified 'tssTag' (${tKey.tssTag}).`);
   }
 
   const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
@@ -128,16 +133,18 @@ export async function addFactorAndRefresh(
 
 export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDelete: Point, factorKeyForExistingTSSShare: BN, signatures: string[]) {
   if (!tKey) {
-    throw new Error("'tkey' instance is undefined. Ensure 'tKey' is initialized before attempting to delete a factor public key.");
+    throw CoreKitError.tkeyInstanceUninitialized(
+      "'tkey' instance is undefined. Ensure 'tKey' is initialized before attempting to delete a factor public key."
+    );
   }
   if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
-    throw new Error(`No 'factorPubs' array found for the specified 'tssTag' (${tKey.tssTag}).`);
+    throw CoreKitError.factorPubsMissing(`No 'factorPubs' array found for the specified 'tssTag' (${tKey.tssTag}).`);
   }
 
   const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
   const factorIndex = existingFactorPubs.findIndex((p) => p.x.eq(factorPubToDelete.x));
   if (factorIndex === -1) {
-    throw new Error(`The specified factorPub (${factorPubToDelete}) does not exist.`);
+    throw CoreKitError.factorPubsMissing(`The specified factorPub (${factorPubToDelete}) does not exist.`);
   }
 
   const updatedFactorPubs = existingFactorPubs.slice();
