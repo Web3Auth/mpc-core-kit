@@ -1261,7 +1261,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.options.chainConfig = option.chainConfig;
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
-    await signingProvider.setupProvider({ sign: this.sign, getPublic: this.getPublic });
+    await signingProvider.setupProvider({
+      sign: this.sign,
+      getPublic: async () => {
+        const pk = await this.getPublic();
+        return pk.subarray(1);
+      },
+    });
 
     if (this.providerProxy === null) {
       const provider = createSwappableProxy<SafeEventEmitterProvider>(signingProvider.provider);
