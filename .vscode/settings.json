@@ -7,6 +7,5 @@
   "eslint.lintTask.enable": true,
   "editor.codeActionsOnSave": {
     "source.fixAll": "explicit"
-  },
-  "deno.enable": false
+  }
 }
