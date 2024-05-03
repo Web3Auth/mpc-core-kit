@@ -2,6 +2,12 @@
   "extends": "@toruslabs/config/tsconfig.default.json",
   "compilerOptions": {
     "baseUrl": "."
+  },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS",
+      "target": "ES2017"
+    }
   }
 }
   

@@ -935,9 +935,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
     } else {
       if (importTssKey) throw new Error("Cannot import tss key for existing user");
-      await this.tKey.initialize({ neverInitializeNewKey: true });
       const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
-      if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
+      const isHashedFactorKeyValid = this.checkIfFactorKeyValid(hashedFactorKey);
+      await this.tKey.initialize({ neverInitializeNewKey: true });
+      if (isHashedFactorKeyValid && !this.options.disableHashedFactorKey) {
         // Initialize tkey with existing hashed share if available.
         const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
         try {
@@ -1007,6 +1008,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
     } catch (err) {
       log.error("error trying to authorize session", err);
+      throw err;
     }
   }
 
@@ -1022,6 +1024,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw new Error("User not logged in");
       }
+
       const payload: SessionData = {
         oAuthKey,
         factorKey: factorKey?.toString("hex"),
@@ -1041,7 +1044,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async isMetadataPresent(privateKey: string) {
     const privateKeyBN = new BN(privateKey, "hex");
     const metadata = await this.tKey?.storageLayer.getMetadata<{ message: string }>({ privKey: privateKeyBN });
-    if (metadata && Object.keys(metadata).length > 0 && metadata.message !== "KEY_NOT_FOUND") {
+
+    if (metadata && Object.keys(metadata).length > 0 && metadata.message !== "KEY_NOT_FOUND" && metadata.message !== "SHARE_DELETED") {
       return true;
     }
     return false;
@@ -1062,6 +1066,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey });
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
       throw new Error("no metadata for your factor key, reset your account");
+    }
+    if (factorKeyMetadata.message === "SHARE_DELETED") {
+      throw new Error("no metadata for your factor key, deleted.");
     }
     return ShareStore.fromJSON(factorKeyMetadata);
   }
