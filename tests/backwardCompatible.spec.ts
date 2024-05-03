@@ -125,7 +125,7 @@ variable.forEach((testVariable) => {
       const signature = await coreKitInstance.sign(msgHash);
 
       const secp256k1 = new EC("secp256k1");
-      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v - 27);
+      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v);
       const publicKeyPoint = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkey.x.toString("hex"), publicKeyPoint.x.toString("hex"));
       assert.strictEqual(pubkey.y.toString("hex"), publicKeyPoint.y.toString("hex"));

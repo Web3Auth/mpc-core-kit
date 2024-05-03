@@ -211,7 +211,7 @@ variable.forEach((testVariable) => {
       const signature = await coreKitInstance.sign(msgHash);
 
       const secp256k1 = new EC("secp256k1");
-      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v - 27);
+      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v);
       const publicKeyPoint = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkey.x.toString("hex"), publicKeyPoint.x.toString("hex"));
       assert.strictEqual(pubkey.y.toString("hex"), publicKeyPoint.y.toString("hex"));
@@ -237,7 +237,7 @@ variable.forEach((testVariable) => {
       const msgHash = keccak256(msgBuffer);
       const signature1 = await coreKitInstance.sign(msgHash);
 
-      const pubkeyIndex0 = secp256k1.recoverPubKey(msgHash, signature1, signature1.v - 27);
+      const pubkeyIndex0 = secp256k1.recoverPubKey(msgHash, signature1, signature1.v);
       const publicKeyPoint0 = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkeyIndex0.x.toString("hex"), publicKeyPoint0.x.toString("hex"));
       assert.strictEqual(pubkeyIndex0.y.toString("hex"), publicKeyPoint0.y.toString("hex"));
@@ -250,7 +250,7 @@ variable.forEach((testVariable) => {
 
       const signature2 = await coreKitInstance.sign(msgHash1);
 
-      const pubkeyIndex1 = secp256k1.recoverPubKey(msgHash1, signature2, signature2.v - 27);
+      const pubkeyIndex1 = secp256k1.recoverPubKey(msgHash1, signature2, signature2.v);
       const publicKeyPoint1 = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkeyIndex1.x.toString("hex"), publicKeyPoint1.x.toString("hex"));
       assert.strictEqual(pubkeyIndex1.y.toString("hex"), publicKeyPoint1.y.toString("hex"));
@@ -264,7 +264,7 @@ variable.forEach((testVariable) => {
       const msgHash2 = keccak256(msgBuffer2);
       const signature3 = await coreKitInstance.sign(msgHash2);
 
-      const pubkeyIndex2 = secp256k1.recoverPubKey(msgHash2, signature3, signature3.v - 27);
+      const pubkeyIndex2 = secp256k1.recoverPubKey(msgHash2, signature3, signature3.v);
       const publicKeyPoint2 = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkeyIndex2.x.toString("hex"), publicKeyPoint2.x.toString("hex"));
       assert.strictEqual(pubkeyIndex2.y.toString("hex"), publicKeyPoint2.y.toString("hex"));
