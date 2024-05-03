@@ -1,5 +1,5 @@
-import { getPubKeyPoint, Point, Point as TkeyPoint } from "@tkey/common-types";
-import { FACTOR_KEY_TYPE, randomSelection, TKeyTSS } from "@tkey/tss";
+import { FACTOR_KEY_TYPE, getPubKeyPoint, Point, Point as TkeyPoint } from "@tkey/common-types";
+import { randomSelection, TKeyTSS } from "@tkey/tss";
 import { generatePrivate } from "@toruslabs/eccrypto";
 import { EllipticCurve } from "@toruslabs/elliptic-wrapper";
 import { safeatob } from "@toruslabs/openlogin-utils";

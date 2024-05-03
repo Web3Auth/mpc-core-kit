@@ -1,5 +1,4 @@
-import { getPubKeyPoint, Point as tkeyPoint, StringifiedType } from "@tkey/common-types";
-import { FACTOR_KEY_TYPE } from "@tkey/tss";
+import { FACTOR_KEY_TYPE, getPubKeyPoint, Point as tkeyPoint, StringifiedType } from "@tkey/common-types";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 

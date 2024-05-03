@@ -1,10 +1,20 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 import { createSwappableProxy, SwappableProxy } from "@metamask/swappable-obj-proxy";
-import { BNString, encrypt, getPubKeyPoint, KeyType, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
+import {
+  BNString,
+  encrypt,
+  FACTOR_KEY_TYPE,
+  getPubKeyPoint,
+  KeyType,
+  Point as TkeyPoint,
+  SHARE_DELETED,
+  ShareStore,
+  StringifiedType,
+} from "@tkey/common-types";
 import { CoreError, lagrangeInterpolation } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import { FACTOR_KEY_TYPE, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
+import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
@@ -278,7 +288,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
       },
-      tssKeyType: this._tssKeyType,
+      keyType: this._tssKeyType,
     });
 
     this.storageLayer = new TorusStorageLayer({
@@ -296,8 +306,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       modules: {
         shareSerialization: shareSerializationModule,
       },
-      keyType: KeyType.secp256k1,
-      tssKeyType: this._tssKeyType,
+      keyType: this._tssKeyType,
     });
 
     if (this.isRedirectMode) {
@@ -1117,7 +1126,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async isMetadataPresent(privateKey: string) {
     const privateKeyBN = new BN(privateKey, "hex");
-    const metadata = await this.tKey?.storageLayer.getMetadata<{ message: string }>({ privKey: privateKeyBN, keyType: FACTOR_KEY_TYPE });
+    const metadata = await this.tKey?.readMetadata<StringifiedType>(privateKeyBN);
     if (metadata && Object.keys(metadata).length > 0 && metadata.message !== "KEY_NOT_FOUND") {
       return true;
     }
@@ -1126,17 +1135,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async checkIfFactorKeyValid(factorKey: BN): Promise<boolean> {
     this.checkReady();
-    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey, keyType: FACTOR_KEY_TYPE });
+    const factorKeyMetadata = await this.tKey?.readMetadata<StringifiedType>(factorKey);
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND" || factorKeyMetadata.message === "SHARE_DELETED") {
       return false;
     }
-    log.info("factorKeyMetadata", factorKeyMetadata);
     return true;
   }
 
   private async getFactorKeyMetadata(factorKey: BN): Promise<ShareStore> {
     this.checkReady();
-    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKey, keyType: FACTOR_KEY_TYPE });
+    const factorKeyMetadata = await this.tKey?.readMetadata<StringifiedType>(factorKey);
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
       throw new Error("no metadata for your factor key, reset your account");
     }
@@ -1193,7 +1201,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       serverEncs: [],
     };
     this.tKey.metadata.addTSSData({
-      tssKeyType: this.tkey.tssKeyType,
+      keyType: this.tkey.keyType,
       tssTag: this.tKey.tssTag,
       factorPubs: updatedFactorPubs,
       factorEncs,

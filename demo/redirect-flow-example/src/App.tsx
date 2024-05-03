@@ -9,8 +9,7 @@ import { BN } from "bn.js";
 
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
-import { KeyType } from "@tkey/common-types";
-import { FACTOR_KEY_TYPE } from "@tkey/tss";
+import { KeyType, FACTOR_KEY_TYPE } from "@tkey/common-types";
 import { wasm } from "@toruslabs/tss-frost-client-wasm";
 
 
@@ -37,8 +36,10 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     uxMode: 'redirect',
     manualSync: true,
     setupProviderOnInit: false,
-    tssKeyType: KeyType.ed25519,
-    tssWasmURL: wasm,
+    tssKeyType: KeyType.secp256k1,
+    tssWasmURL: new URL("https://node-1.dev-node.web3auth.io/tss/v1/clientWasm"),
+    // tssKeyType: KeyType.ed25519,
+    // tssWasmURL: wasm,
   }
 );
 
