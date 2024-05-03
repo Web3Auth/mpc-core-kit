@@ -365,7 +365,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.setupTkey(importTssKey);
 
       // workaround for atomic sync, commit changes if not manualSync
-      if (!this.options.manualSync) await this.commitChanges();
+      if (!this.options.manualSync && this.state.factorKey) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -445,7 +445,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.setupTkey(importTssKey);
 
       // workaround for atomic sync, commit changes if not manualSync
-      if (!this.options.manualSync) await this.commitChanges();
+      if (!this.options.manualSync && this.state.factorKey) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {

@@ -177,6 +177,7 @@ const variable: FactorTestVariable[] = [
   { types: TssShareType.RECOVERY, manualSync: true, storage: "memory" },
 
   { types: TssShareType.RECOVERY, manualSync: true, asyncStorage: new AsyncMemoryStorage() },
+  { types: TssShareType.RECOVERY, manualSync: false, asyncStorage: new AsyncMemoryStorage() },
 ];
 
 const email = "testmail102";
