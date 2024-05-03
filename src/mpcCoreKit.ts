@@ -772,13 +772,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw err;
     });
 
-    let { r, s, recoveryParam } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
+    const { r, s, recoveryParam } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
       signatures,
     });
 
-    if (recoveryParam < 27) {
-      recoveryParam += 27;
-    }
     // skip await cleanup
     client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
     return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
