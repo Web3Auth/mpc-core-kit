@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/member-ordering */
-import { createSwappableProxy, SwappableProxy } from "@metamask/swappable-obj-proxy";
 import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError, lagrangeInterpolation } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
@@ -15,7 +14,7 @@ import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type * as TssLib from "@toruslabs/tss-lib";
-import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
+import { CHAIN_NAMESPACES, CustomChainConfig, log } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
 import bowser from "bowser";
@@ -70,8 +69,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
 
   private options: Web3AuthOptionsWithDefaults;
-
-  private providerProxy: SwappableProxy<SafeEventEmitterProvider> | null = null;
 
   private torusSp: TorusServiceProvider | null = null;
 
@@ -153,14 +150,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.tkeyInstanceUninitialized();
     }
     return this.tkey;
-  }
-
-  get provider(): SafeEventEmitterProvider | null {
-    return this.providerProxy ? this.providerProxy : null;
-  }
-
-  set provider(_: SafeEventEmitterProvider | null) {
-    throw CoreKitError.default("Set provider has not been implemented.");
   }
 
   get signatures(): string[] {
@@ -1265,13 +1254,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.options.chainConfig = option.chainConfig;
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
     await signingProvider.setupProvider({ sign: this.sign, getPublic: this.getPublic });
-
-    if (this.providerProxy === null) {
-      const provider = createSwappableProxy<SafeEventEmitterProvider>(signingProvider.provider);
-      this.providerProxy = provider;
-    } else {
-      this.providerProxy.setTarget(signingProvider.provider);
-    }
   }
 
   private updateState(newState: Partial<Web3AuthState>): void {
@@ -1283,7 +1265,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tkey = null;
     this.torusSp = null;
     this.storageLayer = null;
-    this.providerProxy = null;
   }
 
   private _getOAuthKey(result: TorusKey): string {
