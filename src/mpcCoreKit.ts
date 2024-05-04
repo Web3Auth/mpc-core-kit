@@ -365,7 +365,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.setupTkey(importTssKey);
 
       // workaround for atomic sync, commit changes if not manualSync
-      if (!this.options.manualSync) await this.commitChanges();
+      // moved to setupTkey ( new user only ) Existing user do not mutate metadata
+      // if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -445,7 +446,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.setupTkey(importTssKey);
 
       // workaround for atomic sync, commit changes if not manualSync
-      if (!this.options.manualSync) await this.commitChanges();
+      // moved to setupTkey ( new user only ) Existing user do not mutate metadata
+      // if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -933,6 +935,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
       }
+
+      // workaround for atomic sync, commit changes if not manualSync
+      if (!this.options.manualSync) await this.commitChanges();
     } else {
       if (importTssKey) throw new Error("Cannot import tss key for existing user");
       await this.tKey.initialize({ neverInitializeNewKey: true });
