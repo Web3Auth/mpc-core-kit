@@ -4,7 +4,8 @@ import Web3 from "web3";
 import type { provider } from "web3-core";
 
 import "./App.css";
-import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
+import { CHAIN_NAMESPACES, CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
+import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider"
 import { BN } from "bn.js";
 
 import jwt, { Algorithm } from "jsonwebtoken";
@@ -33,7 +34,6 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     web3AuthNetwork: selectedNetwork,
     uxMode: 'redirect',
     manualSync: true,
-    setupProviderOnInit: false,
     // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
   }
 );
@@ -93,14 +93,12 @@ function App() {
         await coreKitInstance.handleRedirectResult();
       }
 
-      if (coreKitInstance.provider) {
-        setProvider(coreKitInstance.provider);
-      } else {
-        if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-          coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then(() => {
-            setProvider(coreKitInstance.provider);
-          });
-        }
+      
+
+      if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+        let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
+        localProvider.setupProvider(coreKitInstance);
+        setProvider(localProvider);
       }
 
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
@@ -161,14 +159,11 @@ function App() {
         verifierId: parsedToken.email,
         idToken,
       }, {prefetchTssPublicKeys: 1} );
-      if (coreKitInstance.provider) {
-        setProvider(coreKitInstance.provider);
-      }
-      else {
-        coreKitInstance.setupProvider({ chainConfig: DEFAULT_CHAIN_CONFIG }).then((provider) => {
-          
-          setProvider(coreKitInstance.provider);
-        });
+
+      if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+        let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
+        localProvider.setupProvider(coreKitInstance);
+        setProvider(localProvider);
       }
       setCoreKitStatus(coreKitInstance.status);
     } catch (error: unknown) {
@@ -232,8 +227,10 @@ function App() {
       uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
     }
 
-    if (coreKitInstance.provider) {
-      setProvider(coreKitInstance.provider);
+    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
+      localProvider.setupProvider(coreKitInstance);
+      setProvider(localProvider);
     }
   }
 
@@ -378,8 +375,17 @@ function App() {
       blockExplorer: "https://sepolia.etherscan.io",
       logo: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
     };
-    await coreKitInstance.switchChain(newChainConfig);
-    setProvider(coreKitInstance.provider);
+
+    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      let localProvider = new EthereumSigningProvider({ config: { chainConfig: newChainConfig } });
+      localProvider.setupProvider(coreKitInstance);
+      setProvider(localProvider);
+    }
+    // or 
+    // provider.sendAsync({
+    //   method: "wallet_switchEthereumChain",
+    //   params: [{ chainId: newChainConfig.chainId }],
+    // })
     uiConsole("Changed to Sepolia Network");
   };
 
@@ -399,8 +405,16 @@ function App() {
       ticker: "MATIC",
       tickerName: "MATIC",
     };
-    await coreKitInstance.switchChain(newChainConfig);
-    setProvider(coreKitInstance.provider);
+    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      let localProvider = new EthereumSigningProvider({ config: { chainConfig: newChainConfig } });
+      localProvider.setupProvider(coreKitInstance);
+      setProvider(localProvider);
+    }
+    // or
+    // provider.sendAsync({
+    //   method: "wallet_switchEthereumChain",
+    //   params: [{ chainId: newChainConfig.chainId }],
+    // })
     uiConsole("Changed to Sepolia Network");
   };
 
@@ -409,20 +423,44 @@ function App() {
       uiConsole("provider not initialized yet");
       return;
     }
-    const newChainConfig = {
-      chainNamespace: CHAIN_NAMESPACES.EIP155,
-      chainId: "0xCC", // hex of 1261120
-      rpcTarget: "https://opbnb-mainnet-rpc.bnbchain.org",
-      // Avoid using public rpcTarget in production.
-      // Use services like Infura, Quicknode etc
-      displayName: "opBNB Mainnet",
-      blockExplorer: "https://opbnbscan.com",
-      ticker: "BNB",
-      tickerName: "opBNB",
-    };
-    await coreKitInstance.switchChain(newChainConfig);
-    setProvider(coreKitInstance.provider);
-    uiConsole("Changed to Sepolia Network");
+    // const newChainConfig : CustomChainConfig = {
+    //   chainNamespace: CHAIN_NAMESPACES.EIP155,
+    //   chainId: "0xCC", // hex of 1261120
+    //   rpcTarget: "https://opbnb-mainnet-rpc.bnbchain.org",
+    //   // Avoid using public rpcTarget in production.
+    //   // Use services like Infura, Quicknode etc
+    //   displayName: "opBNB Mainnet",
+    //   blockExplorerUrl: "https://opbnbscan.com",
+    //   ticker: "BNB",
+    //   tickerName: "opBNB",
+    // };
+    // if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+    //   let localProvider = new EthereumSigningProvider({ config: { chainConfig: newChainConfig } });
+    //   localProvider.setupProvider(coreKitInstance);
+    //   setProvider(localProvider);
+    // }
+    // or
+
+    let newChainConfig = {
+      chainId: "0xCC",
+      chainName: "BNB",
+      nativeCurrency: {
+        name: "BNB",
+        symbol: "BNB",
+        decimals: 18,
+      },
+      rpcUrls: ["https://opbnb-mainnet-rpc.bnbchain.org"],
+      blockExplorerUrls: ["https://opbnbscan.com"],
+    }
+    await provider.sendAsync({
+      method: 'wallet_addEthereumChain',
+      params: [newChainConfig]
+    });
+    await provider.sendAsync({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: newChainConfig.chainId }],
+    })
+    uiConsole("Changed to BNB Network");
   };
 
   const criticalResetAccount = async (): Promise<void> => {
