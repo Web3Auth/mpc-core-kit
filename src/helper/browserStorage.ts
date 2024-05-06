@@ -1,4 +1,5 @@
 import { IAsyncStorage, IStorage } from "../interfaces";
+import CoreKitError from "./errors";
 
 export class MemoryStorage implements IStorage {
   private _store: Record<string, string> = {};
@@ -32,7 +33,9 @@ export class AsyncStorage {
 
   async toJSON(): Promise<string> {
     const result = await this.storage.getItem(this._storeKey);
-    if (!result) throw new Error(`storage ${this._storeKey} is null`);
+    if (!result) {
+      throw CoreKitError.noDataFoundInStorage(`No data found in storage under key '${this._storeKey}'.`);
+    }
     return result;
   }
 
