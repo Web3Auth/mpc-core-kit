@@ -104,9 +104,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
-  private _tssKeyType: KeyType;
+  private _keyType: KeyType;
 
-  private tssWasmURL: URL;
+  private clientWASM: URL;
 
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
@@ -117,8 +117,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("You must specify a web3auth clientId.");
     }
 
-    this._tssKeyType = options.tssKeyType;
-    this.tssWasmURL = options.tssWasmURL;
+    this._keyType = options.keyType;
+    this.clientWASM = new URL(options.clientWASM);
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
@@ -173,8 +173,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tkey;
   }
 
-  get tssKeyType(): KeyType {
-    return this._tssKeyType;
+  get keyType(): KeyType {
+    return this._keyType;
   }
 
   get provider(): SafeEventEmitterProvider | null {
@@ -288,7 +288,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
       },
-      keyType: this._tssKeyType,
+      keyType: this.keyType,
     });
 
     this.storageLayer = new TorusStorageLayer({
@@ -306,7 +306,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       modules: {
         shareSerialization: shareSerializationModule,
       },
-      keyType: this._tssKeyType,
+      keyType: this.keyType,
     });
 
     if (this.isRedirectMode) {
@@ -677,15 +677,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   };
 
   public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {
-    if (this._tssKeyType === "secp256k1") {
+    if (this.keyType === "secp256k1") {
       return this.localSignSecp256k1(msgHash);
     }
-    throw new Error(`sign hash not supported for key type ${this._tssKeyType}`);
+    throw new Error(`sign hash not supported for key type ${this.keyType}`);
   };
 
   public signMessage = async (msg: Buffer): Promise<Buffer> => {
-    if (this._tssKeyType !== "ed25519") {
-      throw new Error(`sign message not supported for key type ${this._tssKeyType}`);
+    if (this.keyType !== "ed25519") {
+      throw new Error(`sign message not supported for key type ${this.keyType}`);
     }
 
     const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
@@ -723,7 +723,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const session = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, sessionNonce);
 
     // Initialize wasm client.
-    await initEd25519(this.tssWasmURL);
+    await initEd25519(this.clientWASM);
 
     // Run signing protocol.
     const serverURLs = endpoints.map((x) => x.url);
@@ -790,7 +790,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       tss = this.options.tssLib as typeof TssLib;
     } else {
       tss = await import("@toruslabs/tss-lib");
-      await tss.default(this.tssWasmURL);
+      await tss.default(this.clientWASM);
     }
     // setup mock shares, sockets and tss wasm files.
     const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
@@ -819,7 +819,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       share,
       tssPubKey.toString("base64"),
       true,
-      this.tssWasmURL.toString()
+      this.clientWASM.toString()
     );
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
@@ -900,7 +900,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
     const tkeyDetails = this.tKey.getKeyDetails();
-    const tssPubKey = this.state.tssPubKey ? Point.fromBufferSEC1(this.state.tssPubKey).toTkeyPoint(this.tssKeyType) : undefined;
+    const tssPubKey = this.state.tssPubKey ? Point.fromBufferSEC1(this.state.tssPubKey).toTkeyPoint(this.keyType) : undefined;
 
     const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
     const keyDetails: MPCKeyDetails = {
@@ -911,7 +911,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       shareDescriptions: this.tKey.getMetadata().getShareDescription(),
       metadataPubKey: tkeyDetails.pubKey,
       tssPubKey,
-      tssKeyType: this._tssKeyType,
+      keyType: this.keyType,
     };
     return keyDetails;
   }
@@ -999,7 +999,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey, FACTOR_KEY_TYPE);
       if (!importTssKey) {
-        const ec = new EC(this._tssKeyType);
+        const ec = new EC(this.keyType);
         const deviceTSSShare = ec.genKeyPair().getPrivate();
         await this.tKey.initialize({ factorPub, deviceTSSShare, deviceTSSIndex });
       } else {

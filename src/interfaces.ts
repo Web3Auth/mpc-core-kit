@@ -74,8 +74,8 @@ export type MPCKeyDetails = {
   requiredFactors: number;
   totalFactors: number;
   shareDescriptions: ShareDescriptionMap;
+  keyType: string;
   tssPubKey?: TkeyPoint;
-  tssKeyType: string;
 };
 
 export type OauthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
@@ -281,12 +281,12 @@ export interface Web3AuthOptions {
   /**
    * The type of the signing key (e.g., `secp256k1`, `ed25519`).
    */
-  tssKeyType: KeyType;
+  keyType: KeyType;
 
   /**
-   * The URL of the WASM client library.
+   * The URL of the WASM client library. Can be a Data URL.
    */
-  tssWasmURL: URL;
+  clientWASM: string;
 
   /**
    * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.

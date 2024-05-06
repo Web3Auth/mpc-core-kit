@@ -36,10 +36,10 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     uxMode: 'redirect',
     manualSync: true,
     setupProviderOnInit: false,
-    tssKeyType: KeyType.secp256k1,
-    tssWasmURL: new URL("https://node-1.dev-node.web3auth.io/tss/v1/clientWasm"),
-    // tssKeyType: KeyType.ed25519,
-    // tssWasmURL: wasm,
+    // keyType: KeyType.secp256k1,
+    // clientWASM: "https://node-1.dev-node.web3auth.io/tss/v1/clientWasm",
+    keyType: KeyType.ed25519,
+    clientWASM: wasm,
   }
 );
 
@@ -339,7 +339,7 @@ function App() {
   };
 
   const signMessage = async (): Promise<any> => {
-    if (coreKitInstance.tssKeyType === 'secp256k1') {
+    if (coreKitInstance.keyType === 'secp256k1') {
       if (!web3) {
         uiConsole("web3 not initialized yet");
         return;
@@ -367,7 +367,7 @@ function App() {
       });
 
       uiConsole(signedMessage);
-    } else if (coreKitInstance.tssKeyType === 'ed25519') {
+    } else if (coreKitInstance.keyType === 'ed25519') {
       const msg = Buffer.from("0xaabb");
       const sig = await coreKitInstance.signMessage(msg);
       uiConsole(sig.toString("hex"));
