@@ -5,7 +5,7 @@ import test from "node:test";
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import * as TssLib from "@toruslabs/tss-lib-node";
 
-import { COREKIT_STATUS, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
@@ -37,6 +37,7 @@ const variable: TestVariable[] = [
   },
 ];
 
+const storageInstance = new MemoryStorage();
 variable.forEach((testVariable) => {
   const { web3AuthNetwork, uxMode, manualSync, email, web3ClientID: web3AuthClientId, sessionTime } = variable[0];
   const coreKitInstance = new Web3AuthMPCCoreKit({
@@ -45,7 +46,7 @@ variable.forEach((testVariable) => {
     baseUrl: "http://localhost:3000",
     uxMode,
     tssLib: TssLib,
-    storageKey: "memory",
+    storage: storageInstance,
     manualSync,
     sessionTime,
   });

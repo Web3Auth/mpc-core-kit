@@ -33,7 +33,7 @@ import {
   VALID_SHARE_INDICES,
   WEB3AUTH_NETWORK,
 } from "./constants";
-import { AsyncStorage, asyncStoreFactor, BrowserStorage, storeWebBrowserFactor } from "./helper/browserStorage";
+import { AsyncStorage } from "./helper/browserStorage";
 import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
@@ -48,6 +48,7 @@ import {
   OauthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
+  TkeyLocalStoreData,
   UserInfo,
   Web3AuthOptions,
   Web3AuthOptionsWithDefaults,
@@ -79,7 +80,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private sessionManager!: OpenloginSessionManager<SessionData>;
 
-  private currentStorage!: BrowserStorage | AsyncStorage;
+  private currentStorage: AsyncStorage;
 
   private nodeDetailManager!: NodeDetailManager;
 
@@ -88,6 +89,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private enableLogging = false;
 
   private ready = false;
+
+  public get _storageKey(): string {
+    return this._storageBaseKey;
+  }
 
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
@@ -100,10 +105,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
-    if (!options.storageKey) options.storageKey = "local";
-    if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString()) && !options.asyncStorageKey) {
-      throw new Error(`${options.uxMode} mode do not storage of type : ${options.storageKey}`);
-    }
+    // if (await storageAvailable(options.storage)) {
+    //   throw new Error(`${options.uxMode} mode do not storage of type : ${options.storageKey}`);
+    // }
 
     if (isNodejsOrRN && !options.tssLib) {
       throw new Error(`${options.uxMode} mode requires tssLib`);
@@ -126,11 +130,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
-    if (this.options.asyncStorageKey) {
-      this.currentStorage = AsyncStorage.getInstance(this._storageBaseKey, options.asyncStorageKey);
-    } else {
-      this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
-    }
+    this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
 
     this.nodeDetailManager = new NodeDetailManager({
       network: this.options.web3AuthNetwork,
@@ -455,9 +455,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
-        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+        if (err.code === 1302) {
+          const newError = new Error(ERRORS.TKEY_SHARES_REQUIRED);
+          newError.stack = err.stack;
+          throw newError;
+        }
       }
-      throw new Error((err as Error).message);
+      throw err;
     } finally {
       // workaround for atomic syn, restore manual sync
       this.tkey.manualSync = this.options.manualSync;
@@ -586,11 +590,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         };
       }
       const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
-      if (this.currentStorage instanceof AsyncStorage) {
-        asyncStoreFactor(deviceFactorKey, this, this.options.asyncStorageKey);
-      } else {
-        storeWebBrowserFactor(deviceFactorKey, this, this.options.storageKey);
-      }
+      await this.setDeviceFactor(deviceFactorKey);
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
 
       const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
@@ -870,6 +870,32 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       log.error("change chain config error", error);
       throw error;
     }
+  }
+
+  // device factor
+  public async setDeviceFactor(factorKey: BN, replace = false): Promise<void> {
+    if (!replace) {
+      const existingFactor = await this.getDeviceFactor();
+      if (existingFactor) throw new Error("Device factor already exists");
+    }
+
+    const metadata = this.tKey.getMetadata();
+    const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+    await this.currentStorage.set(
+      tkeyPubX,
+      JSON.stringify({
+        factorKey: factorKey.toString("hex").padStart(64, "0"),
+      } as TkeyLocalStoreData)
+    );
+  }
+
+  public async getDeviceFactor(): Promise<string | undefined> {
+    const metadata = this.tKey.getMetadata();
+
+    const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+    const tKeyLocalStoreString = await this.currentStorage.get<string>(tkeyPubX);
+    const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
+    return tKeyLocalStore.factorKey;
   }
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment

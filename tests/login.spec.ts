@@ -9,7 +9,15 @@ import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 import { ec as EC } from "elliptic";
 
-import { BrowserStorage, COREKIT_STATUS, DEFAULT_CHAIN_CONFIG, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import {
+  AsyncStorage,
+  COREKIT_STATUS,
+  DEFAULT_CHAIN_CONFIG,
+  MemoryStorage,
+  WEB3AUTH_NETWORK,
+  WEB3AUTH_NETWORK_TYPE,
+  Web3AuthMPCCoreKit,
+} from "../src";
 import { criticalResetAccount, mockLogin, stringGen } from "./setup";
 
 type TestVariable = {
@@ -39,6 +47,8 @@ const checkLogin = async (coreKitInstance: Web3AuthMPCCoreKit, accountIndex = 0)
   });
 };
 
+const storageInstance = new MemoryStorage();
+
 variable.forEach((testVariable) => {
   const { web3AuthNetwork, uxMode, manualSync, email } = testVariable;
   const newCoreKitInstance = () =>
@@ -48,7 +58,7 @@ variable.forEach((testVariable) => {
       baseUrl: "http://localhost:3000",
       uxMode,
       tssLib: TssLib,
-      storageKey: "memory",
+      storage: storageInstance,
       manualSync,
     });
   const coreKitInstanceWithoutProvider = new Web3AuthMPCCoreKit({
@@ -57,7 +67,7 @@ variable.forEach((testVariable) => {
     baseUrl: "http://localhost:3000",
     uxMode,
     tssLib: TssLib,
-    storageKey: "memory",
+    storage: storageInstance,
     manualSync,
     setupProviderOnInit: false,
   });
@@ -75,7 +85,7 @@ variable.forEach((testVariable) => {
         baseUrl: "http://localhost:3000",
         uxMode,
         tssLib: TssLib,
-        storageKey: "memory",
+        storage: storageInstance,
         manualSync,
       });
       const { idToken, parsedToken } = await mockLogin(email);
@@ -86,7 +96,7 @@ variable.forEach((testVariable) => {
         idToken,
       });
       await criticalResetAccount(resetInstance);
-      BrowserStorage.getInstance("memory").resetStore();
+      await new AsyncStorage(resetInstance._storageKey, storageInstance).resetStore();
     });
 
     t.after(async function () {
@@ -128,7 +138,7 @@ variable.forEach((testVariable) => {
     await t.test("#Login without provider", async function () {
       // mocklogin
       const { idToken, parsedToken } = await mockLogin(email);
-      await coreKitInstanceWithoutProvider.init({ handleRedirectResult: false });
+      await coreKitInstanceWithoutProvider.init({ handleRedirectResult: false, rehydrate: false });
       await coreKitInstanceWithoutProvider.loginWithJWT({
         verifier: "torus-test-health",
         verifierId: parsedToken.email,
@@ -212,7 +222,7 @@ variable.forEach((testVariable) => {
       const coreKitInstance = newCoreKitInstance();
       // mock login with random
       const { idToken: idToken2, parsedToken: parsedToken2 } = await mockLogin(vid);
-      await coreKitInstance.init({ handleRedirectResult: false });
+      await coreKitInstance.init({ handleRedirectResult: false, rehydrate: false });
       await coreKitInstance.loginWithJWT({
         verifier: "torus-test-health",
         verifierId: parsedToken2.email,
@@ -275,7 +285,7 @@ variable.forEach((testVariable) => {
       const coreKitInstance3 = newCoreKitInstance();
       // mock login with random
       const { idToken: idToken3, parsedToken: parsedToken3 } = await mockLogin(vid);
-      await coreKitInstance3.init({ handleRedirectResult: false });
+      await coreKitInstance3.init({ handleRedirectResult: false, rehydrate: false });
       await coreKitInstance3.loginWithJWT({
         verifier: "torus-test-health",
         verifierId: parsedToken3.email,

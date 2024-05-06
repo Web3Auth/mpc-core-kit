@@ -299,17 +299,10 @@ export interface Web3AuthOptions {
   web3AuthNetwork?: WEB3AUTH_NETWORK_TYPE;
 
   /**
-   *
-   * @defaultValue `'local'`
+   *  storage for mpc-core-kit's local state.
+   *  it is used for storing device factor for now
    */
-  storageKey?: SupportedStorageType;
-
-  /**
-   *  asyncStorageKey take precedence over storageKey.
-   *  if asyncStorageKey is provided, storageKey will be ignored.
-   * @defaultValue `undefined`
-   */
-  asyncStorageKey?: IAsyncStorage;
+  storage: IAsyncStorage | IStorage;
 
   /**
    * @defaultValue 86400
