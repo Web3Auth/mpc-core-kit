@@ -34,6 +34,7 @@ import {
   WEB3AUTH_NETWORK,
 } from "./constants";
 import { AsyncStorage } from "./helper/browserStorage";
+import CoreKitError from "./helper/errors";
 import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
