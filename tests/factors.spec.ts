@@ -3,6 +3,7 @@ import assert from "node:assert";
 import test from "node:test";
 
 import * as TssLib from "@toruslabs/tss-lib-node";
+import { log } from "@web3auth/base";
 import BN from "bn.js";
 
 import {
@@ -27,10 +28,13 @@ type FactorTestVariable = {
 };
 
 //   const { types } = factor;
-export const FactorManipulationTest = async (newInstance: () => Promise<Web3AuthMPCCoreKit>, testVariable: FactorTestVariable) => {
+export const FactorManipulationTest = async (
+  newInstance: (ignoreError?: boolean) => Promise<Web3AuthMPCCoreKit>,
+  testVariable: FactorTestVariable
+) => {
   test(`#Factor manipulation - ${testVariable.types} `, async function (t) {
     await t.before(async function () {
-      const coreKitInstance = await newInstance();
+      const coreKitInstance = await newInstance(true);
       await criticalResetAccount(coreKitInstance);
       await coreKitInstance.logout();
     });
@@ -177,11 +181,12 @@ const variable: FactorTestVariable[] = [
   { types: TssShareType.RECOVERY, manualSync: true, storage: "memory" },
 
   { types: TssShareType.RECOVERY, manualSync: true, asyncStorage: new AsyncMemoryStorage() },
+  { types: TssShareType.RECOVERY, manualSync: false, asyncStorage: new AsyncMemoryStorage() },
 ];
 
 const email = "testmail102";
 variable.forEach(async (testVariable) => {
-  const newCoreKitLogInInstance = async () => {
+  const newCoreKitLogInInstance = async (ignoreError: boolean) => {
     const instance = new Web3AuthMPCCoreKit({
       web3AuthClientId: "torus-key-test",
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
@@ -201,7 +206,13 @@ variable.forEach(async (testVariable) => {
         verifierId: parsedToken.email,
         idToken,
       });
-    } catch (error) {}
+    } catch (e) {
+      // handle error
+      if (!ignoreError) {
+        throw e;
+      }
+      log.error(e);
+    }
 
     return instance;
   };
