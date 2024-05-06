@@ -14,8 +14,7 @@ import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type * as TssLib from "@toruslabs/tss-lib";
-import { CHAIN_NAMESPACES, CustomChainConfig, log } from "@web3auth/base";
-import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
+import { CHAIN_NAMESPACES, log } from "@web3auth/base";
 import BN from "bn.js";
 import bowser from "bowser";
 
@@ -124,7 +123,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
-    if (options.setupProviderOnInit === undefined) options.setupProviderOnInit = true;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -883,15 +881,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tKey.manualSync = manualSync;
   }
 
-  public async switchChain(chainConfig: CustomChainConfig): Promise<void> {
-    try {
-      await this.setupProvider({ chainConfig });
-    } catch (error: unknown) {
-      log.error("change chain config error", error);
-      throw error;
-    }
-  }
-
   // device factor
   public async setDeviceFactor(factorKey: BN, replace = false): Promise<void> {
     if (!replace) {
@@ -1029,9 +1018,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // Finalize setup.
     if (!this.tKey.manualSync) await this.tKey.syncLocalMetadataTransitions();
-    if (this.options.setupProviderOnInit) {
-      await this.setupProvider({ chainConfig: this.options.chainConfig });
-    }
     await this.createSession();
   }
 
@@ -1066,10 +1052,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
-
-      if (this.options.setupProviderOnInit) {
-        await this.setupProvider({ chainConfig: this.options.chainConfig });
-      }
     } catch (err) {
       log.error("error trying to authorize session", err);
     }
@@ -1240,17 +1222,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       tssShareIndex: tssIndex,
     };
     await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
-  }
-
-  public async setupProvider(option: { chainConfig: CustomChainConfig }): Promise<void> {
-    this.checkReady();
-    if (!this.state.factorKey) {
-      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when setting up provider.");
-    }
-
-    this.options.chainConfig = option.chainConfig;
-    const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
-    await signingProvider.setupProvider({ sign: this.sign, getPublic: this.getPublic });
   }
 
   private updateState(newState: Partial<Web3AuthState>): void {
