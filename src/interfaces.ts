@@ -389,12 +389,6 @@ export interface Web3AuthOptions {
    */
   hashedFactorNonce?: string;
 
-  /**
-   * @defaultValue `true`
-   * Setup Provider after `login success` reconstruct.
-   */
-  setupProviderOnInit?: boolean;
-
   serverTimeOffset?: number;
 }
 
