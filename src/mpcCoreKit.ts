@@ -90,6 +90,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
+  private newUser?: boolean = undefined;
+
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
@@ -188,7 +190,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // if 2 shares are present, then privKey will be present after metadatakey(tkey) reconstruction
       const { tkey } = this;
       if (!tkey) return COREKIT_STATUS.NOT_INITIALIZED;
-      if (!tkey.metadata) return COREKIT_STATUS.INITIALIZED;
+      if (!tkey.metadata) {
+        if (this.newUser === undefined) {
+          return COREKIT_STATUS.INITIALIZED;
+        }
+        if (this.newUser) {
+          return COREKIT_STATUS.NEW_USER;
+        }
+        return COREKIT_STATUS.EXISTING_USER;
+      }
       if (!tkey.privKey || !this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
       return COREKIT_STATUS.LOGGED_IN;
     } catch (e) {}
@@ -329,7 +339,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
-  public async loginWithOauth(params: OauthLoginParams): Promise<void> {
+  public async loginWithOauth(
+    params: OauthLoginParams,
+    opt: { manualSetup?: boolean } = {
+      manualSetup: false,
+    }
+  ): Promise<void> {
     this.checkReady();
     if (this.isNodejsOrRN(this.options.uxMode)) {
       throw CoreKitError.oauthLoginUnsupported(`Oauth login is NOT supported in ${this.options.uxMode} mode.`);
@@ -368,7 +383,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         });
       }
 
-      await this.setupTkey(importTssKey);
+      if (await this.isMetadataPresent(this.state.oAuthKey)) {
+        this.newUser = false;
+      } else {
+        this.newUser = true;
+      }
+
+      // default manualSetup is false
+      if (!opt.manualSetup) {
+        await this.setupKey(importTssKey);
+      }
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -389,7 +413,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   public async loginWithJWT(
     idTokenLoginParams: IdTokenLoginParams,
-    opt: { prefetchTssPublicKeys: number } = { prefetchTssPublicKeys: 1 }
+    opt: { prefetchTssPublicKeys: number; manualSetup?: boolean } = { prefetchTssPublicKeys: 1, manualSetup: false }
   ): Promise<void> {
     this.checkReady();
     if (opt.prefetchTssPublicKeys > 3) {
@@ -444,7 +468,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // wait for prefetch completed before setup tkey
       await Promise.all(prefetchTssPubs);
 
-      await this.setupTkey(importTssKey);
+      if (await this.isMetadataPresent(this.state.oAuthKey)) {
+        this.newUser = false;
+      } else {
+        this.newUser = true;
+      }
+
+      // default manualSetup is false
+      if (!opt.manualSetup) {
+        await this.setupKey(importTssKey);
+      }
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -498,7 +531,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       this.torusSp.postboxKey = new BN(this.state.oAuthKey, "hex");
       this.torusSp.verifierId = userInfo.verifierId;
-      await this.setupTkey();
+      await this.setupKey();
     } catch (error: unknown) {
       this.resetState();
       log.error("error while handling redirect result", error);
@@ -961,12 +994,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tssNonce;
   }
 
-  private async setupTkey(importTssKey?: string): Promise<void> {
+  public async setupKey(importTssKey?: string): Promise<void> {
     if (!this.state.oAuthKey) {
       throw CoreKitError.userNotLoggedIn();
     }
-    const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
-    if (!existingUser) {
+    if (this.tkey.privKey) {
+      throw CoreKitError.default("CoreKit already setup, Please logout and reinitialize again.");
+    }
+    if (this.newUser === undefined) {
+      throw CoreError.default("Invalid login, Please reinitalize again");
+    }
+    if (this.newUser) {
       await this.handleNewUser(importTssKey);
     } else {
       if (importTssKey) {
@@ -1297,6 +1335,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.torusSp = null;
     this.storageLayer = null;
     this.providerProxy = null;
+    this.newUser = undefined;
   }
 
   private _getOAuthKey(result: TorusKey): string {
