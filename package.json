@@ -48,6 +48,7 @@
     "@toruslabs/fnd-base": "^13.1.1",
     "@toruslabs/metadata-helpers": "^5.x",
     "@toruslabs/openlogin-session-manager": "^3.0.0",
+    "@toruslabs/openlogin-utils": "^8.0.0",
     "@toruslabs/torus.js": "^12.1.0",
     "@toruslabs/tss-client": "^2.1.0",
     "@toruslabs/tss-lib": "^2.0.0",
