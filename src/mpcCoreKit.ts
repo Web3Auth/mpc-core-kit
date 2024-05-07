@@ -365,7 +365,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.setupTkey(importTssKey);
 
       // workaround for atomic sync, commit changes if not manualSync
-      if (!this.options.manualSync) await this.commitChanges();
+      // moved to setupTkey ( new user only ) Existing user do not mutate metadata
+      // if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -445,7 +446,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.setupTkey(importTssKey);
 
       // workaround for atomic sync, commit changes if not manualSync
-      if (!this.options.manualSync) await this.commitChanges();
+      // moved to setupTkey ( new user only ) Existing user do not mutate metadata
+      // if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -933,10 +935,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
       }
+
+      // workaround for atomic sync, commit changes if not manualSync
+      if (!this.options.manualSync) await this.commitChanges();
     } else {
       if (importTssKey) throw new Error("Cannot import tss key for existing user");
       const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
-      const isHashedFactorKeyValid = this.checkIfFactorKeyValid(hashedFactorKey);
+      const isHashedFactorKeyValid = await this.checkIfFactorKeyValid(hashedFactorKey);
       await this.tKey.initialize({ neverInitializeNewKey: true });
       if (isHashedFactorKeyValid && !this.options.disableHashedFactorKey) {
         // Initialize tkey with existing hashed share if available.
@@ -1089,6 +1094,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     if (!this.state.factorKey) {
       throw new Error("factorKey not present");
+    }
+    // validate the current factor key
+    // current factor might be deleted from other instnaces,
+    // so it's better to validate it before we creating any shares
+    const isFactorValid = await this.checkIfFactorKeyValid(this.state.factorKey);
+    if (!isFactorValid) {
+      throw new Error("Current factorKey is not valid");
     }
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
       throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
