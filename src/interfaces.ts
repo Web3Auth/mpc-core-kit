@@ -195,14 +195,17 @@ export interface ICoreKit {
   /**
    * Login into the SDK in an implicit flow and initialize all relevant components.
    * @param loginParams - Parameters for Implicit Login.
+   * @param opt.manualSetup - Manual Setup - break login to 2 steps flow. Default is false.
    */
-  loginWithOauth(loginParams: OauthLoginParams): Promise<void>;
+  loginWithOauth(loginParams: OauthLoginParams, opt: { manualSetup?: boolean }): Promise<void>;
 
   /**
    * Login into the SDK using ID Token based login and initialize all relevant components.
    * @param idTokenLoginParams - Parameters with ID Token based Login.
+   * @param opt.prefetchTssPublicKeys - Prefetch DKG TSS Public Keys. Default is 1.
+   * @param opt.manualSetup - Manual Setup - break login to 2 steps flow. Default is false.
    */
-  loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
+  loginWithJWT(idTokenLoginParams: IdTokenLoginParams, opt: { prefetchTssPublicKeys: number; manualSetup?: boolean }): Promise<void>;
 
   /**
    * Enable MFA for the user. Deletes the Cloud factor and generates a new

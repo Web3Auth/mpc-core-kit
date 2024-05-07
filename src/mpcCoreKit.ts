@@ -339,7 +339,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
-  public async loginWithOauth(params: OauthLoginParams): Promise<void> {
+  public async loginWithOauth(
+    params: OauthLoginParams,
+    opt: { manualSetup?: boolean } = {
+      manualSetup: false,
+    }
+  ): Promise<void> {
     this.checkReady();
     if (this.isNodejsOrRN(this.options.uxMode)) {
       throw CoreKitError.oauthLoginUnsupported(`Oauth login is NOT supported in ${this.options.uxMode} mode.`);
@@ -378,7 +383,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         });
       }
 
-      await this.setupKey(importTssKey);
+      if (await this.isMetadataPresent(this.state.oAuthKey)) {
+        this.newUser = false;
+      } else {
+        this.newUser = true;
+      }
+
+      // default manualSetup is false
+      if (!opt.manualSetup) {
+        await this.setupKey(importTssKey);
+      }
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -454,7 +468,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // wait for prefetch completed before setup tkey
       await Promise.all(prefetchTssPubs);
 
-      if (this.isMetadataPresent) {
+      if (await this.isMetadataPresent(this.state.oAuthKey)) {
         this.newUser = false;
       } else {
         this.newUser = true;
@@ -990,8 +1004,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.newUser === undefined) {
       throw CoreError.default("Invalid login, Please reinitalize again");
     }
-    const existingUser = !this.newUser;
-    if (!existingUser) {
+    if (this.newUser) {
       await this.handleNewUser(importTssKey);
     } else {
       if (importTssKey) {
