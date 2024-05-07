@@ -300,7 +300,18 @@ export interface Web3AuthOptions {
 
   /**
    *  storage for mpc-core-kit's local state.
-   *  it is used for storing device factor for now
+   *  storage replaces previous' storageKey and asyncStorage options.
+   *
+   *  Migration from storageKey and asyncStorage to storage guide.
+   *
+   *  For StorageKey, please replace
+   *  - undefined with localStorage
+   *  - "local" with localStorage
+   *  - "session" with sessionStorage
+   *  - "memory" with new MemoryStorage()
+   *
+   *  For asyncStorage, provide instance of IAsyncStorage.
+   *
    */
   storage: IAsyncStorage | IStorage;
 
