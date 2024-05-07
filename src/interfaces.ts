@@ -64,6 +64,10 @@ export interface IFactorKey {
 export enum COREKIT_STATUS {
   NOT_INITIALIZED = "NOT_INITIALIZED",
   INITIALIZED = "INITIALIZED",
+  // after oauth/jwt login
+  NEW_USER = "NEW_USER",
+  EXISTING_USER = "EXISTING_USER",
+  // after setup
   REQUIRED_SHARE = "REQUIRED_SHARE",
   LOGGED_IN = "LOGGED_IN",
 }
