@@ -57,7 +57,8 @@
     "@web3auth/base-provider": "^7.0.1",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
-    "elliptic": "^6.5.5"
+    "elliptic": "^6.5.5",
+    "@toruslabs/http-helpers": "6.1.1"
   },
   "devDependencies": {
     "@babel/register": "^7.23.7",
@@ -93,13 +94,13 @@
   },
   "overrides": {
     "@tkey-mpc/storage-layer-torus": {
-      "@toruslabs/http-helpers": "^6.0.0"
+      "@toruslabs/http-helpers": "^6.1.1"
     },
     "@toruslabs/base-session-manager": {
-      "@toruslabs/http-helpers": "^6.0.0"
+      "@toruslabs/http-helpers": "^6.1.1"
     },
     "@toruslabs/customauth": {
-      "@toruslabs/http-helpers": "^6.0.0"
+      "@toruslabs/http-helpers": "^6.1.1"
     }
   },
   "lint-staged": {

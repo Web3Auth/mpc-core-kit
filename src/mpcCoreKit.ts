@@ -589,17 +589,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
 
+      // only recovery factor = true
+      let backupFactorKey = "";
+      if (recoveryFactor) {
+        backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
+      }
+
       const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
       await this.deleteMetadataShareBackup(hashedFactorKey);
 
-      // only recovery factor = true
-      if (recoveryFactor) {
-        const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
-        return backupFactorKey;
-      }
       // update to undefined for next major release
-      return "";
+      return backupFactorKey;
     } catch (err: unknown) {
       log.error("error enabling MFA", err);
       throw new Error((err as Error).message);
@@ -940,9 +941,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!this.options.manualSync) await this.commitChanges();
     } else {
       if (importTssKey) throw new Error("Cannot import tss key for existing user");
-      await this.tKey.initialize({ neverInitializeNewKey: true });
       const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
-      if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
+      const isHashedFactorKeyValid = await this.checkIfFactorKeyValid(hashedFactorKey);
+      await this.tKey.initialize({ neverInitializeNewKey: true });
+      if (isHashedFactorKeyValid && !this.options.disableHashedFactorKey) {
         // Initialize tkey with existing hashed share if available.
         const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
         try {
@@ -1012,6 +1014,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
     } catch (err) {
       log.error("error trying to authorize session", err);
+      throw err;
     }
   }
 
@@ -1027,6 +1030,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw new Error("User not logged in");
       }
+
       const payload: SessionData = {
         oAuthKey,
         factorKey: factorKey?.toString("hex"),
@@ -1046,7 +1050,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async isMetadataPresent(privateKey: string) {
     const privateKeyBN = new BN(privateKey, "hex");
     const metadata = await this.tKey?.storageLayer.getMetadata<{ message: string }>({ privKey: privateKeyBN });
-    if (metadata && Object.keys(metadata).length > 0 && metadata.message !== "KEY_NOT_FOUND") {
+
+    if (metadata && Object.keys(metadata).length > 0 && metadata.message !== "KEY_NOT_FOUND" && metadata.message !== "SHARE_DELETED") {
       return true;
     }
     return false;
@@ -1068,6 +1073,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
       throw new Error("no metadata for your factor key, reset your account");
     }
+    if (factorKeyMetadata.message === "SHARE_DELETED") {
+      throw new Error("no metadata for your factor key, deleted.");
+    }
     return ShareStore.fromJSON(factorKeyMetadata);
   }
 
@@ -1087,6 +1095,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     if (!this.state.factorKey) {
       throw new Error("factorKey not present");
+    }
+    // validate the current factor key
+    // current factor might be deleted from other instnaces,
+    // so it's better to validate it before we creating any shares
+    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: this.getCurrentFactorKey().factorKey });
+    if (factorKeyMetadata?.message === SHARE_DELETED) {
+      throw new Error("Current factorKey is not valid");
     }
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
       throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);

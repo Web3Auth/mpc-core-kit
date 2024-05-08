@@ -39,7 +39,7 @@ export const FactorManipulationTest = async (
       await coreKitInstance.logout();
     });
 
-    await t.test("should able to create factor", async function () {
+    await t.test("should be able to create factor", async function () {
       const coreKitInstance = await newInstance();
       coreKitInstance.setTssWalletIndex(1);
 
@@ -59,6 +59,11 @@ export const FactorManipulationTest = async (
         await coreKitInstance.deleteFactor(pt.toTkeyPoint());
         throw new Error("should not reach here");
       } catch {}
+
+      // sync
+      if (testVariable.manualSync) {
+        await coreKitInstance.commitChanges();
+      }
 
       // create factor
       const factorKey1 = await coreKitInstance.createFactor({
@@ -141,6 +146,9 @@ export const FactorManipulationTest = async (
 
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
+      if (testVariable.manualSync) {
+        await instance.commitChanges();
+      }
       instance.setTssWalletIndex(1);
       const recoverFactor = await instance.enableMFA({});
 
@@ -184,7 +192,7 @@ const variable: FactorTestVariable[] = [
   { types: TssShareType.RECOVERY, manualSync: false, asyncStorage: new AsyncMemoryStorage() },
 ];
 
-const email = "testmail102";
+const email = "testmail08_manipulate_factor";
 variable.forEach(async (testVariable) => {
   const newCoreKitLogInInstance = async (ignoreError: boolean) => {
     const instance = new Web3AuthMPCCoreKit({
