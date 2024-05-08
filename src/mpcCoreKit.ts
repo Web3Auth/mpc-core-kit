@@ -589,17 +589,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
 
+      // only recovery factor = true
+      let backupFactorKey = "";
+      if (recoveryFactor) {
+        backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
+      }
+
       const hashedFactorPub = getPubKeyPoint(hashedFactorKey);
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
       await this.deleteMetadataShareBackup(hashedFactorKey);
 
-      // only recovery factor = true
-      if (recoveryFactor) {
-        const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
-        return backupFactorKey;
-      }
       // update to undefined for next major release
-      return "";
+      return backupFactorKey;
     } catch (err: unknown) {
       log.error("error enabling MFA", err);
       throw new Error((err as Error).message);
@@ -1098,8 +1099,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // validate the current factor key
     // current factor might be deleted from other instnaces,
     // so it's better to validate it before we creating any shares
-    const isFactorValid = await this.checkIfFactorKeyValid(this.state.factorKey);
-    if (!isFactorValid) {
+    const factorKeyMetadata = await this.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: this.getCurrentFactorKey().factorKey });
+    if (factorKeyMetadata?.message === SHARE_DELETED) {
       throw new Error("Current factorKey is not valid");
     }
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
