@@ -6,25 +6,13 @@ import * as TssLib from "@toruslabs/tss-lib-node";
 import { log } from "@web3auth/base";
 import BN from "bn.js";
 
-import {
-  asyncGetFactor,
-  COREKIT_STATUS,
-  getWebBrowserFactor,
-  IAsyncStorage,
-  MemoryStorage,
-  Point,
-  SupportedStorageType,
-  TssShareType,
-  WEB3AUTH_NETWORK,
-  Web3AuthMPCCoreKit,
-} from "../src";
+import { COREKIT_STATUS, IAsyncStorage, IStorage, MemoryStorage, Point, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { AsyncMemoryStorage, criticalResetAccount, mockLogin } from "./setup";
 
 type FactorTestVariable = {
   types: TssShareType;
   manualSync?: boolean;
-  storage?: SupportedStorageType;
-  asyncStorage?: IAsyncStorage;
+  storage?: IAsyncStorage | IStorage;
 };
 
 //   const { types } = factor;
@@ -154,12 +142,7 @@ export const FactorManipulationTest = async (
       // new instance
       const instance2 = await newInstance();
 
-      let browserFactor;
-      if (testVariable.storage) {
-        browserFactor = await getWebBrowserFactor(instance2, testVariable.storage);
-      } else {
-        browserFactor = await asyncGetFactor(instance2, testVariable.asyncStorage);
-      }
+      const browserFactor = await instance2.getDeviceFactor();
 
       // login with mfa factor
       await instance2.inputFactorKey(new BN(recoverFactor, "hex"));
@@ -178,10 +161,10 @@ export const FactorManipulationTest = async (
 
 const variable: FactorTestVariable[] = [
   { types: TssShareType.DEVICE, manualSync: true, storage: new MemoryStorage() },
-  { types: TssShareType.RECOVERY, manualSync: true, storage: "memory" },
+  { types: TssShareType.RECOVERY, manualSync: true, storage: new MemoryStorage() },
 
-  { types: TssShareType.RECOVERY, manualSync: true, asyncStorage: new AsyncMemoryStorage() },
-  { types: TssShareType.RECOVERY, manualSync: false, asyncStorage: new AsyncMemoryStorage() },
+  { types: TssShareType.RECOVERY, manualSync: true, storage: new AsyncMemoryStorage() },
+  { types: TssShareType.RECOVERY, manualSync: false, storage: new AsyncMemoryStorage() },
 ];
 
 const email = "testmail102";
@@ -193,8 +176,7 @@ variable.forEach(async (testVariable) => {
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
       tssLib: TssLib,
-      storageKey: testVariable.storage,
-      asyncStorageKey: testVariable.asyncStorage,
+      storage: testVariable.storage,
       manualSync: testVariable.manualSync,
     });
 

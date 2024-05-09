@@ -8,7 +8,15 @@ import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 
-import { BrowserStorage, SupportedStorageType, TssSecurityQuestion, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import {
+  AsyncStorage,
+  MemoryStorage,
+  SupportedStorageType,
+  TssSecurityQuestion,
+  WEB3AUTH_NETWORK,
+  WEB3AUTH_NETWORK_TYPE,
+  Web3AuthMPCCoreKit,
+} from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
@@ -18,13 +26,15 @@ type TestVariable = {
   storage?: SupportedStorageType;
 };
 
+const storageInstance = new MemoryStorage();
 export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3AuthMPCCoreKit>, testVariable: TestVariable) => {
   test(`#Tss Security Question - ${testVariable.manualSync} `, async function (t) {
     await t.before(async function () {
       const coreKitInstance = await newInstance();
       await criticalResetAccount(coreKitInstance);
       await coreKitInstance.logout();
-      BrowserStorage.getInstance("corekit_store", testVariable.storage).resetStore();
+
+      await new AsyncStorage(coreKitInstance._storageKey, storageInstance).resetStore();
     });
     t.afterEach(function () {
       return console.log("finished running test");
@@ -134,7 +144,7 @@ variable.forEach(async (testVariable) => {
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
       tssLib: TssLib,
-      storageKey: "memory",
+      storage: storageInstance,
       manualSync: testVariable.manualSync,
     });
 

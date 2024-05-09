@@ -299,17 +299,21 @@ export interface Web3AuthOptions {
   web3AuthNetwork?: WEB3AUTH_NETWORK_TYPE;
 
   /**
+   *  storage for mpc-core-kit's local state.
+   *  storage replaces previous' storageKey and asyncStorage options.
    *
-   * @defaultValue `'local'`
+   *  Migration from storageKey and asyncStorage to storage guide.
+   *
+   *  For StorageKey, please replace
+   *  - undefined with localStorage
+   *  - "local" with localStorage
+   *  - "session" with sessionStorage
+   *  - "memory" with new MemoryStorage()
+   *
+   *  For asyncStorage, provide instance of IAsyncStorage.
+   *
    */
-  storageKey?: SupportedStorageType;
-
-  /**
-   *  asyncStorageKey take precedence over storageKey.
-   *  if asyncStorageKey is provided, storageKey will be ignored.
-   * @defaultValue `undefined`
-   */
-  asyncStorageKey?: IAsyncStorage;
+  storage: IAsyncStorage | IStorage;
 
   /**
    * @defaultValue 86400

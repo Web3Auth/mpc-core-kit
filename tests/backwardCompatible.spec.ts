@@ -8,7 +8,7 @@ import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 import { ec as EC } from "elliptic";
 
-import { BrowserStorage, COREKIT_STATUS, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { AsyncStorage, COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { mockLogin } from "./setup";
 
 type TestVariable = {
@@ -38,6 +38,8 @@ const checkLogin = async (coreKitInstance: Web3AuthMPCCoreKit) => {
 
 variable.forEach((testVariable) => {
   const { web3AuthNetwork, uxMode, manualSync, email } = testVariable;
+
+  const storageInstance = new MemoryStorage();
   const newCoreKitInstance = () =>
     new Web3AuthMPCCoreKit({
       web3AuthClientId: "torus-key-test",
@@ -45,7 +47,7 @@ variable.forEach((testVariable) => {
       baseUrl: "http://localhost:3000",
       uxMode,
       tssLib: TssLib,
-      storageKey: "memory",
+      storage: storageInstance,
       manualSync,
     });
 
@@ -93,7 +95,9 @@ variable.forEach((testVariable) => {
       // logout
       await coreKitInstance.logout();
 
-      BrowserStorage.getInstance("memory").resetStore();
+      // reset the storage
+      await new AsyncStorage(coreKitInstance._storageKey, storageInstance).resetStore();
+
       // rehydrate should fail
       await coreKitInstance.init();
       assert.strictEqual(coreKitInstance.status, COREKIT_STATUS.INITIALIZED);

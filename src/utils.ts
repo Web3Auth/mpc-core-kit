@@ -7,6 +7,7 @@ import BN from "bn.js";
 
 import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 import CoreKitError from "./helper/errors";
+import { IAsyncStorage, IStorage } from "./interfaces";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const factorKey = new BN(generatePrivate());
@@ -37,16 +38,16 @@ export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number
   return { endpoints, tssWSEndpoints, partyIndexes, nodeIndexesReturned };
 };
 
-export function storageAvailable(type: string): boolean {
-  let storage: Storage;
+export async function storageAvailable(storage: IStorage | IAsyncStorage): Promise<boolean> {
   try {
-    if (type === "localStorage") storage = window.localStorage;
-    else storage = window.sessionStorage;
-
     const x = "__storage_test__";
-    storage.setItem(x, x);
-    storage.removeItem(x);
+    const rand = Math.random().toString();
+    await storage.setItem(x, rand);
 
+    const value = await storage.getItem(rand);
+    if (value !== rand) {
+      throw new Error("Value mismatch");
+    }
     return true;
   } catch (error) {
     return false;

@@ -2,7 +2,7 @@ import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 
-import { IAsyncStorage, parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { IAsyncStorage, IStorage, parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -81,10 +81,12 @@ export const newCoreKitLogInInstance = async ({
   network,
   manualSync,
   email,
+  storageInstance,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
   manualSync: boolean;
   email: string;
+  storageInstance: IStorage | IAsyncStorage;
 }) => {
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
@@ -92,7 +94,7 @@ export const newCoreKitLogInInstance = async ({
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
     tssLib: TssLib,
-    storageKey: "memory",
+    storage: storageInstance,
     manualSync,
   });
 
