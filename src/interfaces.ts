@@ -1,4 +1,4 @@
-import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
 import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -27,6 +27,8 @@ export interface IAsyncStorage {
 }
 
 export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
+
+export type TssLib = { keyType: string; lib: unknown };
 
 export interface InitParams {
   /**
@@ -279,14 +281,9 @@ export interface Web3AuthOptions {
   web3AuthClientId: string;
 
   /**
-   * The type of the signing key (e.g., `secp256k1`, `ed25519`).
+   * The threshold signing library to use.
    */
-  keyType: KeyType;
-
-  /**
-   * The URL of the WASM client library. Can be a Data URL.
-   */
-  clientWASM: string;
+  tssLib: TssLib;
 
   /**
    * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.
@@ -381,14 +378,6 @@ export interface Web3AuthOptions {
    * Recommended for Non Custodial Flow.
    */
   disableHashedFactorKey?: boolean;
-
-  /**
-   * @defaultValue `null`
-   * Overwrite tss-lib for nodejs.
-   * Required for nodejs mode.
-   * Do not use this option for non nodejs mode.
-   */
-  tssLib?: unknown;
 
   /**
    * @defaultValue `Web3AuthOptions.web3AuthClientId`

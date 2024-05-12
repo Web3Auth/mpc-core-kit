@@ -24,8 +24,7 @@ import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
-import { init as initEd25519, sign as signEd25519 } from "@toruslabs/tss-frost-client";
-import type * as TssLib from "@toruslabs/tss-lib";
+import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
 import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
 import BN from "bn.js";
@@ -59,6 +58,7 @@ import {
   OauthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
+  TssLib,
   UserInfo,
   Web3AuthOptions,
   Web3AuthOptionsWithDefaults,
@@ -104,9 +104,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
-  private _keyType: KeyType;
+  private _tssLib: TssLib;
 
-  private clientWASM: URL;
+  private _keyType: KeyType;
 
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
@@ -117,18 +117,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("You must specify a web3auth clientId.");
     }
 
-    this._keyType = options.keyType;
-    this.clientWASM = new URL(options.clientWASM);
+    this._tssLib = options.tssLib;
+    this._keyType = options.tssLib.keyType as KeyType;
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
     if (!options.storageKey) options.storageKey = "local";
     if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString()) && !options.asyncStorageKey) {
       throw new Error(`${options.uxMode} mode do not storage of type : ${options.storageKey}`);
-    }
-
-    if (isNodejsOrRN && !options.tssLib) {
-      throw new Error(`${options.uxMode} mode requires tssLib`);
     }
 
     if (options.enableLogging) {
@@ -722,14 +718,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const sessionNonce = generateSessionNonce();
     const session = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, sessionNonce);
 
-    // Initialize wasm client.
-    await initEd25519(this.clientWASM);
-
     // Run signing protocol.
     const serverURLs = endpoints.map((x) => x.url);
     const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
     const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
     const signature = await signEd25519(
+      this._tssLib.lib,
       session,
       this.signatures,
       serverXCoords,
@@ -785,13 +779,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       nodeIndexesReturned: participatingServerDKGIndexes,
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
 
-    let tss: typeof TssLib;
-    if (this.isNodejsOrRN(this.options.uxMode)) {
-      tss = this.options.tssLib as typeof TssLib;
-    } else {
-      tss = await import("@toruslabs/tss-lib");
-      await tss.default(this.clientWASM);
-    }
     // setup mock shares, sockets and tss wasm files.
     const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
 
@@ -819,20 +806,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       share,
       tssPubKey.toString("base64"),
       true,
-      this.clientWASM.toString()
+      this._tssLib.lib
     );
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
       const serverIndex = participatingServerDKGIndexes[i];
       serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
     }
-    client.precompute(tss, { signatures, server_coeffs: serverCoeffs, nonce: scalarBNToBufferSEC1(this.getNonce()).toString("base64") });
+    client.precompute({ signatures, server_coeffs: serverCoeffs, nonce: scalarBNToBufferSEC1(this.getNonce()).toString("base64") });
     await client.ready().catch((err) => {
-      client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
+      client.cleanup({ signatures, server_coeffs: serverCoeffs });
       throw err;
     });
 
-    let { r, s, recoveryParam } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
+    let { r, s, recoveryParam } = await client.sign(Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
       signatures,
     });
 
@@ -840,7 +827,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       recoveryParam += 27;
     }
     // skip await cleanup
-    client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
+    client.cleanup({ signatures, server_coeffs: serverCoeffs });
     return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
   };
 
@@ -967,7 +954,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const exportTssKey = await this.tKey._UNSAFE_exportTssKey({
       factorKey: this.state.factorKey,
       authSignatures: this.state.signatures,
-      selectedServers: [],
     });
 
     return exportTssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);

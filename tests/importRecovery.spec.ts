@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import * as TssLib from "@toruslabs/tss-lib-node";
+import { tssLib } from "@toruslabs/tss-lib";
 import { log } from "@web3auth/base";
 
 import { BrowserStorage, IdTokenLoginParams, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
@@ -48,7 +48,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
         baseUrl: "http://localhost:3000",
         uxMode: "nodejs",
-        tssLib: TssLib,
+        tssLib,
         storageKey: "memory",
         manualSync: testVariable.manualSync,
       });
@@ -96,7 +96,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
         baseUrl: "http://localhost:3000",
         uxMode: "nodejs",
-        tssLib: TssLib,
+        tssLib,
         storageKey: "memory",
       });
 
@@ -123,7 +123,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
         baseUrl: "http://localhost:3000",
         uxMode: "nodejs",
-        tssLib: TssLib,
+        tssLib,
         storageKey: "memory",
       });
 

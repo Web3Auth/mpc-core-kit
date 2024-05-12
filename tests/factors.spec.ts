@@ -2,7 +2,8 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import * as TssLib from "@toruslabs/tss-lib-node";
+import { FACTOR_KEY_TYPE, KeyType } from "@tkey/common-types";
+import { tssLib } from "@toruslabs/tss-lib";
 import BN from "bn.js";
 
 import {
@@ -52,7 +53,7 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
       // try delete hash factor factor
       try {
         const pt = Point.fromPrivateKey(firstFactor.factorKey);
-        await coreKitInstance.deleteFactor(pt.toTkeyPoint());
+        await coreKitInstance.deleteFactor(pt.toTkeyPoint(FACTOR_KEY_TYPE));
         throw new Error("should not reach here");
       } catch {}
 
@@ -92,12 +93,12 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
       // delete factor
       instance2.setTssWalletIndex(0);
       const pt = Point.fromPrivateKey(factorKey1);
-      await instance2.deleteFactor(pt.toTkeyPoint());
+      await instance2.deleteFactor(pt.toTkeyPoint(FACTOR_KEY_TYPE));
 
       // delete factor
       instance2.setTssWalletIndex(1);
       const pt2 = Point.fromPrivateKey(factorKey2);
-      await instance2.deleteFactor(pt2.toTkeyPoint());
+      await instance2.deleteFactor(pt2.toTkeyPoint(FACTOR_KEY_TYPE));
 
       if (testVariable.manualSync) {
         await instance2.commitChanges();
@@ -187,7 +188,7 @@ variable.forEach(async (testVariable) => {
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
-      tssLib: TssLib,
+      tssLib,
       storageKey: testVariable.storage,
       asyncStorageKey: testVariable.asyncStorage,
       manualSync: testVariable.manualSync,

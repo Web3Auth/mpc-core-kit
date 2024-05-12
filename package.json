@@ -51,7 +51,7 @@
     "@toruslabs/openlogin-session-manager": "^3.0.0",
     "@toruslabs/openlogin-utils": "^8.1.0",
     "@toruslabs/torus.js": "13.0.0-alpha.4",
-    "@toruslabs/tss-client": "^2.1.0",
+    "@toruslabs/tss-client": "file:../tss/tss-client/packages/tss-client",
     "@toruslabs/tss-frost-client": "file:../tss/tss-server/packages/frost/client",
     "@toruslabs/tss-lib": "^2.0.0",
     "@web3auth-mpc/ethereum-provider": "^2.3.0",
@@ -88,7 +88,8 @@
     "tsconfig-paths": "^4.2.0",
     "tsconfig-paths-webpack-plugin": "^4.1.0",
     "tslib": "^2.6.2",
-    "typescript": "^5.2.2"
+    "typescript": "^5.2.2",
+    "@toruslabs/tss-lib": "file:../tss/tss-client/packages/tss-lib"
   },
   "engines": {
     "node": ">=20.x"

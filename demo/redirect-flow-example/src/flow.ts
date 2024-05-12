@@ -1,6 +1,6 @@
 
-import { KeyType } from "@tkey/common-types";
 import { WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit, TssSecurityQuestion } from "@web3auth/mpc-core-kit";
+import { tssLib } from "@toruslabs/tss-lib";
 
 export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, manualSync: boolean, setupProviderOnInit: boolean, verifier: string, verifierId: string, idToken: string }) => {
     const startTime = Date.now();
@@ -13,8 +13,7 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
           uxMode: 'redirect',
           manualSync: params.manualSync,
           setupProviderOnInit: params.setupProviderOnInit,
-          keyType: KeyType.secp256k1,
-          clientWASM: "https://node-1.dev-node.web3auth.io/tss/v1/clientWasm",
+          tssLib,
         }
     );
     
