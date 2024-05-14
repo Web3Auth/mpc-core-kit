@@ -9,7 +9,6 @@ import { BN } from "bn.js";
 
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
-import { FACTOR_KEY_TYPE } from "@tkey/common-types";
 
 import { tssLib } from "@toruslabs/tss-lib";
 // import{ tssLib } from "@toruslabs/tss-frost-lib-wasm";
@@ -292,7 +291,7 @@ function App() {
     }
     const pubBuffer = Buffer.from(factorPubToDelete, 'hex');
     const pub = Point.fromBufferSEC1(pubBuffer);
-    await coreKitInstance.deleteFactor(pub.toTkeyPoint(FACTOR_KEY_TYPE));
+    await coreKitInstance.deleteFactor(pub.toTkeyPoint());
     uiConsole("factor deleted");
   }
 

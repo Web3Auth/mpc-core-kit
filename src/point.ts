@@ -1,4 +1,4 @@
-import { KeyType, Point as TkeyPoint } from "@tkey/common-types";
+import { EllipticCurve, Point as TkeyPoint } from "@tkey/common-types";
 import type { BNString } from "@toruslabs/torus.js";
 import BN from "bn.js";
 import { curve } from "elliptic";
@@ -27,8 +27,8 @@ export class Point {
    * @param p - The TKey Point.
    * @returns The Point encoded by `p`.
    */
-  public static fromPrivateKey(privateKey: BNString): Point {
-    const ep = CURVE_SECP256K1.keyFromPrivate(privateKey.toString("hex")).getPublic();
+  public static fromPrivateKey(ec: EllipticCurve, privateKey: BNString): Point {
+    const ep = ec.keyFromPrivate(privateKey.toString("hex")).getPublic();
     return new Point(ep);
   }
 
@@ -63,14 +63,14 @@ export class Point {
    * @throws If this point cannot be represented by a TKey Point. For example,
    * if this point encodes the point at infinity.
    */
-  public toTkeyPoint(keyType: KeyType): TkeyPoint {
+  public toTkeyPoint(): TkeyPoint {
     if (this.p.isInfinity()) {
       throw new Error("Point at infinity can't be represented as tkey point.");
     }
 
     const x = this.p.getX().toString("hex");
     const y = this.p.getY().toString("hex");
-    return new TkeyPoint(x, y, keyType);
+    return new TkeyPoint(x, y);
   }
 
   /**

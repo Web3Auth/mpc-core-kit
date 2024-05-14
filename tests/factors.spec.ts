@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import { FACTOR_KEY_TYPE, KeyType } from "@tkey/common-types";
+import { factorKeyCurve } from "@tkey/tss";
 import { tssLib } from "@toruslabs/tss-lib";
 import BN from "bn.js";
 
@@ -52,8 +52,8 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
       const firstFactor = coreKitInstance.getCurrentFactorKey();
       // try delete hash factor factor
       try {
-        const pt = Point.fromPrivateKey(firstFactor.factorKey);
-        await coreKitInstance.deleteFactor(pt.toTkeyPoint(FACTOR_KEY_TYPE));
+        const pt = Point.fromPrivateKey(factorKeyCurve, firstFactor.factorKey);
+        await coreKitInstance.deleteFactor(pt.toTkeyPoint());
         throw new Error("should not reach here");
       } catch {}
 
@@ -92,13 +92,13 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
 
       // delete factor
       instance2.setTssWalletIndex(0);
-      const pt = Point.fromPrivateKey(factorKey1);
-      await instance2.deleteFactor(pt.toTkeyPoint(FACTOR_KEY_TYPE));
+      const pt = Point.fromPrivateKey(factorKeyCurve, factorKey1);
+      await instance2.deleteFactor(pt.toTkeyPoint());
 
       // delete factor
       instance2.setTssWalletIndex(1);
-      const pt2 = Point.fromPrivateKey(factorKey2);
-      await instance2.deleteFactor(pt2.toTkeyPoint(FACTOR_KEY_TYPE));
+      const pt2 = Point.fromPrivateKey(factorKeyCurve, factorKey2);
+      await instance2.deleteFactor(pt2.toTkeyPoint());
 
       if (testVariable.manualSync) {
         await instance2.commitChanges();

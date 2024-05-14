@@ -1,20 +1,10 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 import { createSwappableProxy, SwappableProxy } from "@metamask/swappable-obj-proxy";
-import {
-  BNString,
-  encrypt,
-  FACTOR_KEY_TYPE,
-  getPubKeyPoint,
-  KeyType,
-  Point as TkeyPoint,
-  SHARE_DELETED,
-  ShareStore,
-  StringifiedType,
-} from "@tkey/common-types";
-import { CoreError, lagrangeInterpolation } from "@tkey/core";
+import { BNString, encrypt, KeyType, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
+import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
+import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
@@ -259,7 +249,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       tssShares.push(tssShare);
     }
 
-    const finalKey = lagrangeInterpolation(tssShares, tssIndexesBN, this.tkey.keyType);
+    const finalKey = lagrangeInterpolation(this.tkey.tssCurve, tssShares, tssIndexesBN);
     // reset instance after recovery completed
     await this.init();
     return finalKey.toString("hex", 64);
@@ -283,8 +273,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
+        keyType: this.keyType,
       },
-      keyType: this.keyType,
     });
 
     this.storageLayer = new TorusStorageLayer({
@@ -302,7 +292,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       modules: {
         shareSerialization: shareSerializationModule,
       },
-      keyType: this.keyType,
+      tssKeyType: this.keyType,
     });
 
     if (this.isRedirectMode) {
@@ -602,7 +592,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
 
-      const hashedFactorPub = getPubKeyPoint(hashedFactorKey, FACTOR_KEY_TYPE);
+      const hashedFactorPub = getPubKeyPoint(hashedFactorKey, factorKeyCurve);
       await this.deleteFactor(hashedFactorPub, hashedFactorKey);
       await this.deleteMetadataShareBackup(hashedFactorKey);
 
@@ -644,7 +634,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       additionalMetadata = {};
     }
 
-    const factorPub = getPubKeyPoint(factorKey, FACTOR_KEY_TYPE);
+    const factorPub = getPubKeyPoint(factorKey, factorKeyCurve);
 
     if (this.getTssFactorPub().includes(Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex"))) {
       throw new Error("Factor already exists");
@@ -837,7 +827,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
     if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
     const fpp = Point.fromTkeyPoint(factorPub);
-    const stateFpp = Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey, FACTOR_KEY_TYPE));
+    const stateFpp = Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey, factorKeyCurve));
     if (fpp.equals(stateFpp)) {
       throw new Error("Cannot delete current active factor");
     }
@@ -855,7 +845,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // delete factorKey share metadata if factorkey is provided
     if (factorKey) {
       const factorKeyBN = new BN(factorKey, "hex");
-      const derivedFactorPub = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN, FACTOR_KEY_TYPE));
+      const derivedFactorPub = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN, factorKeyCurve));
       // only delete if factorPub matches
       if (derivedFactorPub.equals(fpp)) {
         await this.deleteMetadataShareBackup(factorKeyBN);
@@ -887,7 +877,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
     const tkeyDetails = this.tKey.getKeyDetails();
-    const tssPubKey = this.state.tssPubKey ? Point.fromBufferSEC1(this.state.tssPubKey).toTkeyPoint(this.keyType) : undefined;
+    const tssPubKey = this.state.tssPubKey ? Point.fromBufferSEC1(this.state.tssPubKey).toTkeyPoint() : undefined;
 
     const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
     const keyDetails: MPCKeyDetails = {
@@ -960,7 +950,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private getTssNonce(): number {
-    if (!this.tKey.metadata.tssNonces) throw new Error("tssNonce not present");
+    if (!this.tKey.metadata.tssNonces || !this.tKey.metadata.tssNonces[this.tKey.tssTag])
+      throw new Error(`tssNonce not present for tag ${this.tKey.tssTag}`);
     const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
     return tssNonce;
   }
@@ -983,7 +974,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
       }
       const deviceTSSIndex = TssShareType.DEVICE;
-      const factorPub = getPubKeyPoint(factorKey, FACTOR_KEY_TYPE);
+      const factorPub = getPubKeyPoint(factorKey, factorKeyCurve);
       if (!importTssKey) {
         const ec = new EC(this.keyType);
         const deviceTSSShare = ec.genKeyPair().getPrivate();
@@ -1187,7 +1178,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       serverEncs: [],
     };
     this.tKey.metadata.addTSSData({
-      keyType: this.tkey.keyType,
+      tssKeyType: this.tkey.tssKeyType,
       tssTag: this.tKey.tssTag,
       factorPubs: updatedFactorPubs,
       factorEncs,
@@ -1238,7 +1229,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     updateMetadata = true
   ) {
     const { tssIndex } = await this.tKey.getTSSShare(factorKey);
-    const tkeyPoint = getPubKeyPoint(factorKey, FACTOR_KEY_TYPE);
+    const tkeyPoint = getPubKeyPoint(factorKey, factorKeyCurve);
     const factorPub = Point.fromTkeyPoint(tkeyPoint).toBufferSEC1(true).toString("hex");
     const params = {
       module: shareDescription,

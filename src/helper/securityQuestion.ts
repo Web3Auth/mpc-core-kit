@@ -1,4 +1,5 @@
-import { FACTOR_KEY_TYPE, getPubKeyPoint, Point as tkeyPoint, StringifiedType } from "@tkey/common-types";
+import { Point as TKeyPoint, StringifiedType } from "@tkey/common-types";
+import { factorKeyCurve, getPubKeyPoint } from "@tkey/tss";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
@@ -95,7 +96,7 @@ export class TssSecurityQuestion {
       additionalMetadata: descriptionFinal,
     });
     // set store domain
-    const tkeyPt = getPubKeyPoint(factorKeyBN, FACTOR_KEY_TYPE);
+    const tkeyPt = getPubKeyPoint(factorKeyBN, factorKeyCurve);
     const factorPub = Point.fromTkeyPoint(tkeyPt).toBufferSEC1(true).toString("hex");
     const storeData = new TssSecurityQuestionStore(shareType.toString(), factorPub, question);
     tkey.metadata.setGeneralStoreDomain(domainKey, storeData.toJSON());
@@ -127,8 +128,8 @@ export class TssSecurityQuestion {
     let hash = keccak256(Buffer.from(preHash, "utf8"));
     hash = hash.startsWith("0x") ? hash.slice(2) : hash;
     const factorKeyBN = new BN(hash, "hex");
-    const factorKeyPt = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN, FACTOR_KEY_TYPE));
-    if (factorKeyPt.toBufferSEC1(true).toString("hex") !== store.factorPublicKey) {
+    const factorKeyPt = getPubKeyPoint(factorKeyBN, factorKeyCurve);
+    if (factorKeyPt.toSEC1(factorKeyCurve, true).toString("hex") !== store.factorPublicKey) {
       throw new Error("Invalid answer");
     }
 
@@ -137,7 +138,7 @@ export class TssSecurityQuestion {
     let newHash = keccak256(Buffer.from(prenewHash, "utf8"));
     newHash = newHash.startsWith("0x") ? newHash.slice(2) : newHash;
     const newAnswerBN = new BN(newHash, "hex");
-    const newFactorPt = Point.fromTkeyPoint(getPubKeyPoint(newAnswerBN, FACTOR_KEY_TYPE));
+    const newFactorPt = Point.fromTkeyPoint(getPubKeyPoint(newAnswerBN, factorKeyCurve));
     await mpcCoreKit.createFactor({
       factorKey: newAnswerBN,
       shareType: parseInt(store.shareIndex) as TssShareType,
@@ -150,7 +151,7 @@ export class TssSecurityQuestion {
     }
     // delete after create factor to prevent last key issue
     // delete old factor key and device share
-    await mpcCoreKit.deleteFactor(factorKeyPt.toTkeyPoint(FACTOR_KEY_TYPE), factorKeyBN);
+    await mpcCoreKit.deleteFactor(factorKeyPt, factorKeyBN);
 
     store.factorPublicKey = newFactorPt.toBufferSEC1(true).toString("hex");
     store.question = newQuestion;
@@ -176,7 +177,7 @@ export class TssSecurityQuestion {
 
       const store = TssSecurityQuestionStore.fromJSON(storeDomain);
       if (store.factorPublicKey) {
-        await mpcCoreKit.deleteFactor(tkeyPoint.fromSEC1(store.factorPublicKey, FACTOR_KEY_TYPE));
+        await mpcCoreKit.deleteFactor(TKeyPoint.fromSEC1(factorKeyCurve, store.factorPublicKey));
       }
     }
     tkey.metadata.deleteGeneralStoreDomain(domainKey);
@@ -208,7 +209,7 @@ export class TssSecurityQuestion {
     let hash = keccak256(Buffer.from(answer + pubKey, "utf8"));
     hash = hash.startsWith("0x") ? hash.slice(2) : hash;
     const factorKeyBN = new BN(hash, "hex");
-    const factorKeyPt = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN, FACTOR_KEY_TYPE));
+    const factorKeyPt = Point.fromPrivateKey(factorKeyCurve, factorKeyBN);
 
     if (factorKeyPt.toBufferSEC1(true).toString("hex") !== store.factorPublicKey) {
       throw new Error("Invalid answer");

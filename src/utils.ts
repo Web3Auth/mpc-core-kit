@@ -1,6 +1,6 @@
-import { FACTOR_KEY_TYPE, getPubKeyPoint, Point, Point as TkeyPoint } from "@tkey/common-types";
-import { randomSelection, TKeyTSS } from "@tkey/tss";
-import { generatePrivate } from "@toruslabs/eccrypto";
+import { Point, Point as TkeyPoint } from "@tkey/common-types";
+import { generatePrivateBN } from "@tkey/core";
+import { factorKeyCurve, randomSelection, TKeyTSS } from "@tkey/tss";
 import { EllipticCurve } from "@toruslabs/elliptic-wrapper";
 import { safeatob } from "@toruslabs/openlogin-utils";
 import { keccak256 } from "@toruslabs/torus.js";
@@ -9,9 +9,9 @@ import BN from "bn.js";
 import { DELIMITERS, SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
-  const factorKey = new BN(generatePrivate());
-  const factorPub = getPubKeyPoint(factorKey, FACTOR_KEY_TYPE);
-  return { private: factorKey, pub: factorPub };
+  const keyPair = factorKeyCurve.genKeyPair();
+  const pub = Point.fromElliptic(keyPair.getPublic());
+  return { private: keyPair.getPrivate(), pub };
 };
 
 export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number, nodeIndexes: number[]) => {
@@ -235,7 +235,7 @@ export function deriveShareCoefficients(
 }
 
 export function generateSessionNonce() {
-  return keccak256(Buffer.from(generatePrivate().toString("hex") + Date.now(), "utf8"));
+  return keccak256(Buffer.from(generatePrivateBN().toString("hex") + Date.now(), "utf8"));
 }
 
 export function getSessionId(verifier: string, verifierId: string, tssTag: string, tssNonce: number, sessionNonce: string) {
