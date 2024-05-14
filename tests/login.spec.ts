@@ -11,6 +11,7 @@ import { ec as EC } from "elliptic";
 
 import { BrowserStorage, COREKIT_STATUS, DEFAULT_CHAIN_CONFIG, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin, stringGen } from "./setup";
+import { sigToRSV } from "./util";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -198,13 +199,20 @@ variable.forEach((testVariable) => {
       const msg = "hello world";
       const msgBuffer = Buffer.from(msg);
       const msgHash = keccak256(msgBuffer);
-      const signature = await coreKitInstance.sign(msgHash);
-
       const secp256k1 = new EC("secp256k1");
+
+      // Sign hash.
+      const signature = sigToRSV(await coreKitInstance.sign(msgHash, true));
       const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v - 27);
       const publicKeyPoint = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkey.x.toString("hex"), publicKeyPoint.x.toString("hex"));
       assert.strictEqual(pubkey.y.toString("hex"), publicKeyPoint.y.toString("hex"));
+
+      // Sign full message.
+      const signature2 = sigToRSV(await coreKitInstance.sign(msgBuffer));
+      const pubkey2 = secp256k1.recoverPubKey(msgHash, signature2, signature2.v - 27);
+      assert.strictEqual(pubkey2.x.toString("hex"), publicKeyPoint.x.toString("hex"));
+      assert.strictEqual(pubkey2.y.toString("hex"), publicKeyPoint.y.toString("hex"));
     });
 
     await t.test("#Login and sign with different account/wallet index", async function () {
@@ -225,7 +233,7 @@ variable.forEach((testVariable) => {
       const msg = "hello world 1";
       const msgBuffer = Buffer.from(msg);
       const msgHash = keccak256(msgBuffer);
-      const signature1 = await coreKitInstance.sign(msgHash);
+      const signature1 = sigToRSV(await coreKitInstance.sign(msgHash, true));
 
       const pubkeyIndex0 = secp256k1.recoverPubKey(msgHash, signature1, signature1.v - 27);
       const publicKeyPoint0 = coreKitInstance.getTssPublicKey();
@@ -238,7 +246,7 @@ variable.forEach((testVariable) => {
       const msgBuffer1 = Buffer.from(msg1);
       const msgHash1 = keccak256(msgBuffer1);
 
-      const signature2 = await coreKitInstance.sign(msgHash1);
+      const signature2 = sigToRSV(await coreKitInstance.sign(msgHash1, true));
 
       const pubkeyIndex1 = secp256k1.recoverPubKey(msgHash1, signature2, signature2.v - 27);
       const publicKeyPoint1 = coreKitInstance.getTssPublicKey();
@@ -252,7 +260,7 @@ variable.forEach((testVariable) => {
       const msg2 = "hello world 3";
       const msgBuffer2 = Buffer.from(msg2);
       const msgHash2 = keccak256(msgBuffer2);
-      const signature3 = await coreKitInstance.sign(msgHash2);
+      const signature3 = sigToRSV(await coreKitInstance.sign(msgHash2, true));
 
       const pubkeyIndex2 = secp256k1.recoverPubKey(msgHash2, signature3, signature3.v - 27);
       const publicKeyPoint2 = coreKitInstance.getTssPublicKey();

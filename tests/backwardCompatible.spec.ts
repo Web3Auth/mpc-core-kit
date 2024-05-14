@@ -10,6 +10,7 @@ import { ec as EC } from "elliptic";
 
 import { BrowserStorage, COREKIT_STATUS, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { mockLogin } from "./setup";
+import { sigToRSV } from "./util";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -118,7 +119,7 @@ variable.forEach((testVariable) => {
       const msg = "hello world";
       const msgBuffer = Buffer.from(msg);
       const msgHash = keccak256(msgBuffer);
-      const signature = await coreKitInstance.sign(msgHash);
+      const signature = sigToRSV(await coreKitInstance.sign(msgHash, true));
 
       const secp256k1 = new EC("secp256k1");
       const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v - 27);

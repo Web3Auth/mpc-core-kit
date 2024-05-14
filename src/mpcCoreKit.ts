@@ -11,6 +11,7 @@ import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums"
 import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { fetchLocalConfig } from "@toruslabs/fnd-base";
+import { keccak256 } from "@toruslabs/metadata-helpers";
 import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
@@ -652,26 +653,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  // function for setting up provider
   public getPublic: () => Promise<Buffer> = async () => {
-    return this.getPublicSync();
-  };
-
-  public getPublicSync: () => Buffer = () => {
     const { tssPubKey } = this.state;
     return Buffer.from(tssPubKey);
   };
 
-  public sign = async (msgHash: Buffer): Promise<{ v: number; r: Buffer; s: Buffer }> => {
-    if (this.keyType === "secp256k1") {
-      return this.localSignSecp256k1(msgHash);
+  public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {
+    if (this.keyType === KeyType.secp256k1) {
+      const sig = await this.sign_ECDSA_secp256k1(data, hashed);
+      return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
+    } else if (this.keyType === KeyType.ed25519) {
+      return this.sign_ed25519(data, hashed);
     }
-    throw new Error(`sign hash not supported for key type ${this.keyType}`);
-  };
+    throw new Error(`sign not supported for key type ${this.keyType}`);
+  }
 
-  public signMessage = async (msg: Buffer): Promise<Buffer> => {
-    if (this.keyType !== "ed25519") {
-      throw new Error(`sign message not supported for key type ${this.keyType}`);
+  private async sign_ed25519(data: Buffer, hashed: boolean = false): Promise<Buffer> {
+    if (hashed) {
+      throw new Error("hashed data not supported for ed25519");
     }
 
     const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
@@ -679,6 +678,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("could not fetch tss node endpoints");
     }
 
+    // Endpoints must end with backslash, but URLs returned by
+    // `fetch-node-details` don't have it.
     const ED25519_ENDPOINTS = nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
 
     // Select endpoints and derive party indices.
@@ -721,22 +722,26 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       clientXCoord,
       clientShareAdjustedHex,
       pubKeyHex,
-      msg,
+      data,
       serverCoefficientsHex
     );
 
     log.info(`signature: ${signature}`);
     return Buffer.from(signature, "hex");
-  };
+  }
 
-  public localSignSecp256k1 = async (msgHash: Buffer) => {
+  private async sign_ECDSA_secp256k1(data: Buffer, hashed: boolean = false) {
+    if (!hashed) {
+      data = keccak256(data);
+    }
+
     // PreSetup
     const { tssShareIndex } = this.state;
     let tssPubKey = await this.getPublic();
 
     const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
-      verifier: "test-verifier",
-      verifierId: "test@example.com",
+      verifier: this.tkey.serviceProvider.verifierName,
+      verifierId: this.tkey.serviceProvider.verifierId,
     });
 
     if (!this.state.factorKey) throw new Error("factorKey not present");
@@ -782,9 +787,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error(`sessionAuth does not exist ${currentSession}`);
     }
 
-    const signatures = await this.getSigningSignatures(msgHash.toString("hex"));
+    const { signatures } = this;
     if (!signatures) {
-      throw new Error(`Signature does not exist ${signatures}`);
+      throw new Error(`Authentication signatures missing`);
     }
 
     const client = new Client(
@@ -809,7 +814,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw err;
     });
 
-    let { r, s, recoveryParam } = await client.sign(Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
+    let { r, s, recoveryParam } = await client.sign(data.toString("base64"), true, "", "keccak256", {
       signatures,
     });
 
@@ -819,7 +824,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // skip await cleanup
     client.cleanup({ signatures, server_coeffs: serverCoeffs });
     return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
-  };
+  }
 
   async deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void> {
     if (!this.state.factorKey) throw new Error("Factor key not present");
@@ -950,7 +955,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private getTssNonce(): number {
-    if (!this.tKey.metadata.tssNonces || !this.tKey.metadata.tssNonces[this.tKey.tssTag])
+    if (!this.tKey.metadata.tssNonces || this.tKey.metadata.tssNonces[this.tKey.tssTag] === undefined)
       throw new Error(`tssNonce not present for tag ${this.tKey.tssTag}`);
     const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
     return tssNonce;
@@ -1247,7 +1252,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.options.chainConfig = option.chainConfig;
     const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
     await signingProvider.setupProvider({
-      sign: this.sign,
+      sign: async (msgHash: Buffer) => {
+        if (this.keyType !== KeyType.secp256k1) {
+          throw new Error("sign not supported for key type");
+        }
+        const sig = await this.sign_ECDSA_secp256k1(msgHash, true);
+        return sig;
+      },
       getPublic: async () => {
         const pk = await this.getPublic();
         return pk.subarray(1);
@@ -1280,12 +1291,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _getSignatures(sessionData: TorusKey["sessionData"]["sessionTokenData"]): string[] {
     return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
-  }
-
-  private async getSigningSignatures(data: string): Promise<string[]> {
-    if (!this.signatures) throw new Error("signatures not present");
-    log.info("data", data);
-    return this.signatures;
   }
 
   private isNodejsOrRN(params: CoreKitMode): boolean {

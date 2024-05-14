@@ -365,8 +365,8 @@ function App() {
 
       uiConsole(signedMessage);
     } else if (coreKitInstance.keyType === 'ed25519') {
-      const msg = Buffer.from("0xaabb");
-      const sig = await coreKitInstance.signMessage(msg);
+      const msg = Buffer.from("hello signer!");
+      const sig = await coreKitInstance.sign(msg);
       uiConsole(sig.toString("hex"));
     }
   };
