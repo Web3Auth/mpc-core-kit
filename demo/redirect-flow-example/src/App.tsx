@@ -22,6 +22,7 @@ import { flow } from "./flow";
 import LoggedinView from "./LoggedinView";
 import { CHAIN_CONFIGS, CHAIN_NAMESPACE, isHex } from "./utils";
 import LoadingSpinner from "./components/LoadingIndicator";
+import { ShareStore, StringifiedType } from "@tkey-mpc/common-types";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -300,99 +301,128 @@ function App() {
     setProvider(null);
   };
 
-  // const exportTssKey = async () => {
-  //   if (!coreKitInstance) {
-  //     throw new Error("coreKitInstance is not set");
-  //   }
-  //   const key = await coreKitInstance._UNSAFE_exportTssKey();
-  //   console.log('key', key);
-  //   let web3Local = new Web3("https://eth.llamarpc.com");
+  const exportTssKey = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    const key = await coreKitInstance._UNSAFE_exportTssKey();
+    console.log('key', key);
+    let web3Local = new Web3("https://eth.llamarpc.com");
 
 
-  //   let account = web3Local.eth.accounts.privateKeyToAccount(`0x${key}`);
-  //   console.log('account', account);
-  //   let gas = await web3Local.eth.estimateGas({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" })
-  //   let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000", gas: gas});
-  //   console.log('signedTx', signedTx);
-  //   return key;
-  // };
+    let account = web3Local.eth.accounts.privateKeyToAccount(`0x${key}`);
+    console.log('account', account);
+    let gas = await web3Local.eth.estimateGas({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" })
+    let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000", gas: gas});
+    console.log('signedTx', signedTx);
+    return key;
+  };
 
-  // const importTssKey = async (importedTssKey: string) => {
-  //   let email = window.prompt("Enter new email to import your key");
-  //   while (email == null) {
-  //     window.alert("Please enter valid/non-empty email");
-  //     email = window.prompt("Enter new email to import your key");
-  //   }
+  const importTssKey = async (importedTssKey: string) => {
+    let email = window.prompt("Enter new email to import your key");
+    while (email == null) {
+      window.alert("Please enter valid/non-empty email");
+      email = window.prompt("Enter new email to import your key");
+    }
 
-  //   setMockEmail(email);
-  //   setLoading(true);
-  //   // import key to new instance
-  //   let { idToken, parsedToken } = await mockLogin(email);
+    setMockEmail(email);
+    setLoading(true);
+    // import key to new instance
+    let { idToken, parsedToken } = await mockLogin(email);
 
-  //   const newCoreKitInstance = new Web3AuthMPCCoreKit({
-  //     web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
-  //     web3AuthNetwork: selectedNetwork,
-  //     uxMode: "redirect",
-  //     manualSync: true,
-  //     setupProviderOnInit: false,
-  //   });
-  //   await newCoreKitInstance.init({ handleRedirectResult: false, rehydrate: false });
-  //   uiConsole("TSS Private Key: ", importedTssKey);
+    const newCoreKitInstance = new Web3AuthMPCCoreKit({
+      web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
+      web3AuthNetwork: selectedNetwork,
+      uxMode: "redirect",
+      manualSync: true,
+      setupProviderOnInit: false,
+    });
+    await newCoreKitInstance.init({ handleRedirectResult: false, rehydrate: false });
+    uiConsole("TSS Private Key: ", importedTssKey);
 
-  //   await newCoreKitInstance.loginWithJWT({
-  //     verifier: "torus-test-health",
-  //     verifierId: parsedToken.email,
-  //     idToken: idToken,
-  //     importTssKey: importedTssKey,
-  //   });
-  //   uiConsole(JSON.stringify({
-  //     tssPriKey: importedTssKey,
-  //     coreKitStatus: newCoreKitInstance.status,
-  //   }));
-  //   coreKitInstance = newCoreKitInstance;
+    await newCoreKitInstance.loginWithJWT({
+      verifier: "torus-test-health",
+      verifierId: parsedToken.email,
+      idToken: idToken,
+      importTssKey: importedTssKey,
+    });
+    uiConsole(JSON.stringify({
+      tssPriKey: importedTssKey,
+      coreKitStatus: newCoreKitInstance.status,
+    }));
+    coreKitInstance = newCoreKitInstance;
     
-  //   setUpProvider();
-  //   setCoreKitStatus(newCoreKitInstance.status);
-  //   setLoading(false);
-  // };
+    setUpProvider();
+    setCoreKitStatus(newCoreKitInstance.status);
+    setLoading(false);
+  };
 
-  // const recoverTssKey = async (factorKeys: string[]) => {
-  //   const recoverMpcInstance = new Web3AuthMPCCoreKit({
-  //     web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
-  //     web3AuthNetwork: selectedNetwork,
-  //     uxMode: "redirect",
-  //     manualSync: true,
-  //     setupProviderOnInit: false,
-  //     // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
-  //   });
-  //   await recoverMpcInstance.init({ handleRedirectResult: false, rehydrate: false });
+  const recoverTssKey = async (factorKeys: string[]) => {
+    const recoverMpcInstance = new Web3AuthMPCCoreKit({
+      web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
+      web3AuthNetwork: selectedNetwork,
+      uxMode: "redirect",
+      manualSync: true,
+      setupProviderOnInit: false,
+      // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
+    });
+    await recoverMpcInstance.init({ handleRedirectResult: false, rehydrate: false });
 
-  //   let recoveredTssKey = await recoverMpcInstance._UNSAFE_recoverTssKey(factorKeys);
-  //   uiConsole("Recovered TSS Private Key: ", recoveredTssKey);
-  //   // let web3Local = new Web3("https://eth.llamarpc.com");
-  //   // let account = web3Local.eth.accounts.privateKeyToAccount(recoveredTssKey);
-  //   // let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" });
-  //   // console.log(signedTx);
-  //   return recoveredTssKey;
-  // };
+    let recoveredTssKey = await recoverMpcInstance._UNSAFE_recoverTssKey(factorKeys);
+    uiConsole("Recovered TSS Private Key: ", recoveredTssKey);
+    // let web3Local = new Web3("https://eth.llamarpc.com");
+    // let account = web3Local.eth.accounts.privateKeyToAccount(recoveredTssKey);
+    // let signedTx = await account.signTransaction({ to: "0x2E464670992574A613f10F7682D5057fB507Cc21", value: "1000000000000000000" });
+    // console.log(signedTx);
+    return recoveredTssKey;
+  };
 
-  // const exportTssKeyImportTssKey = async (newOauthLogin?: string) => {
-  //   console.log('exportTssKeyImportTssKeyFunc', newOauthLogin);
-  //   let key = await exportTssKey();
-  //   console.log('key', key);
-  //   await logout();
-  //   // wait for 2 sec before import and login
-  //   await new Promise(r => setTimeout(r, 2000));
-  //   await importTssKey(key);
-  // };
+  const exportTssKeyImportTssKey = async (newOauthLogin?: string) => {
+    console.log('exportTssKeyImportTssKeyFunc', newOauthLogin);
+    let key = await exportTssKey();
+    console.log('key', key);
+    await logout();
+    // wait for 2 sec before import and login
+    await new Promise(r => setTimeout(r, 2000));
+    await importTssKey(key);
+  };
 
-  // const recoverTssKeyImportTssKey = async () => {
-  //   const deviceShare = isHex(deviceFactorKey) ? deviceFactorKey : mnemonicToKey(deviceFactorKey);
-  //   const recoveryShare = isHex(recoveryFactor) ? recoveryFactor : mnemonicToKey(recoveryFactor);
-  //   const factorKeys = [deviceShare, recoveryShare];
-  //   let key = await recoverTssKey(factorKeys);
-  //   await importTssKey(key);
-  // };
+  const recoverTssKeyImportTssKey = async () => {
+    const deviceShare = isHex(deviceFactorKey) ? deviceFactorKey : mnemonicToKey(deviceFactorKey);
+    const recoveryShare = isHex(recoveryFactor) ? recoveryFactor : mnemonicToKey(recoveryFactor);
+    const factorKeys = [deviceShare, recoveryShare];
+    let key = await recoverTssKey(factorKeys);
+    await importTssKey(key);
+  };
+
+  const getPubXFromFactorKey = async (recoveryFactor: string) => {
+    const factorKey = isHex(recoveryFactor) ? recoveryFactor : mnemonicToKey(recoveryFactor);
+    // start with a new initialized instance
+    const coreKitInst = new Web3AuthMPCCoreKit({
+      web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
+      web3AuthNetwork: selectedNetwork,
+      uxMode: "redirect",
+      manualSync: true,
+      setupProviderOnInit: false,
+    });
+    await coreKitInst.init({ handleRedirectResult: false, rehydrate: false });
+
+    const factorKeyBN = new BN(factorKey, "hex");
+
+    const factorKeyMetadata = await coreKitInst.tKey?.storageLayer.getMetadata<StringifiedType>({ privKey: factorKeyBN });
+    if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
+      throw new Error("no metadata for your factor key, reset your account");
+    }
+
+    const shareStore0 = ShareStore.fromJSON(factorKeyMetadata);
+    await coreKitInst.tKey.initialize({ withShare: shareStore0 });
+    let pubX = coreKitInst.tKey.getMetadata().pubKey.x.toString("hex");
+    
+    // reset to initialized instance
+    await coreKitInst.init();
+    console.log('pubX', pubX);
+    return pubX;
+  }
 
   const unloggedInView = (
     <>
@@ -445,7 +475,10 @@ function App() {
         <button onClick={() => recoverTssKeyImportTssKey()} className="card">
           Recover Account with Factor Keys
         </button>
-        {loading && <LoadingSpinner />}
+        <button onClick={() => getPubXFromFactorKey(recoveryFactor)} className="card">
+          Get PubX from Factor Key
+        </button>
+        {loading && <LoadingSpinner />}```
       </div>
     </>
   );
