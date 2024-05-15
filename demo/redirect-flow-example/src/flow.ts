@@ -11,7 +11,7 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
           web3AuthNetwork: params.selectedNetwork,
           uxMode: 'redirect',
           manualSync: params.manualSync,
-          setupProviderOnInit: params.setupProviderOnInit,
+          storage: window.localStorage,
         }
     );
     

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
 import "./App.css";
-import { CHAIN_NAMESPACES, CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
+import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider"
 import { BN } from "bn.js";
 
@@ -21,12 +21,7 @@ const uiConsole = (...args: any[]): void => {
 };
 
 const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
-// performance options
-// const options = {
-//   manualSync: true,
-//   prefetchTssPub: 2,
-//   setupProvdiverOnInit: false,
-// }
+
 
 const coreKitInstance = new Web3AuthMPCCoreKit(
   {
@@ -34,6 +29,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     web3AuthNetwork: selectedNetwork,
     uxMode: 'redirect',
     manualSync: true,
+    storage: window.localStorage,
     // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
   }
 );
@@ -208,7 +204,7 @@ function App() {
   };
 
   const getDeviceShare = async () => {
-    const factorKey = await getWebBrowserFactor(coreKitInstance!);
+    const factorKey = await coreKitInstance!.getDeviceFactor();
     setBackupFactorKey(factorKey);
     uiConsole("Device share: ", factorKey);
   }
@@ -413,6 +409,8 @@ function App() {
       uiConsole("provider not initialized yet");
       return;
     }
+    
+    console.log(provider)
     let newChainConfig = {
       chainId: "0xCC",
       chainName: "BNB",
