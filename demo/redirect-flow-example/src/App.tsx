@@ -381,11 +381,6 @@ function App() {
       localProvider.setupProvider(coreKitInstance);
       setProvider(localProvider);
     }
-    // or 
-    // provider.sendAsync({
-    //   method: "wallet_switchEthereumChain",
-    //   params: [{ chainId: newChainConfig.chainId }],
-    // })
     uiConsole("Changed to Sepolia Network");
   };
 
@@ -410,11 +405,6 @@ function App() {
       localProvider.setupProvider(coreKitInstance);
       setProvider(localProvider);
     }
-    // or
-    // provider.sendAsync({
-    //   method: "wallet_switchEthereumChain",
-    //   params: [{ chainId: newChainConfig.chainId }],
-    // })
     uiConsole("Changed to Sepolia Network");
   };
 
@@ -423,24 +413,6 @@ function App() {
       uiConsole("provider not initialized yet");
       return;
     }
-    // const newChainConfig : CustomChainConfig = {
-    //   chainNamespace: CHAIN_NAMESPACES.EIP155,
-    //   chainId: "0xCC", // hex of 1261120
-    //   rpcTarget: "https://opbnb-mainnet-rpc.bnbchain.org",
-    //   // Avoid using public rpcTarget in production.
-    //   // Use services like Infura, Quicknode etc
-    //   displayName: "opBNB Mainnet",
-    //   blockExplorerUrl: "https://opbnbscan.com",
-    //   ticker: "BNB",
-    //   tickerName: "opBNB",
-    // };
-    // if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-    //   let localProvider = new EthereumSigningProvider({ config: { chainConfig: newChainConfig } });
-    //   localProvider.setupProvider(coreKitInstance);
-    //   setProvider(localProvider);
-    // }
-    // or
-
     let newChainConfig = {
       chainId: "0xCC",
       chainName: "BNB",
