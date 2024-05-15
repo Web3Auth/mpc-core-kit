@@ -6,6 +6,7 @@
 		"@ethereumjs/common": "^3.1.2",
 		"@ethereumjs/tx": "^4.1.2",
 		"@web3auth/mpc-core-kit": "file://../../",
+		"@web3auth/ethereum-mpc-provider": "8.4.1",
 		"bn.js": "^5.2.1",
 		"copy-webpack-plugin": "^11.0.0",
 		"eccrypto": "^1.1.6",

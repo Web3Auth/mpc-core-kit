@@ -228,6 +228,8 @@ function App() {
       localProvider.setupProvider(coreKitInstance);
       setProvider(localProvider);
     }
+
+    setCoreKitStatus(coreKitInstance.status);
   }
 
   const recoverSecurityQuestionFactor = async () => {
