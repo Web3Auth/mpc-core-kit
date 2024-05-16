@@ -327,6 +327,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
     const { importTssKey } = params;
     const tkeyServiceProvider = this.tKey.serviceProvider as TorusServiceProvider;
+
+    // workaround for atomic sync
+    this.tkey.manualSync = true;
+
     try {
       // oAuth login.
       const verifierParams = params as SubVerifierDetailsParams;
@@ -359,12 +363,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       await this.setupTkey(importTssKey);
+
+      // workaround for atomic sync, commit changes if not manualSync
+      // moved to setupTkey ( new user only ) Existing user do not mutate metadata
+      // if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
         if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
       }
       throw new Error((err as Error).message);
+    } finally {
+      // workaround for atomic sync, restore manual sync
+      this.tkey.manualSync = this.options.manualSync;
     }
   }
 
@@ -387,6 +398,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     (this.tKey.serviceProvider as TorusServiceProvider).verifierName = verifier;
     (this.tKey.serviceProvider as TorusServiceProvider).verifierId = verifierId;
+
+    // workaround for atomic sync
+    this.tkey.manualSync = true;
     try {
       // prefetch tss pub key
       const prefetchTssPubs = [];
@@ -430,12 +444,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await Promise.all(prefetchTssPubs);
 
       await this.setupTkey(importTssKey);
+
+      // workaround for atomic sync, commit changes if not manualSync
+      // moved to setupTkey ( new user only ) Existing user do not mutate metadata
+      // if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
         if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
       }
       throw new Error((err as Error).message);
+    } finally {
+      // workaround for atomic syn, restore manual sync
+      this.tkey.manualSync = this.options.manualSync;
     }
   }
 
@@ -660,7 +681,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (!this.state.factorKey) throw new Error("factorKey not present");
     const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
-      accountIndex: this.state.accountIndex,
+      accountIndex: 0,
     });
     const tssNonce = this.getTssNonce();
 
@@ -706,7 +727,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
     const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE.curve.n);
-    const share = scalarBNToBufferSEC1(denormalisedShare).toString("base64");
+    const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
+    const derivedShare = denormalisedShare.add(accountNonce).umod(CURVE.curve.n);
+    const share = scalarBNToBufferSEC1(derivedShare).toString("base64");
 
     if (!currentSession) {
       throw new Error(`sessionAuth does not exist ${currentSession}`);
@@ -912,6 +935,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
       }
+
+      // workaround for atomic sync, commit changes if not manualSync
+      if (!this.options.manualSync) await this.commitChanges();
     } else {
       if (importTssKey) throw new Error("Cannot import tss key for existing user");
       await this.tKey.initialize({ neverInitializeNewKey: true });
