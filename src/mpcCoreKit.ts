@@ -772,8 +772,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       nodeIndexesReturned: participatingServerDKGIndexes,
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
 
-    // setup mock shares, sockets and tss wasm files.
-    const [sockets] = await Promise.all([setupSockets(tssWSEndpoints, randomSessionNonce)]);
+    // Setup sockets.
+    const sockets = await setupSockets(tssWSEndpoints, randomSessionNonce);
 
     const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
     const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE_SECP256K1.curve.n);
@@ -801,6 +801,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       true,
       this._tssLib.lib
     );
+    client.log = (_msg) => {};
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
       const serverIndex = participatingServerDKGIndexes[i];

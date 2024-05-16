@@ -1,4 +1,3 @@
-import { KeyType } from "@tkey/common-types";
 import { tssLib } from "@toruslabs/tss-lib";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
@@ -32,7 +31,6 @@ export const criticalResetAccount = async (coreKitInstance: Web3AuthMPCCoreKit):
   await coreKitInstance.tKey.storageLayer.setMetadata({
     privKey: new BN(coreKitInstance.state.oAuthKey!, "hex"),
     input: { message: "KEY_NOT_FOUND" },
-    keyType: tssLib.keyType as KeyType,
   });
 };
 
