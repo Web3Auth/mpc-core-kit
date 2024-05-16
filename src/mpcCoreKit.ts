@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/member-ordering */
 import { createSwappableProxy, SwappableProxy } from "@metamask/swappable-obj-proxy";
-import { BNString, encrypt, KeyType, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
+import { BNString, KeyType, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
@@ -57,8 +57,6 @@ import {
 } from "./interfaces";
 import { Point } from "./point";
 import {
-  addFactorAndRefresh,
-  deleteFactorAndRefresh,
   deriveShareCoefficients,
   generateFactorKey,
   generateSessionNonce,
@@ -837,14 +835,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw new Error("Cannot delete current active factor");
     }
 
-    await deleteFactorAndRefresh(this.tKey, factorPub, this.state.factorKey, this.signatures);
+    await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
     const factorPubHex = fpp.toBufferSEC1(true).toString("hex");
     const allDesc = this.tKey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
-      keyDesc.forEach(async (desc) => {
-        await this.tKey?.metadata.deleteShareDescription(factorPubHex, desc);
-      });
+      await Promise.all(keyDesc.map(async (desc) => this.tKey?.metadata.deleteShareDescription(factorPubHex, desc)));
     }
 
     // delete factorKey share metadata if factorkey is provided
@@ -1153,43 +1149,26 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
       throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
     }
-
     if (this.tKey.metadata.factorPubs[this.tKey.tssTag].length >= MAX_FACTORS) {
       throw new Error("Maximum number of factors reached");
     }
-    if (this.state.tssShareIndex !== newFactorTSSIndex) {
-      if (!this.state.factorKey) throw new Error("factorKey not present");
-
-      // Generate new share.
-      await addFactorAndRefresh(this.tKey, newFactorPub, newFactorTSSIndex, this.state.factorKey, this.signatures);
-
-      // Update local share.
-      const { tssIndex } = await this.tKey.getTSSShare(this.state.factorKey);
-      this.updateState({
-        tssShareIndex: tssIndex,
-      });
-      return;
+    if (!this.state.factorKey) {
+      throw new Error("factorKey not present");
     }
 
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
-    const updatedFactorPubs = this.tKey.metadata.factorPubs[this.tKey.tssTag].concat([newFactorPub]);
-    const factorEncs = JSON.parse(JSON.stringify(this.tKey.metadata.factorEncs[this.tKey.tssTag]));
-    const factorPubID = newFactorPub.x.toString(16, FIELD_ELEMENT_HEX_LEN);
-    factorEncs[factorPubID] = {
-      tssIndex: this.state.tssShareIndex,
-      type: "direct",
-      userEnc: await encrypt(Point.fromTkeyPoint(newFactorPub).toBufferSEC1(false), scalarBNToBufferSEC1(tssShare)),
-      serverEncs: [],
-    };
-    this.tKey.metadata.addTSSData({
-      tssKeyType: this.tkey.tssKeyType,
-      tssTag: this.tKey.tssTag,
-      factorPubs: updatedFactorPubs,
-      factorEncs,
+    // Generate new share.
+    await this.tkey.addFactorPub({
+      existingFactorKey: this.state.factorKey,
+      authSignatures: this.signatures,
+      newFactorPub,
+      newTSSIndex: newFactorTSSIndex,
+      refreshShares: this.state.tssShareIndex !== newFactorTSSIndex, // Refresh shares if we have a new factor key index.
     });
 
-    if (!this.tKey.manualSync) await this.tKey._syncShareMetadata();
+    // Update local share.
+    this.updateState({
+      tssShareIndex: newFactorTSSIndex,
+    });
   }
 
   private async getMetadataShare(): Promise<ShareStore> {
