@@ -142,6 +142,9 @@ export const FactorManipulationTest = async (
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
       instance.setTssWalletIndex(1);
+      if (testVariable.manualSync) {
+        await instance.commitChanges();
+      }
       const recoverFactor = await instance.enableMFA({});
 
       if (testVariable.manualSync) {
