@@ -1,46 +1,43 @@
-# Getting Started with Create React App
+## Example App
+To run the demo, under this directory
+-  `npm install`
+-  `npm start`
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## Glossaries
+<u>**Export TSS Key**</u>
+- Exporting `TSS Key` reconstructs the original key. 
 
-## Available Scripts
+<u>**Import TSS Key**</u>
+- Import the exported TSS Key from one account to another.
 
-In the project directory, you can run:
+<u>**Recover TSS Key**</u>
+- Recover your TSS Key with the `device` & `recovery` factors which you got from enabling MFA.
 
-### `npm start`
+>_Note: **recover** and **export** TSS Key reset the account. (i.e: the new account has different factors and shares but will have the same public address)_
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+----
+### To test on `export/import` and `recover/import` functions, you can do the followings in the demo -
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+#### Export/Import
+- when you're logged in, click on the `Export/Import Key` button, this will first reconstructs and exports your `TSS Key` 
+- After successful export, you will be logged out and asked to enter the account name/email which you will import the **exported TSS Key**
+- then you will be logged in with the new account/email and **exported Key** 
 
-### `npm test`
+#### Recover/Import
+- as a prerequisite, your account need to be **MFA enabled** and have access to **Factor Keys**(Device and Recovery), in order to do the TSS Key recovery
+- at the login screen, enter your factor keys (`Device` and `Recovery`) which you got from enabling MFA and click on `Recover with Factor Keys` button
+- the above step will reconstruct the **TSS Key** using your factor keys (device & recovery) and export **TSS Key**
+- then, you will be asked to enter the new email address which will be used to associate to your **exported Key**
+- after successful import, you will be logged in with different user/email
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+#### Verification
+- to verify the above features, you can click on `Get User Info` button or `Get Accounts` button (under the Blockchain Calls section)
+- The expected result is`your email address changees` but `the account is remaining the same`
 
-### `npm run build`
+#### How to enable MFA
+1. log in
+2. click `Enable MFA`
+3. then you can export your `device` and `recovery` shares which you can use to login or recover your account
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
-
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
-
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
-
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
+> Note: when `manualSync` is true, (which you can specify during Corekit instantiation ) you will need to commit your changes before/after enabling MFA (Step-2).
+----

@@ -36,10 +36,10 @@ import { Web3AuthMPCCoreKit } from "@web3auth/mpc-core-kit";
 
 const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
-  chainId: "0x5",
-  rpcTarget: "https://rpc.ankr.com/eth_goerli",
-  displayName: "Goerli Testnet",
-  blockExplorer: "https://goerli.etherscan.io",
+  chainId: "0xaa36a7",
+  rpcTarget: "https://rpc.ankr.com/eth_sepolia",
+  displayName: "Ethereum Sepolia Testnet",
+  blockExplorer: "https://sepolia.etherscan.io",
   ticker: "ETH",
   tickerName: "Ethereum",
   decimals: 18,

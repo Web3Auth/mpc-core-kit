@@ -18,7 +18,7 @@ import {
   WEB3AUTH_NETWORK,
   Web3AuthMPCCoreKit,
 } from "../src";
-import { AsyncMemoryStorage, criticalResetAccount, mockLogin } from "./setup";
+import { AsyncMemoryStorage, criticalResetAccount, mockLogin, stringGen } from "./setup";
 
 type FactorTestVariable = {
   types: TssShareType;
@@ -142,6 +142,9 @@ export const FactorManipulationTest = async (
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
       instance.setTssWalletIndex(1);
+      if (testVariable.manualSync) {
+        await instance.commitChanges();
+      }
       const recoverFactor = await instance.enableMFA({});
 
       if (testVariable.manualSync) {
@@ -184,7 +187,7 @@ const variable: FactorTestVariable[] = [
   { types: TssShareType.RECOVERY, manualSync: false, asyncStorage: new AsyncMemoryStorage() },
 ];
 
-const email = "testmail102";
+const email = `${stringGen(10)}@${stringGen(5)}.${stringGen(3)}`;
 variable.forEach(async (testVariable) => {
   const newCoreKitLogInInstance = async (ignoreError: boolean) => {
     const instance = new Web3AuthMPCCoreKit({
