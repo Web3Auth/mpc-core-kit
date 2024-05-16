@@ -352,7 +352,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         if (this.isRedirectMode) return;
 
         this.updateState({
-          oAuthKey: this._getOAuthKey(loginResponse),
+          oAuthKey: this._getPostBoxKey(loginResponse),
           userInfo: loginResponse.userInfo,
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
@@ -366,7 +366,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         if (this.isRedirectMode) return;
 
         this.updateState({
-          oAuthKey: this._getOAuthKey(loginResponse),
+          oAuthKey: this._getPostBoxKey(loginResponse),
           userInfo: loginResponse.userInfo[0],
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
@@ -433,12 +433,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         // this.torusSp.verifierType = "aggregate";
       }
 
-      const oAuthShare = this._getOAuthKey(loginResponse);
+      const postBoxKey = this._getPostBoxKey(loginResponse);
 
-      this.torusSp.postboxKey = new BN(oAuthShare, "hex");
+      this.torusSp.postboxKey = new BN(postBoxKey, "hex");
 
       this.updateState({
-        oAuthKey: oAuthShare,
+        oAuthKey: postBoxKey,
         userInfo: { ...parseToken(idToken), verifier, verifierId },
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
@@ -472,7 +472,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         const data = result.result as TorusLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
         this.updateState({
-          oAuthKey: this._getOAuthKey(data),
+          oAuthKey: this._getPostBoxKey(data),
           userInfo: data.userInfo,
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
@@ -483,7 +483,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         const data = result.result as TorusAggregateLoginResponse;
         if (!data) throw new Error("Invalid login params passed");
         this.updateState({
-          oAuthKey: this._getOAuthKey(data),
+          oAuthKey: this._getPostBoxKey(data),
           userInfo: data.userInfo[0],
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
@@ -1264,7 +1264,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.providerProxy = null;
   }
 
-  private _getOAuthKey(result: TorusKey): string {
+  private _getPostBoxKey(result: TorusKey): string {
     return TorusUtils.getPostboxKey(result);
   }
 
