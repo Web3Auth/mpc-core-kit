@@ -15,10 +15,7 @@ type FactorTestVariable = {
 };
 
 //   const { types } = factor;
-export const FactorManipulationTest = async (
-  newInstance: (ignoreError?: boolean) => Promise<Web3AuthMPCCoreKit>,
-  testVariable: FactorTestVariable
-) => {
+export const FactorManipulationTest = async (newInstance: () => Promise<Web3AuthMPCCoreKit>, testVariable: FactorTestVariable) => {
   test(`#Factor manipulation - ${testVariable.types} `, async function (t) {
     await t.before(async function () {
       const coreKitInstance = await newInstance();
@@ -29,6 +26,10 @@ export const FactorManipulationTest = async (
     await t.test("should able to create factor", async function () {
       const coreKitInstance = await newInstance();
       assert.equal(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
+
+      if (testVariable.manualSync) {
+        await coreKitInstance.commitChanges();
+      }
 
       coreKitInstance.setTssWalletIndex(1);
 
@@ -130,6 +131,9 @@ export const FactorManipulationTest = async (
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
       assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
+      if (testVariable.manualSync) {
+        await instance.commitChanges();
+      }
       instance.setTssWalletIndex(1);
       const recoverFactor = await instance.enableMFA({});
 
