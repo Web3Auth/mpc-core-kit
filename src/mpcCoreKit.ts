@@ -441,7 +441,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           throw newError;
         }
       }
-      throw CoreKitError.default((err as Error).message);
+      const newError = CoreKitError.default((err as Error).message);
+      newError.stack = (err as Error).stack;
+      throw newError;
     }
   }
 
@@ -604,7 +606,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       return backupFactorKey;
     } catch (err: unknown) {
       log.error("error enabling MFA", err);
-      throw CoreKitError.default((err as Error).message);
+      const newError = CoreKitError.default((err as Error).message);
+      newError.stack = (err as Error).stack;
     } finally {
       if (atomic) {
         this.tkey.manualSync = this.options.manualSync;
@@ -844,7 +847,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.currentStorage.set("sessionId", "");
 
     this.resetState();
-    await this.init({ handleRedirectResult: false });
+    await this.init({ handleRedirectResult: false, rehydrate: false });
   }
 
   public getUserInfo(): UserInfo {
@@ -1270,6 +1273,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tkey = null;
     this.torusSp = null;
     this.storageLayer = null;
+    this.state = { accountIndex: 0 };
   }
 
   private _getOAuthKey(result: TorusKey): string {

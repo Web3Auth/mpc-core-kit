@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import * as TssLib from "@toruslabs/tss-lib-node";
+import assert from "assert";
 
 import { COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
@@ -71,32 +72,18 @@ variable.forEach((testVariable) => {
       // mocklogin
       const { idToken, parsedToken } = await mockLogin(email);
 
-      try {
-        await coreKitInstance.init({ handleRedirectResult: false });
-      } catch (error) {
-        if (!expectedErrorThrown) {
-          // Unexpected error
-          throw error;
-        }
+      if (expectedErrorThrown) {
+        assert.rejects(() => coreKitInstance.init({ handleRedirectResult: false, rehydrate: false }));
+        return;
       }
-      try {
-        await coreKitInstance.loginWithJWT({
-          verifier: "torus-test-health",
-          verifierId: parsedToken.email,
-          idToken,
-        });
-      } catch (error) {
-        if (expectedErrorThrown) {
-          // If we expect an error, check the error message to see if it is the expected error
-          if (
-            !((error as Error).message as string).includes(
-              "The MPC Core Kit is not initialized. Please ensure you call the 'init()' method to initialize the kit properly before attempting any operations."
-            )
-          ) {
-            throw error;
-          }
-        }
-      }
+
+      await coreKitInstance.init({ handleRedirectResult: false, rehydrate: false });
+
+      await coreKitInstance.loginWithJWT({
+        verifier: "torus-test-health",
+        verifierId: parsedToken.email,
+        idToken,
+      });
     });
   });
 });

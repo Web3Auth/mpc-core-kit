@@ -1,5 +1,5 @@
 /* eslint-disable mocha/handle-done-callback */
-import assert, { strictEqual } from "node:assert";
+import assert, { fail, strictEqual } from "node:assert";
 import test from "node:test";
 
 import { Point } from "@tkey-mpc/common-types";
@@ -9,16 +9,8 @@ import * as TssLib from "@toruslabs/tss-lib-node";
 import BN from "bn.js";
 import { ec as EC } from "elliptic";
 
-import {
-  AsyncStorage,
-  COREKIT_STATUS,
-  DEFAULT_CHAIN_CONFIG,
-  MemoryStorage,
-  WEB3AUTH_NETWORK,
-  WEB3AUTH_NETWORK_TYPE,
-  Web3AuthMPCCoreKit,
-} from "../src";
-import { criticalResetAccount, mockLogin, stringGen } from "./setup";
+import { AsyncStorage, COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { criticalResetAccount, mockLogin, mockLogin2, stringGen } from "./setup";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -61,16 +53,6 @@ variable.forEach((testVariable) => {
       storage: storageInstance,
       manualSync,
     });
-  const coreKitInstanceWithoutProvider = new Web3AuthMPCCoreKit({
-    web3AuthClientId: "torus-key-test",
-    web3AuthNetwork,
-    baseUrl: "http://localhost:3000",
-    uxMode,
-    tssLib: TssLib,
-    storage: storageInstance,
-    manualSync,
-    setupProviderOnInit: false,
-  });
 
   const testNameSuffix = JSON.stringify(testVariable);
 
@@ -103,7 +85,7 @@ variable.forEach((testVariable) => {
       // after all test tear down
     });
 
-    await t.test("#Login with default provider", async function () {
+    await t.test("#Login", async function () {
       const coreKitInstance = newCoreKitInstance();
 
       // mocklogin
@@ -123,8 +105,6 @@ variable.forEach((testVariable) => {
         threshold: 0,
       });
       checkTssShare = tssShare;
-      // console.log(coreKitInstance.tKey.metadata.factorEncs);
-      // console.log(coreKitInstance.tKey.metadata.encryptedSalt);
 
       if (manualSync) {
         await coreKitInstance.commitChanges();
@@ -132,25 +112,8 @@ variable.forEach((testVariable) => {
       // check whether the public key and tss share is same as old sdks
     });
 
-    await t.test("#Login without provider", async function () {
-      // mocklogin
-      const { idToken, parsedToken } = await mockLogin(email);
-      await coreKitInstanceWithoutProvider.init({ handleRedirectResult: false, rehydrate: false });
-      await coreKitInstanceWithoutProvider.loginWithJWT({
-        verifier: "torus-test-health",
-        verifierId: parsedToken.email,
-        idToken,
-      });
-      // get key details
-      await checkLogin(coreKitInstanceWithoutProvider);
-      assert.strictEqual(coreKitInstanceWithoutProvider.status, COREKIT_STATUS.LOGGED_IN);
-    });
-
     await t.test("#relogin ", async function () {
       const coreKitInstance = newCoreKitInstance();
-      // reload without rehydrate
-      // await coreKitInstance.init({ rehydrate: false });
-
       // rehydrate
       await coreKitInstance.init({ handleRedirectResult: false });
       await checkLogin(coreKitInstance);
@@ -164,10 +127,7 @@ variable.forEach((testVariable) => {
         handleRedirectResult: false,
       });
       assert.strictEqual(coreKitInstance.status, COREKIT_STATUS.INITIALIZED);
-      try {
-        coreKitInstance.getCurrentFactorKey();
-        throw new Error("should not reach here");
-      } catch (error) {}
+      assert.throws(() => coreKitInstance.getCurrentFactorKey());
 
       // relogin
       const { idToken, parsedToken } = await mockLogin(email);
@@ -176,7 +136,6 @@ variable.forEach((testVariable) => {
         verifierId: parsedToken.email,
         idToken,
       });
-      // console.log(coreKitInstance.tKey.metadata.factorEncs);
 
       // get key details
       await checkLogin(coreKitInstance);
@@ -186,12 +145,17 @@ variable.forEach((testVariable) => {
       strictEqual(checkPubKey.x.toString("hex"), newPubKey.x.toString("hex"));
       strictEqual(checkPubKey.y.toString("hex"), newPubKey.y.toString("hex"));
       strictEqual(checkTssShare.toString("hex"), newTssShare.toString("hex"));
-      // console.log(coreKitInstance.tKey.metadata.encryptedSalt);
     });
 
     await t.test("#able to sign", async function () {
       const coreKitInstance = newCoreKitInstance();
-      await coreKitInstance.init();
+      await coreKitInstance.init({ handleRedirectResult: false, rehydrate: false });
+      const localToken = await mockLogin2(email);
+      await coreKitInstance.loginWithJWT({
+        verifier: "torus-test-health",
+        verifierId: email,
+        idToken: localToken.idToken,
+      });
       const msg = "hello world";
       const msgBuffer = Buffer.from(msg);
       const msgHash = keccak256(msgBuffer);

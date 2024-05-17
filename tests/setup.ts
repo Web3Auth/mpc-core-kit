@@ -100,13 +100,11 @@ export const newCoreKitLogInInstance = async ({
 
   const { idToken, parsedToken } = await mockLogin(email);
   await instance.init();
-  try {
-    await instance.loginWithJWT({
-      verifier: "torus-test-health",
-      verifierId: parsedToken.email,
-      idToken,
-    });
-  } catch (error) {}
+  await instance.loginWithJWT({
+    verifier: "torus-test-health",
+    verifierId: parsedToken.email,
+    idToken,
+  });
 
   return instance;
 };

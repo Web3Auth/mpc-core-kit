@@ -101,10 +101,7 @@ variable.forEach((testVariable) => {
       // rehydrate should fail
       await coreKitInstance.init();
       assert.strictEqual(coreKitInstance.status, COREKIT_STATUS.INITIALIZED);
-      try {
-        coreKitInstance.getCurrentFactorKey();
-        throw new Error("should not reach here");
-      } catch (error) {}
+      assert.throws(() => coreKitInstance.getCurrentFactorKey());
 
       // relogin
       const { idToken, parsedToken } = await mockLogin(email);

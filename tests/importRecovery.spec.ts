@@ -2,11 +2,13 @@
 import assert from "node:assert";
 import test from "node:test";
 
+import { getPubKeyEC } from "@tkey-mpc/common-types";
 import * as TssLib from "@toruslabs/tss-lib-node";
 import { log } from "@web3auth/base";
+import { BN } from "bn.js";
 
-import { AsyncStorage, IdTokenLoginParams, MemoryStorage, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
-import { criticalResetAccount, mockLogin, newCoreKitLogInInstance } from "./setup";
+import { AsyncStorage, IdTokenLoginParams, MemoryStorage, Point, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
+import { criticalResetAccount, mockLogin, mockLogin2, newCoreKitLogInInstance } from "./setup";
 
 type ImportKeyTestVariable = {
   manualSync?: boolean;
@@ -81,6 +83,11 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       const recoveredTssKey = await coreKitInstance._UNSAFE_recoverTssKey([factorKeyDevice, factorKeyRecovery]);
       assert.strictEqual(recoveredTssKey, exportedTssKey1);
 
+      // relogin to reset account
+      await coreKitInstance.init();
+      const localToken = await mockLogin2(testVariable.email);
+      idTokenLoginParams.idToken = localToken.idToken;
+      await coreKitInstance.loginWithJWT(idTokenLoginParams);
       await criticalResetAccount(coreKitInstance);
       // BrowserStorage.getInstance("memory").resetStore();
 
@@ -114,7 +121,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
       // reinitialize corekit
       const newEmail3 = testVariable.importKeyEmail;
-      const newLogin3 = await mockLogin(newEmail);
+      const newLogin3 = await mockLogin(newEmail3);
 
       const newIdTokenLoginParams3 = {
         verifier: "torus-test-health",
@@ -133,9 +140,12 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
       await coreKitInstance3.init();
       await coreKitInstance3.loginWithJWT(newIdTokenLoginParams3);
+      const tssPubkey = coreKitInstance3.getTssPublicKey();
 
       const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey();
-      console.log(exportedTssKey3);
+      const pubkey = getPubKeyEC(new BN(exportedTssKey3, "hex"));
+      const pubkeyCompress = pubkey.encode("hex", true);
+      assert.strictEqual(Point.fromTkeyPoint(tssPubkey).toBufferSEC1(true).toString("hex"), pubkeyCompress);
     });
 
     t.afterEach(function () {
