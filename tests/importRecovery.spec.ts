@@ -2,7 +2,7 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import { tssLib } from "@toruslabs/tss-lib";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 import { log } from "@web3auth/base";
 
 import { BrowserStorage, IdTokenLoginParams, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";

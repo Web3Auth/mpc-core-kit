@@ -1,4 +1,4 @@
-import { tssLib } from "@toruslabs/tss-lib";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 

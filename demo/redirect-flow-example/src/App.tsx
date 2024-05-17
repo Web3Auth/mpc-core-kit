@@ -10,7 +10,7 @@ import { BN } from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
 
-import { tssLib } from "@toruslabs/tss-lib";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 // import{ tssLib } from "@toruslabs/tss-frost-lib-wasm";
 
 const uiConsole = (...args: any[]): void => {

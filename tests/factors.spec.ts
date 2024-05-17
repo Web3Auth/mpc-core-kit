@@ -3,7 +3,7 @@ import assert from "node:assert";
 import test from "node:test";
 
 import { factorKeyCurve } from "@tkey/tss";
-import { tssLib } from "@toruslabs/tss-lib";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 
 import {

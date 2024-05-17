@@ -5,7 +5,7 @@ import test from "node:test";
 
 // import { getPubKeyPoint } from "@tkey-mpc/common-types";
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
-import { tssLib } from "@toruslabs/tss-lib";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 
 import { BrowserStorage, SupportedStorageType, TssSecurityQuestion, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";

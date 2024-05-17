@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import { keccak256 } from "@toruslabs/metadata-helpers";
-import { tssLib } from "@toruslabs/tss-lib";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import { ec as EC } from "elliptic";
 
