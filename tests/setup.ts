@@ -36,6 +36,10 @@ export const criticalResetAccount = async (coreKitInstance: Web3AuthMPCCoreKit):
       input: { message: "KEY_NOT_FOUND" },
     });
   }
+  // wait for 1 secs
+  await new Promise((resolve) => {
+    setTimeout(resolve, 1000);
+  });
 };
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
