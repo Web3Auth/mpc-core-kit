@@ -2,11 +2,13 @@
 import assert from "node:assert";
 import test from "node:test";
 
+import { getPubKeyEC } from "@tkey-mpc/common-types";
 import * as TssLib from "@toruslabs/tss-lib-node";
 import { log } from "@web3auth/base";
+import { BN } from "bn.js";
 
-import { AsyncStorage, IdTokenLoginParams, MemoryStorage, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
-import { criticalResetAccount, mockLogin, newCoreKitLogInInstance } from "./setup";
+import { AsyncStorage, IdTokenLoginParams, MemoryStorage, Point, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
+import { criticalResetAccount, mockLogin, mockLogin2, newCoreKitLogInInstance } from "./setup";
 
 type ImportKeyTestVariable = {
   manualSync?: boolean;
@@ -17,7 +19,7 @@ type ImportKeyTestVariable = {
 const storageInstance = new MemoryStorage();
 export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
   test(`import recover tss key : ${testVariable.manualSync}`, async function (t) {
-    t.before(async () => {
+    const beforeTest = async () => {
       const instance = await newCoreKitLogInInstance({
         network: WEB3AUTH_NETWORK.DEVNET,
         manualSync: false,
@@ -36,8 +38,9 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       await criticalResetAccount(instance2);
       await instance2.logout();
       await new AsyncStorage(instance2._storageKey, storageInstance).resetStore();
-    });
+    };
 
+    await beforeTest();
     await t.test("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
       const { idToken, parsedToken } = await mockLogin(testVariable.email);
 
@@ -60,6 +63,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       await coreKitInstance.init();
       await coreKitInstance.loginWithJWT(idTokenLoginParams);
 
+      // Create 2 factors which will be use to recover tss key
       const factorKeyDevice = await coreKitInstance.createFactor({
         shareType: TssShareType.DEVICE,
       });
@@ -81,6 +85,11 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       const recoveredTssKey = await coreKitInstance._UNSAFE_recoverTssKey([factorKeyDevice, factorKeyRecovery]);
       assert.strictEqual(recoveredTssKey, exportedTssKey1);
 
+      // relogin to reset account
+      await coreKitInstance.init();
+      const localToken = await mockLogin2(testVariable.email);
+      idTokenLoginParams.idToken = localToken.idToken;
+      await coreKitInstance.loginWithJWT(idTokenLoginParams);
       await criticalResetAccount(coreKitInstance);
       // BrowserStorage.getInstance("memory").resetStore();
 
@@ -107,6 +116,10 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       await coreKitInstance2.init();
       await coreKitInstance2.loginWithJWT(newIdTokenLoginParams);
 
+      if (testVariable.manualSync) {
+        await coreKitInstance2.commitChanges();
+      }
+
       const exportedTssKey = await coreKitInstance2._UNSAFE_exportTssKey();
       // BrowserStorage.getInstance("memory").resetStore();
 
@@ -114,7 +127,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
       // reinitialize corekit
       const newEmail3 = testVariable.importKeyEmail;
-      const newLogin3 = await mockLogin(newEmail);
+      const newLogin3 = await mockLogin(newEmail3);
 
       const newIdTokenLoginParams3 = {
         verifier: "torus-test-health",
@@ -133,9 +146,12 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
       await coreKitInstance3.init();
       await coreKitInstance3.loginWithJWT(newIdTokenLoginParams3);
+      const tssPubkey = coreKitInstance3.getTssPublicKey();
 
       const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey();
-      console.log(exportedTssKey3);
+      const pubkey = getPubKeyEC(new BN(exportedTssKey3, "hex"));
+      const pubkeyCompress = pubkey.encode("hex", true);
+      assert.strictEqual(Point.fromTkeyPoint(tssPubkey).toBufferSEC1(true).toString("hex"), pubkeyCompress);
     });
 
     t.afterEach(function () {

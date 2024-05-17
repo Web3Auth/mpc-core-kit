@@ -52,14 +52,16 @@ variable.forEach((testVariable) => {
   });
 
   test(`#Variable SessionTime test :  ${JSON.stringify({ sessionTime: testVariable.sessionTime })}`, async (t) => {
-    t.before(async function () {
+    async function beforeTest() {
       if (coreKitInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(coreKitInstance);
-    });
+    }
 
     t.after(async function () {
       // after all test tear down
       await coreKitInstance.logout();
     });
+
+    await beforeTest();
 
     await t.test("`sessionTime` should be equal to `sessionTokenDuration` from #Login", async function () {
       // mocklogin

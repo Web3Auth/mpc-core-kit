@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/member-ordering */
-import { createSwappableProxy, SwappableProxy } from "@metamask/swappable-obj-proxy";
 import { BNString, encrypt, getPubKeyPoint, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey-mpc/common-types";
 import ThresholdKey, { CoreError, lagrangeInterpolation } from "@tkey-mpc/core";
 import { TorusServiceProvider } from "@tkey-mpc/service-provider-torus";
@@ -15,8 +14,7 @@ import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type * as TssLib from "@toruslabs/tss-lib";
-import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
-import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
+import { CHAIN_NAMESPACES, log } from "@web3auth/base";
 import BN from "bn.js";
 import bowser from "bowser";
 
@@ -70,8 +68,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
 
   private options: Web3AuthOptionsWithDefaults;
-
-  private providerProxy: SwappableProxy<SafeEventEmitterProvider> | null = null;
 
   private torusSp: TorusServiceProvider | null = null;
 
@@ -127,7 +123,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
-    if (options.setupProviderOnInit === undefined) options.setupProviderOnInit = true;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -153,14 +148,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.tkeyInstanceUninitialized();
     }
     return this.tkey;
-  }
-
-  get provider(): SafeEventEmitterProvider | null {
-    return this.providerProxy ? this.providerProxy : null;
-  }
-
-  set provider(_: SafeEventEmitterProvider | null) {
-    throw CoreKitError.default("Set provider has not been implemented.");
   }
 
   get signatures(): string[] {
@@ -454,7 +441,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           throw newError;
         }
       }
-      throw CoreKitError.default((err as Error).message);
+      const newError = CoreKitError.default((err as Error).message);
+      newError.stack = (err as Error).stack;
+      throw newError;
     }
   }
 
@@ -617,7 +606,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       return backupFactorKey;
     } catch (err: unknown) {
       log.error("error enabling MFA", err);
-      throw CoreKitError.default((err as Error).message);
+      const newError = CoreKitError.default((err as Error).message);
+      newError.stack = (err as Error).stack;
     } finally {
       if (atomic) {
         this.tkey.manualSync = this.options.manualSync;
@@ -787,13 +777,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw err;
     });
 
-    let { r, s, recoveryParam } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
+    const { r, s, recoveryParam } = await client.sign(tss, Buffer.from(msgHash).toString("base64"), true, "", "keccak256", {
       signatures,
     });
 
-    if (recoveryParam < 27) {
-      recoveryParam += 27;
-    }
     // skip await cleanup
     client.cleanup(tss, { signatures, server_coeffs: serverCoeffs });
     return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
@@ -860,7 +847,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.currentStorage.set("sessionId", "");
 
     this.resetState();
-    await this.init({ handleRedirectResult: false });
+    await this.init({ handleRedirectResult: false, rehydrate: false });
   }
 
   public getUserInfo(): UserInfo {
@@ -912,15 +899,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.tKey.syncLocalMetadataTransitions();
     this.options.manualSync = manualSync;
     this.tKey.manualSync = manualSync;
-  }
-
-  public async switchChain(chainConfig: CustomChainConfig): Promise<void> {
-    try {
-      await this.setupProvider({ chainConfig });
-    } catch (error: unknown) {
-      log.error("change chain config error", error);
-      throw error;
-    }
   }
 
   // device factor
@@ -1080,9 +1058,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
-    if (this.options.setupProviderOnInit) {
-      await this.setupProvider({ chainConfig: this.options.chainConfig });
-    }
     await this.createSession();
   }
 
@@ -1117,10 +1092,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
-
-      if (this.options.setupProviderOnInit) {
-        await this.setupProvider({ chainConfig: this.options.chainConfig });
-      }
     } catch (err) {
       log.error("error trying to authorize session", err);
     }
@@ -1293,24 +1264,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
   }
 
-  public async setupProvider(option: { chainConfig: CustomChainConfig }): Promise<void> {
-    this.checkReady();
-    if (!this.state.factorKey) {
-      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when setting up provider.");
-    }
-
-    this.options.chainConfig = option.chainConfig;
-    const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
-    await signingProvider.setupProvider({ sign: this.sign, getPublic: this.getPublic });
-
-    if (this.providerProxy === null) {
-      const provider = createSwappableProxy<SafeEventEmitterProvider>(signingProvider.provider);
-      this.providerProxy = provider;
-    } else {
-      this.providerProxy.setTarget(signingProvider.provider);
-    }
-  }
-
   private updateState(newState: Partial<Web3AuthState>): void {
     this.state = { ...this.state, ...newState };
   }
@@ -1320,7 +1273,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tkey = null;
     this.torusSp = null;
     this.storageLayer = null;
-    this.providerProxy = null;
+    this.state = { accountIndex: 0 };
   }
 
   private _getOAuthKey(result: TorusKey): string {

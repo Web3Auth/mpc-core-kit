@@ -101,10 +101,7 @@ variable.forEach((testVariable) => {
       // rehydrate should fail
       await coreKitInstance.init();
       assert.strictEqual(coreKitInstance.status, COREKIT_STATUS.INITIALIZED);
-      try {
-        coreKitInstance.getCurrentFactorKey();
-        throw new Error("should not reach here");
-      } catch (error) {}
+      assert.throws(() => coreKitInstance.getCurrentFactorKey());
 
       // relogin
       const { idToken, parsedToken } = await mockLogin(email);
@@ -125,7 +122,7 @@ variable.forEach((testVariable) => {
       const signature = await coreKitInstance.sign(msgHash);
 
       const secp256k1 = new EC("secp256k1");
-      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v - 27);
+      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v);
       const publicKeyPoint = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkey.x.toString("hex"), publicKeyPoint.x.toString("hex"));
       assert.strictEqual(pubkey.y.toString("hex"), publicKeyPoint.y.toString("hex"));

@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, AggregateVerifierLoginParams, TssShareType, keyToMnemonic, getWebBrowserFactor, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, AggregateVerifierLoginParams, TssShareType, keyToMnemonic, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 
 import "./App.css";
 import { SafeEventEmitterProvider } from "@web3auth/base";
 import { BN } from "bn.js";
+
+import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -21,7 +23,8 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
   {
     web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
     web3AuthNetwork: selectedNetwork,
-    uxMode: 'popup'
+    uxMode: 'popup',
+    storage: localStorage,
   }
 );
 
@@ -43,10 +46,11 @@ function App() {
     const init = async () => {
       await coreKitInstance.init();
 
-      if (coreKitInstance.provider) {
-        setProvider(coreKitInstance.provider);
+      if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+        let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
+        localProvider.setupProvider(coreKitInstance);
+        setProvider(localProvider);
       }
-
       setCoreKitStatus(coreKitInstance.status);
 
     };
@@ -111,8 +115,10 @@ function App() {
         uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
       }
 
-      if (coreKitInstance.provider) {
-        setProvider(coreKitInstance.provider);
+      if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+        let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
+        localProvider.setupProvider(coreKitInstance);
+        setProvider(localProvider);
       }
 
       setCoreKitStatus(coreKitInstance.status);
@@ -125,7 +131,7 @@ function App() {
 
 
   const getDeviceShare = async () => {
-    const factorKey = await getWebBrowserFactor(coreKitInstance!);
+    const factorKey = await coreKitInstance.getDeviceFactor();
     setBackupFactorKey(factorKey);
     uiConsole("Device share: ", factorKey);
   }
@@ -144,9 +150,12 @@ function App() {
       uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
     }
 
-    if (coreKitInstance.provider) {
-      setProvider(coreKitInstance.provider);
+    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
+      localProvider.setupProvider(coreKitInstance);
+      setProvider(localProvider);
     }
+    setCoreKitStatus(coreKitInstance.status);
   }
 
   const recoverSecurityQuestionFactor = async () => {

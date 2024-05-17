@@ -9,7 +9,7 @@ import type {
   TorusVerifierResponse,
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
-import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
+import { CustomChainConfig } from "@web3auth/base";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
@@ -155,11 +155,6 @@ export interface ICoreKit {
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
   tKey: ThresholdKey | null;
-
-  /**
-   * Provider for making the blockchain calls.
-   **/
-  provider: SafeEventEmitterProvider | null;
 
   /**
    * Signatures generated from the OAuth Login.
@@ -393,12 +388,6 @@ export interface Web3AuthOptions {
    * Do not use this unless you know what you are doing.
    */
   hashedFactorNonce?: string;
-
-  /**
-   * @defaultValue `true`
-   * Setup Provider after `login success` reconstruct.
-   */
-  setupProviderOnInit?: boolean;
 
   serverTimeOffset?: number;
 }

@@ -3,32 +3,55 @@ import assert from "node:assert";
 import test from "node:test";
 
 import * as TssLib from "@toruslabs/tss-lib-node";
-import { log } from "@web3auth/base";
 import BN from "bn.js";
 
 import { COREKIT_STATUS, IAsyncStorage, IStorage, MemoryStorage, Point, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { AsyncMemoryStorage, criticalResetAccount, mockLogin } from "./setup";
 
 type FactorTestVariable = {
-  types: TssShareType;
   manualSync?: boolean;
   storage?: IAsyncStorage | IStorage;
+  email: string;
 };
 
 //   const { types } = factor;
-export const FactorManipulationTest = async (
-  newInstance: (ignoreError?: boolean) => Promise<Web3AuthMPCCoreKit>,
-  testVariable: FactorTestVariable
-) => {
-  test(`#Factor manipulation - ${testVariable.types} `, async function (t) {
-    await t.before(async function () {
-      const coreKitInstance = await newInstance(true);
-      await criticalResetAccount(coreKitInstance);
-      await coreKitInstance.logout();
+
+export const FactorManipulationTest = async (testVariable: FactorTestVariable) => {
+  const { email } = testVariable;
+  const newInstance = async () => {
+    const instance = new Web3AuthMPCCoreKit({
+      web3AuthClientId: "torus-key-test",
+      web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
+      baseUrl: "http://localhost:3000",
+      uxMode: "nodejs",
+      tssLib: TssLib,
+      storage: testVariable.storage,
+      manualSync: testVariable.manualSync,
     });
+
+    const { idToken, parsedToken } = await mockLogin(email);
+    await instance.init({ handleRedirectResult: false, rehydrate: false });
+    await instance.loginWithJWT({
+      verifier: "torus-test-health",
+      verifierId: parsedToken.email,
+      idToken,
+    });
+    return instance;
+  };
+
+  async function beforeTest() {
+    const resetInstance = await newInstance();
+    await criticalResetAccount(resetInstance);
+    await resetInstance.logout();
+  }
+
+  await test(`#Factor manipulation - manualSync ${testVariable.manualSync} `, async function (t) {
+    await beforeTest();
 
     await t.test("should able to create factor", async function () {
       const coreKitInstance = await newInstance();
+      assert.equal(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
+
       coreKitInstance.setTssWalletIndex(1);
 
       coreKitInstance.setTssWalletIndex(0);
@@ -42,11 +65,10 @@ export const FactorManipulationTest = async (
 
       const firstFactor = coreKitInstance.getCurrentFactorKey();
       // try delete hash factor factor
-      try {
+      assert.rejects(() => {
         const pt = Point.fromPrivateKey(firstFactor.factorKey);
-        await coreKitInstance.deleteFactor(pt.toTkeyPoint());
-        throw new Error("should not reach here");
-      } catch {}
+        return coreKitInstance.deleteFactor(pt.toTkeyPoint());
+      });
 
       // create factor
       const factorKey1 = await coreKitInstance.createFactor({
@@ -129,6 +151,8 @@ export const FactorManipulationTest = async (
 
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
+      assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
+
       instance.setTssWalletIndex(1);
       const recoverFactor = await instance.enableMFA({});
 
@@ -141,6 +165,7 @@ export const FactorManipulationTest = async (
 
       // new instance
       const instance2 = await newInstance();
+      assert.strictEqual(instance2.status, COREKIT_STATUS.REQUIRED_SHARE);
 
       const browserFactor = await instance2.getDeviceFactor();
 
@@ -160,44 +185,13 @@ export const FactorManipulationTest = async (
 };
 
 const variable: FactorTestVariable[] = [
-  { types: TssShareType.DEVICE, manualSync: true, storage: new MemoryStorage() },
-  { types: TssShareType.RECOVERY, manualSync: true, storage: new MemoryStorage() },
+  { manualSync: true, storage: new MemoryStorage(), email: "testmail1012" },
+  { manualSync: false, storage: new MemoryStorage(), email: "testmail1013" },
 
-  { types: TssShareType.RECOVERY, manualSync: true, storage: new AsyncMemoryStorage() },
-  { types: TssShareType.RECOVERY, manualSync: false, storage: new AsyncMemoryStorage() },
+  { manualSync: true, storage: new AsyncMemoryStorage(), email: "testmail1014" },
+  { manualSync: false, storage: new AsyncMemoryStorage(), email: "testmail1015" },
 ];
 
-const email = "testmail102";
 variable.forEach(async (testVariable) => {
-  const newCoreKitLogInInstance = async (ignoreError: boolean) => {
-    const instance = new Web3AuthMPCCoreKit({
-      web3AuthClientId: "torus-key-test",
-      web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
-      baseUrl: "http://localhost:3000",
-      uxMode: "nodejs",
-      tssLib: TssLib,
-      storage: testVariable.storage,
-      manualSync: testVariable.manualSync,
-    });
-
-    const { idToken, parsedToken } = await mockLogin(email);
-    await instance.init({ handleRedirectResult: false, rehydrate: false });
-    try {
-      await instance.loginWithJWT({
-        verifier: "torus-test-health",
-        verifierId: parsedToken.email,
-        idToken,
-      });
-    } catch (e) {
-      // handle error
-      if (!ignoreError) {
-        throw e;
-      }
-      log.error(e);
-    }
-
-    return instance;
-  };
-
-  await FactorManipulationTest(newCoreKitLogInInstance, testVariable);
+  await FactorManipulationTest(testVariable);
 });
