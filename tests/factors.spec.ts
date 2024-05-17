@@ -52,10 +52,6 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       const coreKitInstance = await newInstance();
       assert.equal(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
 
-      if (testVariable.manualSync) {
-        await coreKitInstance.commitChanges();
-      }
-
       coreKitInstance.setTssWalletIndex(1);
 
       coreKitInstance.setTssWalletIndex(0);
@@ -156,9 +152,7 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
       assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
-      if (testVariable.manualSync) {
-        await instance.commitChanges();
-      }
+
       instance.setTssWalletIndex(1);
       const recoverFactor = await instance.enableMFA({});
 
