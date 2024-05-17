@@ -60,14 +60,15 @@ variable.forEach((testVariable) => {
 
   const testNameSuffix = testVariable.description;
   test(`#Gating test :  ${testNameSuffix}`, async (t) => {
-    t.before(async function () {
+    async function beforeTest() {
       if (coreKitInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(coreKitInstance);
-    });
+    }
 
     t.after(async function () {
       // after all test tear down
     });
 
+    await beforeTest();
     await t.test("#Login ", async function () {
       // mocklogin
       const { idToken, parsedToken } = await mockLogin(email);

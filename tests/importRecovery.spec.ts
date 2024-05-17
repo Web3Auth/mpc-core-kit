@@ -19,7 +19,7 @@ type ImportKeyTestVariable = {
 const storageInstance = new MemoryStorage();
 export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
   test(`import recover tss key : ${testVariable.manualSync}`, async function (t) {
-    t.before(async () => {
+    const beforeTest = async () => {
       const instance = await newCoreKitLogInInstance({
         network: WEB3AUTH_NETWORK.DEVNET,
         manualSync: false,
@@ -38,8 +38,9 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       await criticalResetAccount(instance2);
       await instance2.logout();
       await new AsyncStorage(instance2._storageKey, storageInstance).resetStore();
-    });
+    };
 
+    await beforeTest();
     await t.test("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
       const { idToken, parsedToken } = await mockLogin(testVariable.email);
 

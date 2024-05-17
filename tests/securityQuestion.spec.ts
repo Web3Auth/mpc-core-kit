@@ -29,13 +29,13 @@ type TestVariable = {
 const storageInstance = new MemoryStorage();
 export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3AuthMPCCoreKit>, testVariable: TestVariable) => {
   test(`#Tss Security Question - ${testVariable.manualSync} `, async function (t) {
-    await t.before(async function () {
+    async function beforeTest() {
       const coreKitInstance = await newInstance();
       await criticalResetAccount(coreKitInstance);
       await coreKitInstance.logout();
 
       await new AsyncStorage(coreKitInstance._storageKey, storageInstance).resetStore();
-    });
+    }
     t.afterEach(function () {
       return console.log("finished running test");
     });
@@ -43,6 +43,7 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       return console.log("finished running tests");
     });
 
+    await beforeTest();
     await t.test("should work", async function () {
       // set security question
       const instance = await newInstance();

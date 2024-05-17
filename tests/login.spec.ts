@@ -60,7 +60,7 @@ variable.forEach((testVariable) => {
   let checkTssShare: BN;
 
   test(`#Login Test with JWT + logout :  ${testNameSuffix}`, async (t) => {
-    t.before(async function () {
+    async function beforeTest() {
       const resetInstance = new Web3AuthMPCCoreKit({
         web3AuthClientId: "torus-key-test",
         web3AuthNetwork,
@@ -71,7 +71,7 @@ variable.forEach((testVariable) => {
         manualSync,
       });
       const { idToken, parsedToken } = await mockLogin(email);
-      await resetInstance.init({ handleRedirectResult: false });
+      await resetInstance.init({ handleRedirectResult: false, rehydrate: false });
       await resetInstance.loginWithJWT({
         verifier: "torus-test-health",
         verifierId: parsedToken.email,
@@ -79,12 +79,9 @@ variable.forEach((testVariable) => {
       });
       await criticalResetAccount(resetInstance);
       await new AsyncStorage(resetInstance._storageKey, storageInstance).resetStore();
-    });
+    }
 
-    t.after(async function () {
-      // after all test tear down
-    });
-
+    await beforeTest();
     await t.test("#Login", async function () {
       const coreKitInstance = newCoreKitInstance();
 
