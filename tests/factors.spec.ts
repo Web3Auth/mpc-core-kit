@@ -21,13 +21,15 @@ export const FactorManipulationTest = async (
 ) => {
   test(`#Factor manipulation - ${testVariable.types} `, async function (t) {
     await t.before(async function () {
-      const coreKitInstance = await newInstance(true);
+      const coreKitInstance = await newInstance();
       await criticalResetAccount(coreKitInstance);
       await coreKitInstance.logout();
     });
 
     await t.test("should able to create factor", async function () {
       const coreKitInstance = await newInstance();
+      assert.equal(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
+
       coreKitInstance.setTssWalletIndex(1);
 
       coreKitInstance.setTssWalletIndex(0);
@@ -127,6 +129,7 @@ export const FactorManipulationTest = async (
 
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
+      assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
       instance.setTssWalletIndex(1);
       const recoverFactor = await instance.enableMFA({});
 

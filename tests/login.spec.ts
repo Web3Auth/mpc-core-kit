@@ -1,5 +1,5 @@
 /* eslint-disable mocha/handle-done-callback */
-import assert, { fail, strictEqual } from "node:assert";
+import assert, { strictEqual } from "node:assert";
 import test from "node:test";
 
 import { Point } from "@tkey-mpc/common-types";

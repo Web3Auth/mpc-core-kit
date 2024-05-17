@@ -28,10 +28,14 @@ export const criticalResetAccount = async (coreKitInstance: Web3AuthMPCCoreKit):
     throw new Error("coreKitInstance is not set");
   }
 
-  await coreKitInstance.tKey.storageLayer.setMetadata({
-    privKey: new BN(coreKitInstance.state.oAuthKey!, "hex"),
-    input: { message: "KEY_NOT_FOUND" },
-  });
+  if (coreKitInstance.tKey.privKey) {
+    await coreKitInstance.tKey.CRITICAL_deleteTkey();
+  } else {
+    await coreKitInstance.tKey.storageLayer.setMetadata({
+      privKey: new BN(coreKitInstance.state.oAuthKey!, "hex"),
+      input: { message: "KEY_NOT_FOUND" },
+    });
+  }
 };
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
