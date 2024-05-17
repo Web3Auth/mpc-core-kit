@@ -63,6 +63,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       await coreKitInstance.init();
       await coreKitInstance.loginWithJWT(idTokenLoginParams);
 
+      // Create 2 factors which will be use to recover tss key
       const factorKeyDevice = await coreKitInstance.createFactor({
         shareType: TssShareType.DEVICE,
       });
@@ -114,6 +115,10 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
       await coreKitInstance2.init();
       await coreKitInstance2.loginWithJWT(newIdTokenLoginParams);
+
+      if (testVariable.manualSync) {
+        await coreKitInstance2.commitChanges();
+      }
 
       const exportedTssKey = await coreKitInstance2._UNSAFE_exportTssKey();
       // BrowserStorage.getInstance("memory").resetStore();
