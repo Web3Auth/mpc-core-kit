@@ -36,9 +36,9 @@ export const criticalResetAccount = async (coreKitInstance: Web3AuthMPCCoreKit):
       input: { message: "KEY_NOT_FOUND" },
     });
   }
-  // wait for 1 secs
+  // wait for 5 secs
   await new Promise((resolve) => {
-    setTimeout(resolve, 1000);
+    setTimeout(resolve, 5000);
   });
 };
 
