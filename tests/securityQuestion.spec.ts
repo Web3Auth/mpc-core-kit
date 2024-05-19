@@ -67,7 +67,7 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       // check factor
       await instance.tKey.getTSSShare(new BN(factor, "hex"));
       // check wrong answer
-      assert.rejects(() => securityQuestion.recoverFactor(instance, "wrong answer"));
+      await assert.rejects(() => securityQuestion.recoverFactor(instance, "wrong answer"));
 
       // change factor
       await securityQuestion.changeSecurityQuestion({
@@ -98,18 +98,18 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       assert.strictEqual(newFactor, newFactor2);
       assert.strictEqual(newFactor, newFactor3);
 
-      assert.rejects(() => instance.tKey.getTSSShare(new BN(factor, "hex")));
+      await assert.rejects(() => instance.tKey.getTSSShare(new BN(factor, "hex")));
 
       // recover factor
       // check wrong answer
-      assert.rejects(() => securityQuestion.recoverFactor(instance, answer));
+      await assert.rejects(() => securityQuestion.recoverFactor(instance, answer));
 
       // delete factor
       await securityQuestion.deleteSecurityQuestion(instance);
 
       // recover factor
-      assert.rejects(() => securityQuestion.recoverFactor(instance, newAnswer));
-      assert.rejects(() => securityQuestion.recoverFactor(instance, answer));
+      await assert.rejects(() => securityQuestion.recoverFactor(instance, newAnswer));
+      await assert.rejects(() => securityQuestion.recoverFactor(instance, answer));
 
       // input factor
       assert.strictEqual(true, true);

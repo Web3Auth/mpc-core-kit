@@ -74,7 +74,7 @@ variable.forEach((testVariable) => {
       const { idToken, parsedToken } = await mockLogin(email);
 
       if (expectedErrorThrown) {
-        assert.rejects(() => coreKitInstance.init({ handleRedirectResult: false, rehydrate: false }));
+        await assert.rejects(() => coreKitInstance.init({ handleRedirectResult: false, rehydrate: false }));
         return;
       }
 

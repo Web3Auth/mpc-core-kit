@@ -90,19 +90,6 @@
   "engines": {
     "node": ">=20.x"
   },
-  "overrides": {
-    "@toruslabs/customauth": "^18.1.0",
-    "@tkey-mpc/storage-layer-torus": {
-      "@toruslabs/http-helpers": "^6.0.0"
-    },
-    "@toruslabs/base-session-manager": {
-      "@toruslabs/http-helpers": "^6.0.0"
-    },
-    "@tkey-mpc/service-provider-torus": {
-      "@toruslabs/torus.js": "^12.2.0",
-      "@toruslabs/customauth": "^18.1.0"
-    }
-  },
   "lint-staged": {
     "!(*d).ts": [
       "eslint --cache --fix",

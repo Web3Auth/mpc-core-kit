@@ -2,11 +2,12 @@
 import assert from "node:assert";
 import test from "node:test";
 
+import { Point } from "@tkey/common-types";
 import { tssLib } from "@toruslabs/tss-dkls-lib";
 import { log } from "@web3auth/base";
 import { BN } from "bn.js";
 
-import { AsyncStorage, IdTokenLoginParams, MemoryStorage, Point, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
+import { AsyncStorage, IdTokenLoginParams, MemoryStorage, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin, mockLogin2, newCoreKitLogInInstance } from "./setup";
 
 type ImportKeyTestVariable = {
@@ -148,9 +149,8 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       const tssPubkey = coreKitInstance3.getTssPublicKey();
 
       const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey();
-      const pubkey = getPubKeyEC(new BN(exportedTssKey3, "hex"));
-      const pubkeyCompress = pubkey.encode("hex", true);
-      assert.strictEqual(Point.fromTkeyPoint(tssPubkey).toBufferSEC1(true).toString("hex"), pubkeyCompress);
+      const pubkey = Point.fromScalar(new BN(exportedTssKey3, "hex"), coreKitInstance.tKey.tssCurve);
+      assert(tssPubkey.equals(pubkey));
     });
 
     t.afterEach(function () {

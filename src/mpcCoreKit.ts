@@ -15,8 +15,7 @@ import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
-import { CHAIN_NAMESPACES, CustomChainConfig, log, SafeEventEmitterProvider } from "@web3auth/base";
-import { EthereumSigningProvider } from "@web3auth-mpc/ethereum-provider";
+import { CHAIN_NAMESPACES, log } from "@web3auth/base";
 import BN from "bn.js";
 import bowser from "bowser";
 import { ec as EC } from "elliptic";
@@ -857,7 +856,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.tKey.metadata.factorPubs) {
       throw CoreKitError.factorPubsMissing();
     }
-    
+
     // check for atomic need
     let atomic = false;
     if (!this.tKey.manualSync) {

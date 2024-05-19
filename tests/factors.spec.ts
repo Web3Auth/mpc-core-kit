@@ -7,17 +7,7 @@ import { factorKeyCurve } from "@tkey/tss";
 import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 
-import {
-  asyncGetFactor,
-  COREKIT_STATUS,
-  getWebBrowserFactor,
-  IAsyncStorage,
-  MemoryStorage,
-  SupportedStorageType,
-  TssShareType,
-  WEB3AUTH_NETWORK,
-  Web3AuthMPCCoreKit,
-} from "../src";
+import { COREKIT_STATUS, IAsyncStorage, IStorage, MemoryStorage, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { AsyncMemoryStorage, criticalResetAccount, mockLogin } from "./setup";
 
 type FactorTestVariable = {
@@ -36,7 +26,7 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
-      tssLib: TssLib,
+      tssLib,
       storage: testVariable.storage,
       manualSync: testVariable.manualSync,
     });
@@ -77,7 +67,7 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
 
       const firstFactor = coreKitInstance.getCurrentFactorKey();
       // try delete hash factor factor
-      await assert.rejects(() => {
+      await assert.rejects(async () => {
         const pt = Point.fromScalar(firstFactor.factorKey, factorKeyCurve);
         await coreKitInstance.deleteFactor(pt);
         throw new Error("should not reach here");

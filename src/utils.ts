@@ -7,7 +7,6 @@ import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
 import { DELIMITERS, SCALAR_LEN } from "./constants";
-import CoreKitError from "./helper/errors";
 import { IAsyncStorage, IStorage } from "./interfaces";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {

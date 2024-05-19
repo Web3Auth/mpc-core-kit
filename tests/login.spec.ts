@@ -9,7 +9,7 @@ import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import { ec as EC } from "elliptic";
 
-import { BrowserStorage, COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { AsyncStorage, COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin, mockLogin2, stringGen } from "./setup";
 import { sigToRSV } from "./util";
 
@@ -161,14 +161,14 @@ variable.forEach((testVariable) => {
 
       // Sign hash.
       const signature = sigToRSV(await coreKitInstance.sign(msgHash, true));
-      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v - 27);
+      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v);
       const publicKeyPoint = coreKitInstance.getTssPublicKey();
       assert.strictEqual(pubkey.x.toString("hex"), publicKeyPoint.x.toString("hex"));
       assert.strictEqual(pubkey.y.toString("hex"), publicKeyPoint.y.toString("hex"));
 
       // Sign full message.
       const signature2 = sigToRSV(await coreKitInstance.sign(msgBuffer));
-      const pubkey2 = secp256k1.recoverPubKey(msgHash, signature2, signature2.v - 27);
+      const pubkey2 = secp256k1.recoverPubKey(msgHash, signature2, signature2.v);
       assert.strictEqual(pubkey2.x.toString("hex"), publicKeyPoint.x.toString("hex"));
       assert.strictEqual(pubkey2.y.toString("hex"), publicKeyPoint.y.toString("hex"));
     });
