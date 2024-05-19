@@ -50,7 +50,7 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
   await test(`#Factor manipulation - manualSync ${testVariable.manualSync} `, async function (t) {
     await beforeTest();
 
-    await t.test("should able to create factor", async function () {
+    await t.test("should be able to create factor", async function () {
       const coreKitInstance = await newInstance();
       assert.equal(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
 
@@ -70,7 +70,6 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       await assert.rejects(async () => {
         const pt = Point.fromScalar(firstFactor.factorKey, factorKeyCurve);
         await coreKitInstance.deleteFactor(pt);
-        throw new Error("should not reach here");
       });
 
       // create factor

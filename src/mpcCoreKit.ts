@@ -67,6 +67,8 @@ import {
   scalarBNToBufferSEC1,
 } from "./utils";
 
+TorusUtils.enableLogging(false); // TODO remove this line
+
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
 
@@ -810,7 +812,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       true,
       this._tssLib.lib
     );
-    client.log = (_msg) => {};
+    client.log = (_msg) => {}; // TODO remove this line
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
       const serverIndex = participatingServerDKGIndexes[i];
@@ -1062,8 +1064,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async handleExistingUser() {
     await this.tKey.initialize({ neverInitializeNewKey: true });
+    if (this.options.disableHashedFactorKey) {
+      return;
+    }
+
     const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
-    if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
+    this.state.factorKey = hashedFactorKey;
+    if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
       // Initialize tkey with existing hashed share if available.
       const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
       try {
@@ -1072,6 +1079,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.finalizeTkey(hashedFactorKey);
       } catch (err) {
         log.error("error initializing tkey with hashed share", err);
+      }
+    } else {
+      const factorKeyMetadata = await this.tKey?.readMetadata<StringifiedType>(hashedFactorKey);
+      if (factorKeyMetadata.message === "SHARE_DELETED") {
+        // throw CoreKitError.hashedFactorDeleted();
+        log.warn("hashed factor deleted");
       }
     }
   }
