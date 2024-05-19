@@ -566,13 +566,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       throw CoreKitError.mfaAlreadyEnabled();
     }
-    // atomic mutation
-    let atomic = false;
-    if (!this.tKey.manualSync) {
-      this.tkey.manualSync = true;
-      atomic = true;
-    }
-    try {
+
+    return this.atomicSync(async () => {
       let browserData;
 
       if (this.isNodejsOrRN(this.options.uxMode)) {
@@ -604,18 +599,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (recoveryFactor) {
         backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
       }
-      if (atomic) await this.commitChanges();
+
       // update to undefined for next major release
       return backupFactorKey;
-    } catch (err: unknown) {
-      log.error("error enabling MFA", err);
-      const newError = CoreKitError.default((err as Error).message);
-      newError.stack = (err as Error).stack;
-    } finally {
-      if (atomic) {
-        this.tkey.manualSync = this.options.manualSync;
-      }
-    }
+    }).catch((reason: Error) => {
+      log.error("error enabling MFA:", reason.message);
+      const err = CoreKitError.default(reason.message);
+      err.stack = reason.stack;
+      throw err;
+    });
   }
 
   public getTssFactorPub = (): string[] => {
@@ -652,27 +644,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.factorKeyAlreadyExists();
     }
 
-    // atomic mutation
-    let atomic = false;
-    if (!this.tKey.manualSync) {
-      this.tkey.manualSync = true;
-      atomic = true;
-    }
-    try {
+    return this.atomicSync(async () => {
       await this.copyOrCreateShare(shareType, factorPub);
       await this.backupMetadataShare(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
 
-      if (atomic) await this.commitChanges();
       return scalarBNToBufferSEC1(factorKey).toString("hex");
-    } catch (error) {
-      log.error("error creating factor", error);
-      throw error;
-    } finally {
-      if (atomic) {
-        this.tkey.manualSync = this.options.manualSync;
-      }
-    }
+    }).catch((reason: Error) => {
+      log.error("error creating factor:", reason.message);
+      const err = CoreKitError.default(`error creating factor: ${reason.message}`);
+      err.stack = reason.stack;
+      throw err;
+    });
   }
 
   public getPublic: () => Promise<Buffer> = async () => {
@@ -857,13 +840,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.factorPubsMissing();
     }
 
-    // check for atomic need
-    let atomic = false;
-    if (!this.tKey.manualSync) {
-      this.tkey.manualSync = true;
-      atomic = true;
-    }
-    try {
+    await this.atomicSync(async () => {
       const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
       if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
       const fpp = factorPub;
@@ -889,12 +866,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           await this.deleteMetadataShareBackup(factorKeyBN);
         }
       }
-      if (atomic) await this.commitChanges();
-    } finally {
-      if (atomic) {
-        this.tkey.manualSync = this.options.manualSync;
-      }
-    }
+    });
   }
 
   public async logout(): Promise<void> {
@@ -1040,13 +1012,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   // mutation function
   private async handleNewUser(importTssKey?: string) {
-    let atomic = false;
-    if (!this.tKey.manualSync) {
-      this.tkey.manualSync = true;
-      atomic = true;
-    }
-
-    try {
+    await this.atomicSync(async () => {
       // Generate or use hash factor and initialize tkey with it.
       let factorKey: BN;
       if (this.options.disableHashedFactorKey) {
@@ -1080,15 +1046,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
       }
+    });
+  }
 
-      // workaround for atomic sync, commit changes if not manualSync
-      if (atomic) {
-        await this.commitChanges();
-      }
+  protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
+    this.tkey.manualSync = true;
+    try {
+      const r = await f();
+      await this.commitChanges();
+      return r;
     } finally {
-      if (atomic) {
-        this.tkey.manualSync = this.options.manualSync;
-      }
+      this.tkey.manualSync = this.options.manualSync;
     }
   }
 
