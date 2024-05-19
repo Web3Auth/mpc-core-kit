@@ -2,6 +2,7 @@
 import assert from "node:assert";
 import test from "node:test";
 
+import { Point } from "@tkey/common-types";
 import { factorKeyCurve } from "@tkey/tss";
 import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
@@ -12,7 +13,6 @@ import {
   getWebBrowserFactor,
   IAsyncStorage,
   MemoryStorage,
-  Point,
   SupportedStorageType,
   TssShareType,
   WEB3AUTH_NETWORK,
@@ -52,8 +52,8 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
       const firstFactor = coreKitInstance.getCurrentFactorKey();
       // try delete hash factor factor
       try {
-        const pt = Point.fromPrivateKey(factorKeyCurve, firstFactor.factorKey);
-        await coreKitInstance.deleteFactor(pt.toTkeyPoint());
+        const pt = Point.fromScalar(firstFactor.factorKey, factorKeyCurve);
+        await coreKitInstance.deleteFactor(pt);
         throw new Error("should not reach here");
       } catch {}
 
@@ -92,13 +92,13 @@ export const FactorManipulationTest = async (newInstance: () => Promise<Web3Auth
 
       // delete factor
       instance2.setTssWalletIndex(0);
-      const pt = Point.fromPrivateKey(factorKeyCurve, factorKey1);
-      await instance2.deleteFactor(pt.toTkeyPoint());
+      const pt = Point.fromScalar(new BN(factorKey1, "hex"), factorKeyCurve);
+      await instance2.deleteFactor(pt);
 
       // delete factor
       instance2.setTssWalletIndex(1);
-      const pt2 = Point.fromPrivateKey(factorKeyCurve, factorKey2);
-      await instance2.deleteFactor(pt2.toTkeyPoint());
+      const pt2 = Point.fromScalar(new BN(factorKey2, "hex"), factorKeyCurve);
+      await instance2.deleteFactor(pt2);
 
       if (testVariable.manualSync) {
         await instance2.commitChanges();

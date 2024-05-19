@@ -1,11 +1,10 @@
-import { Point as TKeyPoint, StringifiedType } from "@tkey/common-types";
+import { Point, Point as TKeyPoint, secp256k1, StringifiedType } from "@tkey/common-types";
 import { factorKeyCurve, getPubKeyPoint } from "@tkey/tss";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, VALID_SHARE_INDICES } from "../constants";
 import type { Web3AuthMPCCoreKit } from "../mpcCoreKit";
-import { Point } from "../point";
 
 export class TssSecurityQuestionStore {
   shareIndex: string;
@@ -79,7 +78,7 @@ export class TssSecurityQuestion {
     }
 
     // const pubKey = Point.fromTkeyPoint(mpcCoreKit.tKey.getTSSPub()).toBufferSEC1(true).toString("hex");
-    const pubKey = Point.fromTkeyPoint(tkey.getKeyDetails().pubKey).toBufferSEC1(true).toString("hex") + tkey.tssTag;
+    const pubKey = tkey.getKeyDetails().pubKey.toSEC1(secp256k1, true).toString("hex") + tkey.tssTag;
     let hash = keccak256(Buffer.from(answer + pubKey, "utf8"));
     hash = hash.startsWith("0x") ? hash.slice(2) : hash;
     const factorKeyBN = new BN(hash, "hex");
@@ -97,7 +96,7 @@ export class TssSecurityQuestion {
     });
     // set store domain
     const tkeyPt = getPubKeyPoint(factorKeyBN, factorKeyCurve);
-    const factorPub = Point.fromTkeyPoint(tkeyPt).toBufferSEC1(true).toString("hex");
+    const factorPub = tkeyPt.toSEC1(factorKeyCurve, true).toString("hex");
     const storeData = new TssSecurityQuestionStore(shareType.toString(), factorPub, question);
     tkey.metadata.setGeneralStoreDomain(domainKey, storeData.toJSON());
 
@@ -115,7 +114,7 @@ export class TssSecurityQuestion {
     // Check for existing security question
     const tkey = mpcCoreKit.tKey;
     // const pubKey = Point.fromTkeyPoint(mpcCoreKit.tKey.getTSSPub()).toBufferSEC1(true).toString("hex");
-    const pubKey = Point.fromTkeyPoint(tkey.getKeyDetails().pubKey).toBufferSEC1(true).toString("hex") + tkey.tssTag;
+    const pubKey = tkey.getKeyDetails().pubKey.toSEC1(secp256k1, true).toString("hex") + tkey.tssTag;
 
     const domainKey = `${this.storeDomainName}:${params.mpcCoreKit.tKey.tssTag}`;
     const storeDomain = tkey.metadata.getGeneralStoreDomain(domainKey) as StringifiedType;
@@ -138,7 +137,7 @@ export class TssSecurityQuestion {
     let newHash = keccak256(Buffer.from(prenewHash, "utf8"));
     newHash = newHash.startsWith("0x") ? newHash.slice(2) : newHash;
     const newAnswerBN = new BN(newHash, "hex");
-    const newFactorPt = Point.fromTkeyPoint(getPubKeyPoint(newAnswerBN, factorKeyCurve));
+    const newFactorPt = Point.fromScalar(newAnswerBN, factorKeyCurve);
     await mpcCoreKit.createFactor({
       factorKey: newAnswerBN,
       shareType: parseInt(store.shareIndex) as TssShareType,
@@ -153,7 +152,7 @@ export class TssSecurityQuestion {
     // delete old factor key and device share
     await mpcCoreKit.deleteFactor(factorKeyPt, factorKeyBN);
 
-    store.factorPublicKey = newFactorPt.toBufferSEC1(true).toString("hex");
+    store.factorPublicKey = newFactorPt.toSEC1(factorKeyCurve, true).toString("hex");
     store.question = newQuestion;
     tkey.metadata.setGeneralStoreDomain(domainKey, store.toJSON());
 
@@ -204,14 +203,14 @@ export class TssSecurityQuestion {
     const store = TssSecurityQuestionStore.fromJSON(storeDomain);
 
     // const pubKey = Point.fromTkeyPoint(mpcCoreKit.tKey.getTSSPub()).toBufferSEC1(true).toString("hex");
-    const pubKey = Point.fromTkeyPoint(tkey.getKeyDetails().pubKey).toBufferSEC1(true).toString("hex") + tkey.tssTag;
+    const pubKey = tkey.getKeyDetails().pubKey.toSEC1(secp256k1, true).toString("hex") + tkey.tssTag;
 
     let hash = keccak256(Buffer.from(answer + pubKey, "utf8"));
     hash = hash.startsWith("0x") ? hash.slice(2) : hash;
     const factorKeyBN = new BN(hash, "hex");
-    const factorKeyPt = Point.fromPrivateKey(factorKeyCurve, factorKeyBN);
+    const factorKeyPt = Point.fromScalar(factorKeyBN, factorKeyCurve);
 
-    if (factorKeyPt.toBufferSEC1(true).toString("hex") !== store.factorPublicKey) {
+    if (factorKeyPt.toSEC1(factorKeyCurve, true).toString("hex") !== store.factorPublicKey) {
       throw new Error("Invalid answer");
     }
 

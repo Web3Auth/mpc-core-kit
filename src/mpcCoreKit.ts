@@ -55,7 +55,6 @@ import {
   Web3AuthOptionsWithDefaults,
   Web3AuthState,
 } from "./interfaces";
-import { Point } from "./point";
 import {
   deriveShareCoefficients,
   generateFactorKey,
@@ -529,7 +528,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public setTssWalletIndex(accountIndex: number) {
-    this.updateState({ tssPubKey: Point.fromTkeyPoint(this.tKey.getTSSPub(accountIndex)).toBufferSEC1(false), accountIndex });
+    this.updateState({ tssPubKey: this.tKey.getTSSPub(accountIndex).toSEC1(this.tkey.tssCurve, false), accountIndex });
   }
 
   public getCurrentFactorKey(): IFactorKey {
@@ -612,7 +611,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.checkReady();
     if (!this.state.factorKey) throw new Error("factorKey not present");
     const factorPubsList = this.tKey.metadata.factorPubs[this.tKey.tssTag];
-    return factorPubsList.map((factorPub) => Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex"));
+    return factorPubsList.map((factorPub) => factorPub.toSEC1(factorKeyCurve, true).toString("hex"));
   };
 
   public async createFactor(createFactorParams: CreateFactorParams): Promise<string> {
@@ -635,7 +634,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const factorPub = getPubKeyPoint(factorKey, factorKeyCurve);
 
-    if (this.getTssFactorPub().includes(Point.fromTkeyPoint(factorPub).toBufferSEC1(true).toString("hex"))) {
+    if (this.getTssFactorPub().includes(factorPub.toSEC1(factorKeyCurve, true).toString("hex"))) {
       throw new Error("Factor already exists");
     }
 
@@ -835,14 +834,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.tKey.metadata.factorPubs) throw new Error("Factor pubs not present");
     const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
     if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
-    const fpp = Point.fromTkeyPoint(factorPub);
-    const stateFpp = Point.fromTkeyPoint(getPubKeyPoint(this.state.factorKey, factorKeyCurve));
+    const fpp = factorPub;
+    const stateFpp = getPubKeyPoint(this.state.factorKey, factorKeyCurve);
     if (fpp.equals(stateFpp)) {
       throw new Error("Cannot delete current active factor");
     }
 
     await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
-    const factorPubHex = fpp.toBufferSEC1(true).toString("hex");
+    const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
     const allDesc = this.tKey.metadata.getShareDescription();
     const keyDesc = allDesc[factorPubHex];
     if (keyDesc) {
@@ -852,7 +851,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // delete factorKey share metadata if factorkey is provided
     if (factorKey) {
       const factorKeyBN = new BN(factorKey, "hex");
-      const derivedFactorPub = Point.fromTkeyPoint(getPubKeyPoint(factorKeyBN, factorKeyCurve));
+      const derivedFactorPub = getPubKeyPoint(factorKeyBN, factorKeyCurve);
       // only delete if factorPub matches
       if (derivedFactorPub.equals(fpp)) {
         await this.deleteMetadataShareBackup(factorKeyBN);
@@ -884,7 +883,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
     const tkeyDetails = this.tKey.getKeyDetails();
-    const tssPubKey = this.state.tssPubKey ? Point.fromBufferSEC1(this.state.tssPubKey).toTkeyPoint() : undefined;
+    const tssPubKey = this.state.tssPubKey ? TkeyPoint.fromSEC1(this.tkey.tssCurve, this.state.tssPubKey.toString("hex")) : undefined;
 
     const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
     const keyDetails: MPCKeyDetails = {
@@ -1028,7 +1027,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     // Read tss meta data.
     const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
-    const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
+    const tssPubKey = this.tKey.getTSSPub().toSEC1(this.tkey.tssCurve, false);
 
     this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
@@ -1067,7 +1066,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         factorKey: new BN(result.factorKey, "hex"),
         oAuthKey: result.oAuthKey,
         tssShareIndex: result.tssShareIndex,
-        tssPubKey: Point.fromTkeyPoint(this.tkey.getTSSPub()).toBufferSEC1(false),
+        tssPubKey: this.tkey.getTSSPub().toSEC1(this.tKey.tssCurve, false),
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
@@ -1215,7 +1214,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   ) {
     const { tssIndex } = await this.tKey.getTSSShare(factorKey);
     const tkeyPoint = getPubKeyPoint(factorKey, factorKeyCurve);
-    const factorPub = Point.fromTkeyPoint(tkeyPoint).toBufferSEC1(true).toString("hex");
+    const factorPub = tkeyPoint.toSEC1(this.tkey.tssCurve, true).toString("hex");
     const params = {
       module: shareDescription,
       dateAdded: Date.now(),
