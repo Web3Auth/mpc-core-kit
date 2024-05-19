@@ -2,7 +2,7 @@ import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 
-import { IAsyncStorage, parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { IAsyncStorage, IStorage, parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -28,10 +28,14 @@ export const criticalResetAccount = async (coreKitInstance: Web3AuthMPCCoreKit):
     throw new Error("coreKitInstance is not set");
   }
 
-  await coreKitInstance.tKey.storageLayer.setMetadata({
-    privKey: new BN(coreKitInstance.state.oAuthKey!, "hex"),
-    input: { message: "KEY_NOT_FOUND" },
-  });
+  if (coreKitInstance.tKey.privKey) {
+    await coreKitInstance.tKey.CRITICAL_deleteTkey();
+  } else {
+    await coreKitInstance.tKey.storageLayer.setMetadata({
+      privKey: new BN(coreKitInstance.state.oAuthKey!, "hex"),
+      input: { message: "KEY_NOT_FOUND" },
+    });
+  }
 };
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
@@ -81,10 +85,12 @@ export const newCoreKitLogInInstance = async ({
   network,
   manualSync,
   email,
+  storageInstance,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
   manualSync: boolean;
   email: string;
+  storageInstance: IStorage | IAsyncStorage;
 }) => {
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
@@ -92,19 +98,17 @@ export const newCoreKitLogInInstance = async ({
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
     tssLib,
-    storageKey: "memory",
+    storage: storageInstance,
     manualSync,
   });
 
   const { idToken, parsedToken } = await mockLogin(email);
   await instance.init();
-  try {
-    await instance.loginWithJWT({
-      verifier: "torus-test-health",
-      verifierId: parsedToken.email,
-      idToken,
-    });
-  } catch (error) {}
+  await instance.loginWithJWT({
+    verifier: "torus-test-health",
+    verifierId: parsedToken.email,
+    idToken,
+  });
 
   return instance;
 };

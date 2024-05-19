@@ -9,7 +9,7 @@ import type {
   TorusVerifierResponse,
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
-import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
+import { CustomChainConfig } from "@web3auth/base";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
@@ -160,11 +160,6 @@ export interface ICoreKit {
   tKey: TKeyTSS | null;
 
   /**
-   * Provider for making the blockchain calls.
-   **/
-  provider: SafeEventEmitterProvider | null;
-
-  /**
    * Signatures generated from the OAuth Login.
    **/
   signatures: string[] | null;
@@ -307,17 +302,21 @@ export interface Web3AuthOptions {
   web3AuthNetwork?: WEB3AUTH_NETWORK_TYPE;
 
   /**
+   *  storage for mpc-core-kit's local state.
+   *  storage replaces previous' storageKey and asyncStorage options.
    *
-   * @defaultValue `'local'`
+   *  Migration from storageKey and asyncStorage to storage guide.
+   *
+   *  For StorageKey, please replace
+   *  - undefined with localStorage
+   *  - "local" with localStorage
+   *  - "session" with sessionStorage
+   *  - "memory" with new MemoryStorage()
+   *
+   *  For asyncStorage, provide instance of IAsyncStorage.
+   *
    */
-  storageKey?: SupportedStorageType;
-
-  /**
-   *  asyncStorageKey take precedence over storageKey.
-   *  if asyncStorageKey is provided, storageKey will be ignored.
-   * @defaultValue `undefined`
-   */
-  asyncStorageKey?: IAsyncStorage;
+  storage: IAsyncStorage | IStorage;
 
   /**
    * @defaultValue 86400
@@ -390,11 +389,7 @@ export interface Web3AuthOptions {
    */
   hashedFactorNonce?: string;
 
-  /**
-   * @defaultValue `true`
-   * Setup Provider after `login success` reconstruct.
-   */
-  setupProviderOnInit?: boolean;
+  serverTimeOffset?: number;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;

@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/member-ordering */
-import { createSwappableProxy, SwappableProxy } from "@metamask/swappable-obj-proxy";
 import { BNString, KeyType, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
@@ -34,7 +33,8 @@ import {
   VALID_SHARE_INDICES,
   WEB3AUTH_NETWORK,
 } from "./constants";
-import { AsyncStorage, asyncStoreFactor, BrowserStorage, storeWebBrowserFactor } from "./helper/browserStorage";
+import { AsyncStorage } from "./helper/browserStorage";
+import CoreKitError from "./helper/errors";
 import {
   AggregateVerifierLoginParams,
   COREKIT_STATUS,
@@ -49,6 +49,7 @@ import {
   OauthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
+  TkeyLocalStoreData,
   TssLib,
   UserInfo,
   Web3AuthOptions,
@@ -72,8 +73,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private options: Web3AuthOptionsWithDefaults;
 
-  private providerProxy: SwappableProxy<SafeEventEmitterProvider> | null = null;
-
   private torusSp: TSSTorusServiceProvider | null = null;
 
   private storageLayer: TorusStorageLayer | null = null;
@@ -82,7 +81,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private sessionManager!: OpenloginSessionManager<SessionData>;
 
-  private currentStorage!: BrowserStorage | AsyncStorage;
+  private currentStorage: AsyncStorage;
 
   private nodeDetailManager!: NodeDetailManager;
 
@@ -96,13 +95,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _keyType: KeyType;
 
+  public get _storageKey(): string {
+    return this._storageBaseKey;
+  }
+
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
-      throw new Error("You must specify a eip155 chain config.");
+      throw CoreKitError.chainConfigInvalid();
     }
     if (!options.web3AuthClientId) {
-      throw new Error("You must specify a web3auth clientId.");
+      throw CoreKitError.clientIdInvalid();
     }
 
     this._tssLib = options.tssLib;
@@ -110,10 +113,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
-    if (!options.storageKey) options.storageKey = "local";
-    if (isNodejsOrRN && ["local", "session"].includes(options.storageKey.toString()) && !options.asyncStorageKey) {
-      throw new Error(`${options.uxMode} mode do not storage of type : ${options.storageKey}`);
-    }
+    // if (await storageAvailable(options.storage)) {
+    //   throw CoreKitError.storageTypeUnsupported(`Unsupported storage type ${options.storageKey} for ${options.uxMode} mode.`);
+    // }
 
     if (options.enableLogging) {
       log.enableAll();
@@ -122,20 +124,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     if (!options.sessionTime) options.sessionTime = 86400;
+    if (!options.serverTimeOffset) options.serverTimeOffset = 0;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
-    if (options.setupProviderOnInit === undefined) options.setupProviderOnInit = true;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
-    if (this.options.asyncStorageKey) {
-      this.currentStorage = AsyncStorage.getInstance(this._storageBaseKey, options.asyncStorageKey);
-    } else {
-      this.currentStorage = BrowserStorage.getInstance(this._storageBaseKey, this.options.storageKey);
-    }
+    this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
 
     this.nodeDetailManager = new NodeDetailManager({
       network: this.options.web3AuthNetwork,
@@ -153,7 +151,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   get tKey(): TKeyTSS {
-    if (this.tkey === null) throw new Error("Tkey not initialized");
+    if (this.tkey === null) {
+      throw CoreKitError.tkeyInstanceUninitialized();
+    }
     return this.tkey;
   }
 
@@ -161,20 +161,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this._keyType;
   }
 
-  get provider(): SafeEventEmitterProvider | null {
-    return this.providerProxy ? this.providerProxy : null;
-  }
-
-  set provider(_: SafeEventEmitterProvider | null) {
-    throw new Error("Not implemented");
-  }
-
   get signatures(): string[] {
     return this.state?.signatures ? this.state.signatures : [];
   }
 
   set signatures(_: string[] | null) {
-    throw new Error("Not implemented");
+    throw CoreKitError.default("Set signatures has not been implemented.");
   }
 
   // this return oauthkey which is used by demo to reset account.
@@ -185,7 +177,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   set metadataKey(_: string | null) {
-    throw new Error("Not implemented");
+    throw CoreKitError.default("Set metadataKey has not been implemented.");
   }
 
   get status(): COREKIT_STATUS {
@@ -240,7 +232,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (tssIndexes.includes(tssIndex)) {
         // reset instance before throw error
         await this.init();
-        throw new Error("Duplicate TSS Index");
+        throw CoreKitError.duplicateTssIndex();
       }
       tssIndexes.push(tssIndex);
       tssIndexesBN.push(new BN(tssIndex));
@@ -260,7 +252,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
 
     if (!nodeDetails) {
-      throw new Error("error getting node details, please try again!");
+      throw CoreKitError.nodeDetailsRetrievalFailed();
     }
 
     this.torusSp = new TSSTorusServiceProvider({
@@ -271,6 +263,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         network: this.options.web3AuthNetwork,
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
+        serverTimeOffset: this.options.serverTimeOffset,
         keyType: this.keyType,
       },
     });
@@ -313,7 +306,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else if (params.rehydrate && this.sessionManager.sessionId) {
       // swallowed, should not throw on rehydrate timed out session
       const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
-        log.info("rehydrate session error", err);
+        log.error("rehydrate session error", err);
       });
 
       // try rehydrate session
@@ -322,10 +315,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         // feature gating on no session rehydration
         await this.featureRequest();
+        TorusUtils.setSessionTime(this.options.sessionTime);
       }
     } else {
       // feature gating if not redirect flow or session rehydration
       await this.featureRequest();
+      TorusUtils.setSessionTime(this.options.sessionTime);
     }
 
     // if not redirect flow or session rehydration, ask for factor key to login
@@ -333,12 +328,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async loginWithOauth(params: OauthLoginParams): Promise<void> {
     this.checkReady();
-    if (this.isNodejsOrRN(this.options.uxMode)) throw new Error(`Oauth login is NOT supported in ${this.options.uxMode}`);
+    if (this.isNodejsOrRN(this.options.uxMode)) {
+      throw CoreKitError.oauthLoginUnsupported(`Oauth login is NOT supported in ${this.options.uxMode} mode.`);
+    }
     const { importTssKey } = params;
     const tkeyServiceProvider = this.torusSp;
-
-    // workaround for atomic sync
-    this.tkey.manualSync = true;
 
     try {
       // oAuth login.
@@ -372,18 +366,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       await this.setupTkey(importTssKey);
-
-      // workaround for atomic sync, commit changes if not manualSync
-      if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
-        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+        if (err.code === 1302) {
+          throw CoreKitError.default(ERRORS.TKEY_SHARES_REQUIRED);
+        }
       }
-      throw new Error((err as Error).message);
-    } finally {
-      // workaround for atomic sync, restore manual sync
-      this.tkey.manualSync = this.options.manualSync;
+      throw CoreKitError.default((err as Error).message);
     }
   }
 
@@ -399,7 +389,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     opt: { prefetchTssPublicKeys: number } = { prefetchTssPublicKeys: 1 }
   ): Promise<void> {
     this.checkReady();
-    if (opt.prefetchTssPublicKeys > 3) throw new Error("prefetch value should be less than 3");
+    if (opt.prefetchTssPublicKeys > 3) {
+      throw CoreKitError.prefetchValueExceeded(`The prefetch value '${opt.prefetchTssPublicKeys}' exceeds the maximum allowed limit of 3.`);
+    }
 
     const { importTssKey } = idTokenLoginParams;
     const { verifier, verifierId, idToken } = idTokenLoginParams;
@@ -407,8 +399,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.torusSp.verifierName = verifier;
     this.torusSp.verifierId = verifierId;
 
-    // workaround for atomic sync
-    this.tkey.manualSync = true;
     try {
       // prefetch tss pub key
       const prefetchTssPubs = [];
@@ -446,18 +436,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await Promise.all(prefetchTssPubs);
 
       await this.setupTkey(importTssKey);
-
-      // workaround for atomic sync, commit changes if not manualSync
-      if (!this.options.manualSync) await this.commitChanges();
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
-        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+        if (err.code === 1302) {
+          const newError = CoreKitError.default(ERRORS.TKEY_SHARES_REQUIRED);
+          newError.stack = err.stack;
+          throw newError;
+        }
       }
-      throw new Error((err as Error).message);
-    } finally {
-      // workaround for atomic syn, restore manual sync
-      this.tkey.manualSync = this.options.manualSync;
+      const newError = CoreKitError.default((err as Error).message);
+      newError.stack = (err as Error).stack;
+      throw newError;
     }
   }
 
@@ -469,7 +459,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       if (result.method === TORUS_METHOD.TRIGGER_LOGIN) {
         const data = result.result as TorusLoginResponse;
-        if (!data) throw new Error("Invalid login params passed");
+        if (!data) {
+          throw CoreKitError.invalidTorusLoginResponse();
+        }
         this.updateState({
           oAuthKey: this._getPostBoxKey(data),
           userInfo: data.userInfo,
@@ -480,7 +472,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         this.torusSp.verifierName = userInfo.verifier;
       } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
         const data = result.result as TorusAggregateLoginResponse;
-        if (!data) throw new Error("Invalid login params passed");
+        if (!data) {
+          throw CoreKitError.invalidTorusAggregateLoginResponse();
+        }
         this.updateState({
           oAuthKey: this._getPostBoxKey(data),
           userInfo: data.userInfo[0],
@@ -490,18 +484,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         const userInfo = this.getUserInfo();
         this.torusSp.verifierName = userInfo.aggregateVerifier;
       } else {
-        throw new Error("Unsupported method type");
+        throw CoreKitError.unsupportedRedirectMethod();
       }
 
       const userInfo = this.getUserInfo();
-      if (!this.state.oAuthKey) throw new Error("oAuthKey not present");
+      if (!this.state.oAuthKey) {
+        throw CoreKitError.oauthKeyMissing("oAuthKey not present in state after processing redirect result.");
+      }
       this.torusSp.postboxKey = new BN(this.state.oAuthKey, "hex");
       this.torusSp.verifierId = userInfo.verifierId;
       await this.setupTkey();
     } catch (error: unknown) {
       this.resetState();
       log.error("error while handling redirect result", error);
-      throw new Error((error as Error).message);
+      throw CoreKitError.default((error as Error).message);
     }
   }
 
@@ -521,9 +517,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
-        if (err.code === 1302) throw new Error(ERRORS.TKEY_SHARES_REQUIRED);
+        if (err.code === 1302) {
+          throw CoreKitError.default(ERRORS.TKEY_SHARES_REQUIRED);
+        }
       }
-      throw new Error((err as Error).message);
+      throw CoreKitError.default((err as Error).message);
     }
   }
 
@@ -533,8 +531,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public getCurrentFactorKey(): IFactorKey {
     this.checkReady();
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-    if (!this.state.tssShareIndex) throw new Error("TSS Share Type (Index) not present");
+    if (!this.state.factorKey) {
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when getting current factor key.");
+    }
+    if (!this.state.tssShareIndex) {
+      throw CoreKitError.tssShareTypeIndexMissing("TSS Share Type (Index) not present in state when getting current factor key.");
+    }
     try {
       return {
         factorKey: this.state.factorKey,
@@ -542,7 +544,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       };
     } catch (err: unknown) {
       log.error("state error", err);
-      throw new Error((err as Error).message);
+      throw CoreKitError.default((err as Error).message);
     }
   }
 
@@ -554,15 +556,23 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tKey.getTSSPub(this.state.accountIndex);
   }
 
+  // mutation function
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
     const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
     if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
-      if (this.tKey._localMetadataTransitions[0].length) throw new Error("CommitChanges are required before enabling MFA");
-      throw new Error("MFA already enabled");
+      if (this.tKey._localMetadataTransitions[0].length) {
+        throw CoreKitError.commitChangesBeforeMFA();
+      }
+      throw CoreKitError.mfaAlreadyEnabled();
     }
-
+    // atomic mutation
+    let atomic = false;
+    if (!this.tKey.manualSync) {
+      this.tkey.manualSync = true;
+      atomic = true;
+    }
     try {
       let browserData;
 
@@ -583,11 +593,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         };
       }
       const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
-      if (this.currentStorage instanceof AsyncStorage) {
-        asyncStoreFactor(deviceFactorKey, this, this.options.asyncStorageKey);
-      } else {
-        storeWebBrowserFactor(deviceFactorKey, this, this.options.storageKey);
-      }
+      await this.setDeviceFactor(deviceFactorKey);
       await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
 
       const hashedFactorPub = getPubKeyPoint(hashedFactorKey, factorKeyCurve);
@@ -595,32 +601,41 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.deleteMetadataShareBackup(hashedFactorKey);
 
       // only recovery factor = true
+      let backupFactorKey;
       if (recoveryFactor) {
-        const backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
-        return backupFactorKey;
+        backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
       }
+      if (atomic) await this.commitChanges();
       // update to undefined for next major release
-      return "";
+      return backupFactorKey;
     } catch (err: unknown) {
       log.error("error enabling MFA", err);
-      throw new Error((err as Error).message);
+      const newError = CoreKitError.default((err as Error).message);
+      newError.stack = (err as Error).stack;
+    } finally {
+      if (atomic) {
+        this.tkey.manualSync = this.options.manualSync;
+      }
     }
   }
 
   public getTssFactorPub = (): string[] => {
     this.checkReady();
-    if (!this.state.factorKey) throw new Error("factorKey not present");
+    if (!this.state.factorKey) {
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when getting tss factor public key.");
+    }
     const factorPubsList = this.tKey.metadata.factorPubs[this.tKey.tssTag];
     return factorPubsList.map((factorPub) => factorPub.toSEC1(factorKeyCurve, true).toString("hex"));
   };
 
+  // mutation function
   public async createFactor(createFactorParams: CreateFactorParams): Promise<string> {
     this.checkReady();
 
     let { shareType, factorKey, shareDescription, additionalMetadata } = createFactorParams;
 
     if (!VALID_SHARE_INDICES.includes(shareType)) {
-      throw new Error(`invalid share type: must be one of ${VALID_SHARE_INDICES}`);
+      throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${shareType}). Valid share types are ${VALID_SHARE_INDICES}.`);
     }
     if (!factorKey) {
       factorKey = generateFactorKey().private;
@@ -635,18 +650,29 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const factorPub = getPubKeyPoint(factorKey, factorKeyCurve);
 
     if (this.getTssFactorPub().includes(factorPub.toSEC1(factorKeyCurve, true).toString("hex"))) {
-      throw new Error("Factor already exists");
+      throw CoreKitError.factorKeyAlreadyExists();
     }
 
+    // atomic mutation
+    let atomic = false;
+    if (!this.tKey.manualSync) {
+      this.tkey.manualSync = true;
+      atomic = true;
+    }
     try {
       await this.copyOrCreateShare(shareType, factorPub);
       await this.backupMetadataShare(factorKey);
       await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
-      if (!this.tKey.manualSync) await this.tKey._syncShareMetadata();
+
+      if (atomic) await this.commitChanges();
       return scalarBNToBufferSEC1(factorKey).toString("hex");
     } catch (error) {
       log.error("error creating factor", error);
       throw error;
+    } finally {
+      if (atomic) {
+        this.tkey.manualSync = this.options.manualSync;
+      }
     }
   }
 
@@ -741,14 +767,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       verifierId: this.tkey.serviceProvider.verifierId,
     });
 
-    if (!this.state.factorKey) throw new Error("factorKey not present");
+    if (!this.state.factorKey) {
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when signing.");
+    }
     const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
       accountIndex: 0,
     });
     const tssNonce = this.getTssNonce();
 
     if (!tssPubKey || !torusNodeTSSEndpoints) {
-      throw new Error("tssPubKey or torusNodeTSSEndpoints not available");
+      throw CoreKitError.tssPublicKeyOrEndpointsMissing();
     }
 
     if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
@@ -781,12 +809,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const share = scalarBNToBufferSEC1(derivedShare).toString("base64");
 
     if (!currentSession) {
-      throw new Error(`sessionAuth does not exist ${currentSession}`);
+      throw CoreKitError.activeSessionNotFound();
     }
 
     const { signatures } = this;
     if (!signatures) {
-      throw new Error(`Authentication signatures missing`);
+      throw CoreKitError.signaturesNotPresent();
     }
 
     const client = new Client(
@@ -812,65 +840,78 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw err;
     });
 
-    let { r, s, recoveryParam } = await client.sign(data.toString("base64"), true, "", "keccak256", {
+    const { r, s, recoveryParam } = await client.sign(data.toString("base64"), true, "", "keccak256", {
       signatures,
     });
 
-    if (recoveryParam < 27) {
-      recoveryParam += 27;
-    }
     // skip await cleanup
     client.cleanup({ signatures, server_coeffs: serverCoeffs });
     return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
   }
 
+  // mutation function
   async deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void> {
-    if (!this.state.factorKey) throw new Error("Factor key not present");
-    if (!this.tKey.metadata.factorPubs) throw new Error("Factor pubs not present");
-    const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
-    if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
-    const fpp = factorPub;
-    const stateFpp = getPubKeyPoint(this.state.factorKey, factorKeyCurve);
-    if (fpp.equals(stateFpp)) {
-      throw new Error("Cannot delete current active factor");
+    if (!this.state.factorKey) {
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
     }
-
-    await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
-    const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
-    const allDesc = this.tKey.metadata.getShareDescription();
-    const keyDesc = allDesc[factorPubHex];
-    if (keyDesc) {
-      await Promise.all(keyDesc.map(async (desc) => this.tKey?.metadata.deleteShareDescription(factorPubHex, desc)));
+    if (!this.tKey.metadata.factorPubs) {
+      throw CoreKitError.factorPubsMissing();
     }
+    
+    // check for atomic need
+    let atomic = false;
+    if (!this.tKey.manualSync) {
+      this.tkey.manualSync = true;
+      atomic = true;
+    }
+    try {
+      const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
+      if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
+      const fpp = factorPub;
+      const stateFpp = getPubKeyPoint(this.state.factorKey, factorKeyCurve);
+      if (fpp.equals(stateFpp)) {
+        throw new Error("Cannot delete current active factor");
+      }
 
-    // delete factorKey share metadata if factorkey is provided
-    if (factorKey) {
-      const factorKeyBN = new BN(factorKey, "hex");
-      const derivedFactorPub = getPubKeyPoint(factorKeyBN, factorKeyCurve);
-      // only delete if factorPub matches
-      if (derivedFactorPub.equals(fpp)) {
-        await this.deleteMetadataShareBackup(factorKeyBN);
+      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
+      const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
+      const allDesc = this.tKey.metadata.getShareDescription();
+      const keyDesc = allDesc[factorPubHex];
+      if (keyDesc) {
+        await Promise.all(keyDesc.map(async (desc) => this.tKey?.metadata.deleteShareDescription(factorPubHex, desc)));
+      }
+
+      // delete factorKey share metadata if factorkey is provided
+      if (factorKey) {
+        const factorKeyBN = new BN(factorKey, "hex");
+        const derivedFactorPub = getPubKeyPoint(factorKeyBN, factorKeyCurve);
+        // only delete if factorPub matches
+        if (derivedFactorPub.equals(fpp)) {
+          await this.deleteMetadataShareBackup(factorKeyBN);
+        }
+      }
+      if (atomic) await this.commitChanges();
+    } finally {
+      if (atomic) {
+        this.tkey.manualSync = this.options.manualSync;
       }
     }
-
-    if (!this.tKey.manualSync) await this.tKey._syncShareMetadata();
   }
 
   public async logout(): Promise<void> {
     if (this.sessionManager.sessionId) {
-      // throw new Error("User is not logged in.");
       await this.sessionManager.invalidateSession();
     }
     // to accommodate async storage
     await this.currentStorage.set("sessionId", "");
 
     this.resetState();
-    await this.init({ handleRedirectResult: false });
+    await this.init({ handleRedirectResult: false, rehydrate: false });
   }
 
   public getUserInfo(): UserInfo {
     if (!this.state.userInfo) {
-      throw new Error("user is not logged in.");
+      throw CoreKitError.userNotLoggedIn();
     }
     return this.state.userInfo;
   }
@@ -896,7 +937,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async commitChanges(): Promise<void> {
     this.checkReady();
-    if (!this.state.factorKey) throw new Error("factorKey not present");
+    if (!this.state.factorKey) {
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when committing changes.");
+    }
 
     try {
       // in case for manualsync = true, _syncShareMetadata will not call syncLocalMetadataTransitions()
@@ -918,19 +961,38 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tKey.manualSync = manualSync;
   }
 
-  public async switchChain(chainConfig: CustomChainConfig): Promise<void> {
-    try {
-      await this.setupProvider({ chainConfig });
-    } catch (error: unknown) {
-      log.error("change chain config error", error);
-      throw error;
+  // device factor
+  public async setDeviceFactor(factorKey: BN, replace = false): Promise<void> {
+    if (!replace) {
+      const existingFactor = await this.getDeviceFactor();
+      if (existingFactor) throw new Error("Device factor already exists");
     }
+
+    const metadata = this.tKey.getMetadata();
+    const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+    await this.currentStorage.set(
+      tkeyPubX,
+      JSON.stringify({
+        factorKey: factorKey.toString("hex").padStart(64, "0"),
+      } as TkeyLocalStoreData)
+    );
+  }
+
+  public async getDeviceFactor(): Promise<string | undefined> {
+    const metadata = this.tKey.getMetadata();
+
+    const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
+    const tKeyLocalStoreString = await this.currentStorage.get<string>(tkeyPubX);
+    const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
+    return tKeyLocalStore.factorKey;
   }
 
   // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   // @ts-ignore
   private async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
-    if (!this.state.signatures) throw new Error("signatures not present");
+    if (!this.state.signatures) {
+      throw CoreKitError.signaturesNotPresent("Signatures not present in state when importing tss key.");
+    }
 
     await this.tKey.importTssKey(
       { tag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPub, newTSSIndex },
@@ -939,8 +1001,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async _UNSAFE_exportTssKey(): Promise<string> {
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-    if (!this.state.signatures) throw new Error("signatures not present");
+    if (!this.state.factorKey) {
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss key.");
+    }
+    if (!this.state.signatures) {
+      throw CoreKitError.signaturesNotPresent("Signatures not present in state when exporting tss key.");
+    }
 
     const exportTssKey = await this.tKey._UNSAFE_exportTssKey({
       factorKey: this.state.factorKey,
@@ -951,19 +1017,37 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private getTssNonce(): number {
-    if (!this.tKey.metadata.tssNonces || this.tKey.metadata.tssNonces[this.tKey.tssTag] === undefined)
-      throw new Error(`tssNonce not present for tag ${this.tKey.tssTag}`);
+    if (!this.tKey.metadata.tssNonces || this.tKey.metadata.tssNonces[this.tKey.tssTag] === undefined) {
+      throw CoreKitError.tssNoncesMissing(`tssNonce not present for tag ${this.tKey.tssTag}`);
+    }
     const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
     return tssNonce;
   }
 
   private async setupTkey(importTssKey?: string): Promise<void> {
     if (!this.state.oAuthKey) {
-      throw new Error("user not logged in");
+      throw CoreKitError.userNotLoggedIn();
     }
     const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
-
     if (!existingUser) {
+      await this.handleNewUser(importTssKey);
+    } else {
+      if (importTssKey) {
+        throw CoreKitError.tssKeyImportNotAllowed();
+      }
+      await this.handleExistingUser();
+    }
+  }
+
+  // mutation function
+  private async handleNewUser(importTssKey?: string) {
+    let atomic = false;
+    if (!this.tKey.manualSync) {
+      this.tkey.manualSync = true;
+      atomic = true;
+    }
+
+    try {
       // Generate or use hash factor and initialize tkey with it.
       let factorKey: BN;
       if (this.options.disableHashedFactorKey) {
@@ -997,20 +1081,30 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
       }
-    } else {
-      if (importTssKey) throw new Error("Cannot import tss key for existing user");
-      await this.tKey.initialize({ neverInitializeNewKey: true });
-      const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
-      if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
-        // Initialize tkey with existing hashed share if available.
-        const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
-        try {
-          await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
-          await this.tKey.reconstructKey();
-          await this.finalizeTkey(hashedFactorKey);
-        } catch (err) {
-          log.error("error initializing tkey with hashed share", err);
-        }
+
+      // workaround for atomic sync, commit changes if not manualSync
+      if (atomic) {
+        await this.commitChanges();
+      }
+    } finally {
+      if (atomic) {
+        this.tkey.manualSync = this.options.manualSync;
+      }
+    }
+  }
+
+  private async handleExistingUser() {
+    await this.tKey.initialize({ neverInitializeNewKey: true });
+    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
+    if ((await this.checkIfFactorKeyValid(hashedFactorKey)) && !this.options.disableHashedFactorKey) {
+      // Initialize tkey with existing hashed share if available.
+      const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
+      try {
+        await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
+        await this.tKey.reconstructKey();
+        await this.finalizeTkey(hashedFactorKey);
+      } catch (err) {
+        log.error("error initializing tkey with hashed share", err);
       }
     }
   }
@@ -1026,17 +1120,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
-    // Finalize setup.
-    if (!this.tKey.manualSync) await this.tKey.syncLocalMetadataTransitions();
-    if (this.options.setupProviderOnInit) {
-      await this.setupProvider({ chainConfig: this.options.chainConfig });
-    }
     await this.createSession();
   }
 
   private checkReady() {
     if (!this.ready) {
-      throw Error("MPC Core Kit not initialized, call init first!");
+      throw CoreKitError.mpcCoreKitNotInitialized();
     }
   }
 
@@ -1046,7 +1135,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       const factorKey = new BN(result.factorKey, "hex");
       if (!factorKey) {
-        throw new Error("Invalid factor key");
+        throw CoreKitError.providedFactorKeyInvalid();
       }
       this.torusSp.postboxKey = new BN(result.oAuthKey, "hex");
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
@@ -1065,10 +1154,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
-
-      if (this.options.setupProviderOnInit) {
-        await this.setupProvider({ chainConfig: this.options.chainConfig });
-      }
     } catch (err) {
       log.error("error trying to authorize session", err);
     }
@@ -1079,12 +1164,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const sessionId = OpenloginSessionManager.generateRandomSessionKey();
       this.sessionManager.sessionId = sessionId;
       const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
-      if (!this.state.factorKey) throw new Error("factorKey not present");
+      if (!this.state.factorKey) {
+        throw CoreKitError.factorKeyNotPresent("factorKey not present in state when creating session.");
+      }
       const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
         accountIndex: this.state.accountIndex,
       });
       if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
-        throw new Error("User not logged in");
+        throw CoreKitError.userNotLoggedIn();
       }
       const payload: SessionData = {
         oAuthKey,
@@ -1124,7 +1211,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.checkReady();
     const factorKeyMetadata = await this.tKey?.readMetadata<StringifiedType>(factorKey);
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND") {
-      throw new Error("no metadata for your factor key, reset your account");
+      throw CoreKitError.noMetadataFound();
     }
     return ShareStore.fromJSON(factorKeyMetadata);
   }
@@ -1138,19 +1225,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async copyOrCreateShare(newFactorTSSIndex: number, newFactorPub: TkeyPoint) {
     this.checkReady();
     if (!this.tKey.metadata.factorPubs || !Array.isArray(this.tKey.metadata.factorPubs[this.tKey.tssTag])) {
-      throw new Error("factorPubs does not exist, failed in copy factor pub");
+      throw CoreKitError.factorPubsMissing("'factorPubs' is missing in the metadata. Failed to copy factor public key.");
     }
     if (!this.tKey.metadata.factorEncs || typeof this.tKey.metadata.factorEncs[this.tKey.tssTag] !== "object") {
-      throw new Error("factorEncs does not exist, failed in copy factor pub");
+      throw CoreKitError.factorEncsMissing("'factorEncs' is missing in the metadata. Failed to copy factor public key.");
     }
     if (!this.state.factorKey) {
-      throw new Error("factorKey not present");
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when copying or creating a share.");
     }
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
-      throw new Error(`invalid new share index: must be one of ${VALID_SHARE_INDICES}`);
+      throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${newFactorTSSIndex}). Valid share types are ${VALID_SHARE_INDICES}.`);
     }
     if (this.tKey.metadata.factorPubs[this.tKey.tssTag].length >= MAX_FACTORS) {
-      throw new Error("Maximum number of factors reached");
+      throw CoreKitError.maximumFactorsReached(`The maximum number of allowable factors (${MAX_FACTORS}) has been reached.`);
     }
     if (!this.state.factorKey) {
       throw new Error("factorKey not present");
@@ -1177,11 +1264,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           share = shares[shareIndex];
         }
       }
-      if (!share) throw new Error("no metadata share found");
+      if (!share) {
+        throw CoreKitError.noMetadataShareFound();
+      }
       return share;
     } catch (err: unknown) {
       log.error("create device share error", err);
-      throw new Error((err as Error).message);
+      throw CoreKitError.default((err as Error).message);
     }
   }
 
@@ -1219,34 +1308,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
   }
 
-  public async setupProvider(option: { chainConfig: CustomChainConfig }): Promise<void> {
-    this.checkReady();
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-
-    this.options.chainConfig = option.chainConfig;
-    const signingProvider = new EthereumSigningProvider({ config: { chainConfig: this.options.chainConfig } });
-    await signingProvider.setupProvider({
-      sign: async (msgHash: Buffer) => {
-        if (this.keyType !== KeyType.secp256k1) {
-          throw new Error("sign not supported for key type");
-        }
-        const sig = await this.sign_ECDSA_secp256k1(msgHash, true);
-        return sig;
-      },
-      getPublic: async () => {
-        const pk = await this.getPublic();
-        return pk.subarray(1);
-      },
-    });
-
-    if (this.providerProxy === null) {
-      const provider = createSwappableProxy<SafeEventEmitterProvider>(signingProvider.provider);
-      this.providerProxy = provider;
-    } else {
-      this.providerProxy.setTarget(signingProvider.provider);
-    }
-  }
-
   private updateState(newState: Partial<Web3AuthState>): void {
     this.state = { ...this.state, ...newState };
   }
@@ -1256,7 +1317,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tkey = null;
     this.torusSp = null;
     this.storageLayer = null;
-    this.providerProxy = null;
+    this.state = { accountIndex: 0 };
   }
 
   private _getPostBoxKey(result: TorusKey): string {
@@ -1280,6 +1341,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       client_id: this.options.web3AuthClientId,
       is_mpc_core_kit: "true",
       enable_gating: "true",
+      session_time: this.options.sessionTime.toString(),
     };
     const url = new URL(`${accessUrl}/api/feature-access`);
     url.search = new URLSearchParams(accessRequest).toString();
@@ -1289,7 +1351,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // reset state on no mpc access
       this.resetState();
       const errMessage = (await result.json()) as { error: string };
-      throw new Error(errMessage.error);
+      throw CoreKitError.default(errMessage.error);
     }
     return result.json();
   }
