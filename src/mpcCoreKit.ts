@@ -1,4 +1,4 @@
-import { BNString, KeyType, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
+import { BNString, KeyType, Point, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
@@ -658,7 +658,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   // mutation function
-  async deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void> {
+  async deleteFactor(factorPub: Point, factorKey?: BNString): Promise<void> {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
     }
@@ -716,7 +716,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
     const tkeyDetails = this.tKey.getKeyDetails();
-    const tssPubKey = this.state.tssPubKey ? TkeyPoint.fromSEC1(this.tkey.tssCurve, this.state.tssPubKey.toString("hex")) : undefined;
+    const tssPubKey = this.state.tssPubKey ? Point.fromSEC1(this.tkey.tssCurve, this.state.tssPubKey.toString("hex")) : undefined;
 
     const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
     const keyDetails: MPCKeyDetails = {
@@ -811,7 +811,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  private async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
+  private async importTssKey(tssKey: string, factorPub: Point, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
     if (!this.state.signatures) {
       throw CoreKitError.signaturesNotPresent("Signatures not present in state when importing tss key.");
     }
@@ -1024,7 +1024,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * @param newFactorTSSIndex - The index of the share to copy.
    * @param newFactorPub - The public key of the new share.
    */
-  private async copyOrCreateShare(newFactorTSSIndex: number, newFactorPub: TkeyPoint) {
+  private async copyOrCreateShare(newFactorTSSIndex: number, newFactorPub: Point) {
     this.checkReady();
     if (!this.tKey.metadata.factorPubs || !Array.isArray(this.tKey.metadata.factorPubs[this.tKey.tssTag])) {
       throw CoreKitError.factorPubsMissing("'factorPubs' is missing in the metadata. Failed to copy factor public key.");
