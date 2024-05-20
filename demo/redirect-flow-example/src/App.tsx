@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, SubVerifierDetailsParams, TssShareType, keyToMnemonic, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG, factorKeyCurve, makeEthereumSigner } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
@@ -22,7 +22,6 @@ const uiConsole = (...args: any[]): void => {
 };
 
 const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
-
 
 const coreKitInstance = new Web3AuthMPCCoreKit(
   {
@@ -75,8 +74,7 @@ function App() {
   const [newAnswer, setNewAnswer] = useState<string | undefined>(undefined);
   const [question, setQuestion] = useState<string | undefined>(undefined);
   const [newQuestion, setNewQuestion] = useState<string | undefined>(undefined);
-
-  const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
+  const securityQuestion = useMemo(() => new TssSecurityQuestion(), []);
 
   async function setupProvider(chainConfig?: CustomChainConfig) {
     if (coreKitInstance.keyType !== KeyType.secp256k1) {
@@ -117,7 +115,7 @@ function App() {
       }
     };
     init();
-  }, []);
+  }, [rehydrate, securityQuestion]);
 
   useEffect(() => {
     if (provider) {
