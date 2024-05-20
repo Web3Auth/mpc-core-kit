@@ -95,10 +95,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _keyType: KeyType;
 
-  public get _storageKey(): string {
-    return this._storageBaseKey;
-  }
-
   constructor(options: Web3AuthOptions) {
     if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
     if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
@@ -165,19 +161,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.state?.signatures ? this.state.signatures : [];
   }
 
-  set signatures(_: string[] | null) {
-    throw CoreKitError.default("Set signatures has not been implemented.");
-  }
-
-  // this return oauthkey which is used by demo to reset account.
-  // this is not the same metadataKey from tkey.
-  // will be fixed in next major release
   get metadataKey(): string | null {
+    // this return oauthkey which is used by demo to reset account.
+    // this is not the same metadataKey from tkey.
+    // to be fixed in next major release
     return this.state?.oAuthKey ? this.state.oAuthKey : null;
   }
 
-  set metadataKey(_: string | null) {
-    throw CoreKitError.default("Set metadataKey has not been implemented.");
+  public get _storageKey(): string {
+    return this._storageBaseKey;
   }
 
   get status(): COREKIT_STATUS {
@@ -665,164 +657,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     throw new Error(`sign not supported for key type ${this.keyType}`);
   }
 
-  private async sign_ed25519(data: Buffer, hashed: boolean = false): Promise<Buffer> {
-    if (hashed) {
-      throw new Error("hashed data not supported for ed25519");
-    }
-
-    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
-    if (!nodeDetails.torusNodeTSSEndpoints) {
-      throw new Error("could not fetch tss node endpoints");
-    }
-
-    // Endpoints must end with backslash, but URLs returned by
-    // `fetch-node-details` don't have it.
-    const ED25519_ENDPOINTS = nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
-
-    // Select endpoints and derive party indices.
-    const serverThreshold = Math.floor(ED25519_ENDPOINTS.length / 2) + 1;
-    const endpoints = sampleEndpoints(ED25519_ENDPOINTS, serverThreshold);
-    const serverXCoords = endpoints.map((x) => x.index);
-    const clientXCoord = Math.max(...endpoints.map((ep) => ep.index)) + 1;
-
-    // Derive share coefficients for flat hierarchy.
-    const ec = new Ed25519Curve();
-    const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord);
-
-    // Get pub key.
-    const tssPubKey = await this.getPubKey();
-    const tssPubKeyPoint = ec.keyFromPublic(tssPubKey).getPublic();
-
-    // Get client key share and adjust by coefficient.
-    if (this.state.accountIndex !== 0) {
-      throw new Error("Account index not supported for ed25519");
-    }
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
-    const clientShareAdjusted = tssShare.mul(clientCoefficient).umod(ec.n);
-    const clientShareAdjustedHex = ec.scalarToBuffer(clientShareAdjusted, Buffer).toString("hex");
-
-    // Generate session identifier.
-    const tssNonce = this.getTssNonce();
-    const sessionNonce = generateSessionNonce();
-    const session = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, sessionNonce);
-
-    // Run signing protocol.
-    const serverURLs = endpoints.map((x) => x.url);
-    const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
-    const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
-    const signature = await signEd25519(
-      this._tssLib.lib,
-      session,
-      this.signatures,
-      serverXCoords,
-      serverURLs,
-      clientXCoord,
-      clientShareAdjustedHex,
-      pubKeyHex,
-      data,
-      serverCoefficientsHex
-    );
-
-    log.info(`signature: ${signature}`);
-    return Buffer.from(signature, "hex");
-  }
-
-  private async sign_ECDSA_secp256k1(data: Buffer, hashed: boolean = false) {
-    if (!hashed) {
-      data = keccak256(data);
-    }
-
-    // PreSetup
-    const { tssShareIndex } = this.state;
-    let tssPubKey = await this.getPubKey();
-
-    const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
-      verifier: this.tkey.serviceProvider.verifierName,
-      verifierId: this.tkey.serviceProvider.verifierId,
-    });
-
-    if (!this.state.factorKey) {
-      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when signing.");
-    }
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
-      accountIndex: 0,
-    });
-    const tssNonce = this.getTssNonce();
-
-    if (!tssPubKey || !torusNodeTSSEndpoints) {
-      throw CoreKitError.tssPublicKeyOrEndpointsMissing();
-    }
-
-    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
-      tssPubKey = tssPubKey.subarray(1);
-    }
-
-    // session is needed for authentication to the web3auth infrastructure holding the factor 1
-    const randomSessionNonce = generateSessionNonce();
-    const currentSession = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, randomSessionNonce);
-
-    const parties = 4;
-    const clientIndex = parties - 1;
-    // 1. setup
-    // generate endpoints for servers
-    const { nodeIndexes } = await this.torusSp.getTSSPubKey(this.tKey.tssTag, this.tKey.metadata.tssNonces[this.tKey.tssTag]);
-    const {
-      endpoints,
-      tssWSEndpoints,
-      partyIndexes,
-      nodeIndexesReturned: participatingServerDKGIndexes,
-    } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
-
-    // Setup sockets.
-    const sockets = await setupSockets(tssWSEndpoints, randomSessionNonce);
-
-    const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
-    const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE_SECP256K1.curve.n);
-    const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
-    const derivedShare = denormalisedShare.add(accountNonce).umod(CURVE_SECP256K1.curve.n);
-    const share = scalarBNToBufferSEC1(derivedShare).toString("base64");
-
-    if (!currentSession) {
-      throw CoreKitError.activeSessionNotFound();
-    }
-
-    const { signatures } = this;
-    if (!signatures) {
-      throw CoreKitError.signaturesNotPresent();
-    }
-
-    const client = new Client(
-      currentSession,
-      clientIndex,
-      partyIndexes,
-      endpoints,
-      sockets,
-      share,
-      tssPubKey.toString("base64"),
-      true,
-      this._tssLib.lib
-    );
-    client.log = (_msg) => {}; // TODO remove this line
-    const serverCoeffs: Record<number, string> = {};
-    for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
-      const serverIndex = participatingServerDKGIndexes[i];
-      serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
-    }
-    client.precompute({ signatures, server_coeffs: serverCoeffs, nonce: scalarBNToBufferSEC1(this.getNonce()).toString("base64") });
-    await client.ready().catch((err) => {
-      client.cleanup({ signatures, server_coeffs: serverCoeffs });
-      throw err;
-    });
-
-    const { r, s, recoveryParam } = await client.sign(data.toString("base64"), true, "", "keccak256", {
-      signatures,
-    });
-
-    // skip await cleanup
-    client.cleanup({ signatures, server_coeffs: serverCoeffs });
-    return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
-  }
-
   // mutation function
   async deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void> {
     if (!this.state.factorKey) {
@@ -950,19 +784,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tKeyLocalStore.factorKey;
   }
 
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
-  private async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
-    if (!this.state.signatures) {
-      throw CoreKitError.signaturesNotPresent("Signatures not present in state when importing tss key.");
-    }
-
-    await this.tKey.importTssKey(
-      { tag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPub, newTSSIndex },
-      { authSignatures: this.state.signatures }
-    );
-  }
-
   public async _UNSAFE_exportTssKey(): Promise<string> {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss key.");
@@ -977,6 +798,28 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
 
     return exportTssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
+  }
+
+  protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
+    this.tkey.manualSync = true;
+    try {
+      const r = await f();
+      await this.commitChanges();
+      return r;
+    } finally {
+      this.tkey.manualSync = this.options.manualSync;
+    }
+  }
+
+  private async importTssKey(tssKey: string, factorPub: TkeyPoint, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
+    if (!this.state.signatures) {
+      throw CoreKitError.signaturesNotPresent("Signatures not present in state when importing tss key.");
+    }
+
+    await this.tKey.importTssKey(
+      { tag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPub, newTSSIndex },
+      { authSignatures: this.state.signatures }
+    );
   }
 
   private getTssNonce(): number {
@@ -1039,17 +882,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
       }
     });
-  }
-
-  protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
-    this.tkey.manualSync = true;
-    try {
-      const r = await f();
-      await this.commitChanges();
-      return r;
-    } finally {
-      this.tkey.manualSync = this.options.manualSync;
-    }
   }
 
   private async handleExistingUser() {
@@ -1326,7 +1158,165 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return result.json();
   }
 
-  private getNonce = () => {
+  private getAccountNonce() {
     return this.tkey.computeAccountNonce(this.state.accountIndex);
-  };
+  }
+
+  private async sign_ECDSA_secp256k1(data: Buffer, hashed: boolean = false) {
+    if (!hashed) {
+      data = keccak256(data);
+    }
+
+    // PreSetup
+    const { tssShareIndex } = this.state;
+    let tssPubKey = await this.getPubKey();
+
+    const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
+      verifier: this.tkey.serviceProvider.verifierName,
+      verifierId: this.tkey.serviceProvider.verifierId,
+    });
+
+    if (!this.state.factorKey) {
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when signing.");
+    }
+    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
+      accountIndex: 0,
+    });
+    const tssNonce = this.getTssNonce();
+
+    if (!tssPubKey || !torusNodeTSSEndpoints) {
+      throw CoreKitError.tssPublicKeyOrEndpointsMissing();
+    }
+
+    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
+      tssPubKey = tssPubKey.subarray(1);
+    }
+
+    // session is needed for authentication to the web3auth infrastructure holding the factor 1
+    const randomSessionNonce = generateSessionNonce();
+    const currentSession = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, randomSessionNonce);
+
+    const parties = 4;
+    const clientIndex = parties - 1;
+    // 1. setup
+    // generate endpoints for servers
+    const { nodeIndexes } = await this.torusSp.getTSSPubKey(this.tKey.tssTag, this.tKey.metadata.tssNonces[this.tKey.tssTag]);
+    const {
+      endpoints,
+      tssWSEndpoints,
+      partyIndexes,
+      nodeIndexesReturned: participatingServerDKGIndexes,
+    } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
+
+    // Setup sockets.
+    const sockets = await setupSockets(tssWSEndpoints, randomSessionNonce);
+
+    const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
+    const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE_SECP256K1.curve.n);
+    const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
+    const derivedShare = denormalisedShare.add(accountNonce).umod(CURVE_SECP256K1.curve.n);
+    const share = scalarBNToBufferSEC1(derivedShare).toString("base64");
+
+    if (!currentSession) {
+      throw CoreKitError.activeSessionNotFound();
+    }
+
+    const { signatures } = this;
+    if (!signatures) {
+      throw CoreKitError.signaturesNotPresent();
+    }
+
+    const client = new Client(
+      currentSession,
+      clientIndex,
+      partyIndexes,
+      endpoints,
+      sockets,
+      share,
+      tssPubKey.toString("base64"),
+      true,
+      this._tssLib.lib
+    );
+    client.log = (_msg) => {}; // TODO remove this line
+    const serverCoeffs: Record<number, string> = {};
+    for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
+      const serverIndex = participatingServerDKGIndexes[i];
+      serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
+    }
+    client.precompute({ signatures, server_coeffs: serverCoeffs, nonce: scalarBNToBufferSEC1(this.getAccountNonce()).toString("base64") });
+    await client.ready().catch((err) => {
+      client.cleanup({ signatures, server_coeffs: serverCoeffs });
+      throw err;
+    });
+
+    const { r, s, recoveryParam } = await client.sign(data.toString("base64"), true, "", "keccak256", {
+      signatures,
+    });
+
+    // skip await cleanup
+    client.cleanup({ signatures, server_coeffs: serverCoeffs });
+    return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
+  }
+
+  private async sign_ed25519(data: Buffer, hashed: boolean = false): Promise<Buffer> {
+    if (hashed) {
+      throw new Error("hashed data not supported for ed25519");
+    }
+
+    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
+    if (!nodeDetails.torusNodeTSSEndpoints) {
+      throw new Error("could not fetch tss node endpoints");
+    }
+
+    // Endpoints must end with backslash, but URLs returned by
+    // `fetch-node-details` don't have it.
+    const ED25519_ENDPOINTS = nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
+
+    // Select endpoints and derive party indices.
+    const serverThreshold = Math.floor(ED25519_ENDPOINTS.length / 2) + 1;
+    const endpoints = sampleEndpoints(ED25519_ENDPOINTS, serverThreshold);
+    const serverXCoords = endpoints.map((x) => x.index);
+    const clientXCoord = Math.max(...endpoints.map((ep) => ep.index)) + 1;
+
+    // Derive share coefficients for flat hierarchy.
+    const ec = new Ed25519Curve();
+    const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord);
+
+    // Get pub key.
+    const tssPubKey = await this.getPubKey();
+    const tssPubKeyPoint = ec.keyFromPublic(tssPubKey).getPublic();
+
+    // Get client key share and adjust by coefficient.
+    if (this.state.accountIndex !== 0) {
+      throw new Error("Account index not supported for ed25519");
+    }
+    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
+    const clientShareAdjusted = tssShare.mul(clientCoefficient).umod(ec.n);
+    const clientShareAdjustedHex = ec.scalarToBuffer(clientShareAdjusted, Buffer).toString("hex");
+
+    // Generate session identifier.
+    const tssNonce = this.getTssNonce();
+    const sessionNonce = generateSessionNonce();
+    const session = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, sessionNonce);
+
+    // Run signing protocol.
+    const serverURLs = endpoints.map((x) => x.url);
+    const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
+    const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
+    const signature = await signEd25519(
+      this._tssLib.lib,
+      session,
+      this.signatures,
+      serverXCoords,
+      serverURLs,
+      clientXCoord,
+      clientShareAdjustedHex,
+      pubKeyHex,
+      data,
+      serverCoefficientsHex
+    );
+
+    log.info(`signature: ${signature}`);
+    return Buffer.from(signature, "hex");
+  }
 }
