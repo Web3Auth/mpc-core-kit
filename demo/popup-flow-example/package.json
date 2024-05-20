@@ -5,8 +5,10 @@
 	"dependencies": {
 		"@ethereumjs/common": "^3.1.2",
 		"@ethereumjs/tx": "^4.1.2",
-		"@web3auth/mpc-core-kit": "file://../../",
+		"@tkey/common-types": "^13.0.0-alpha.1",
+		"@toruslabs/tss-dkls-lib": "^3.0.0-alpha.0",
 		"@web3auth/ethereum-mpc-provider": "8.4.0",
+		"@web3auth/mpc-core-kit": "file://../../",
 		"bn.js": "^5.2.1",
 		"copy-webpack-plugin": "^11.0.0",
 		"eccrypto": "^1.1.6",

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, IdTokenLoginParams, TssShareType, parseToken, TssSecurityQuestion, generateFactorKey, COREKIT_STATUS, keyToMnemonic, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, IdTokenLoginParams, TssShareType, parseToken, TssSecurityQuestion, generateFactorKey, COREKIT_STATUS, keyToMnemonic, DEFAULT_CHAIN_CONFIG, makeEthereumSigner, factorKeyCurve } from "@web3auth/mpc-core-kit";
 import Web3 from 'web3';
 import { initializeApp } from "firebase/app";
 import {
@@ -11,9 +11,11 @@ import {
 import type { provider } from "web3-core";
 
 import "./App.css";
-import { SafeEventEmitterProvider } from "@web3auth/base";
+import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import { BN } from "bn.js";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
+import { KeyType, Point } from "@tkey/common-types";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -39,7 +41,8 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
   {
     web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
     web3AuthNetwork: selectedNetwork,
-    storage: window.localStorage
+    storage: window.localStorage,
+    tssLib
   }
 );
 
@@ -58,14 +61,22 @@ function App() {
   const app = initializeApp(firebaseConfig);
   const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
 
+async function setupProvider(chainConfig?: CustomChainConfig) {
+  if (coreKitInstance.keyType !== KeyType.secp256k1) {
+    console.warn(`Ethereum requires keytype ${KeyType.secp256k1}, skipping provider setup`);
+    return;
+  }
+  let localProvider = new EthereumSigningProvider({ config: { chainConfig: chainConfig || DEFAULT_CHAIN_CONFIG } });
+  localProvider.setupProvider(makeEthereumSigner(coreKitInstance));
+  setProvider(localProvider);
+}
+
   useEffect(() => {
     const init = async () => {
       await coreKitInstance.init();
 
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-        let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
-        localProvider.setupProvider(coreKitInstance);
-        setProvider(localProvider);
+        await setupProvider();
       }
 
       setCoreKitStatus(coreKitInstance.status);
@@ -97,7 +108,7 @@ function App() {
       throw new Error('factorPubs not found');
     }
     const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map(pub => {
-      return Point.fromTkeyPoint(pub).toBufferSEC1(true).toString('hex');
+      return pub.toSEC1(factorKeyCurve, true).toString('hex');
     });
     uiConsole(pubsHex);
   };
@@ -146,9 +157,7 @@ function App() {
       } 
 
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-        let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
-        localProvider.setupProvider(coreKitInstance);
-        setProvider(localProvider);
+        await setupProvider();
       }
 
       setCoreKitStatus(coreKitInstance.status);
@@ -178,9 +187,7 @@ function App() {
     }
 
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-      let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
-      localProvider.setupProvider(coreKitInstance);
-      setProvider(localProvider);
+      await setupProvider();
     }
     setCoreKitStatus(coreKitInstance.status);
   }
@@ -229,9 +236,8 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    const pubBuffer = Buffer.from(factorPubToDelete, 'hex');
-    const pub = Point.fromBufferSEC1(pubBuffer);
-    await coreKitInstance.deleteFactor(pub.toTkeyPoint());
+    const pub = Point.fromSEC1(factorKeyCurve, factorPubToDelete);
+    await coreKitInstance.deleteFactor(pub);
     uiConsole("factor deleted");
   }
 
@@ -386,7 +392,7 @@ function App() {
           Get User Info
         </button>
 
-        <button onClick={async () => uiConsole(await coreKitInstance.getTssPublicKey())} className="card">
+        <button onClick={async () => uiConsole(await coreKitInstance.getPubKey())} className="card">
           Get Public Key
         </button>
 
