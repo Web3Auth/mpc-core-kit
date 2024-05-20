@@ -1,18 +1,17 @@
 import { useEffect, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, Point, SubVerifierDetailsParams, TssShareType, keyToMnemonic, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, SubVerifierDetailsParams, TssShareType, keyToMnemonic, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG, factorKeyCurve, makeEthereumSigner } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
-
-import "./App.css";
-import { CHAIN_NAMESPACES, SafeEventEmitterProvider } from "@web3auth/base";
-import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider"
+import { CHAIN_NAMESPACES, CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
+import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { BN } from "bn.js";
-
-import jwt, { Algorithm } from "jsonwebtoken";
-import { flow } from "./flow";
-
+import { KeyType, Point } from "@tkey/common-types";
 import { tssLib } from "@toruslabs/tss-dkls-lib";
 // import{ tssLib } from "@toruslabs/tss-frost-lib-wasm";
+
+import "./App.css";
+import jwt, { Algorithm } from "jsonwebtoken";
+import { flow } from "./flow";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -77,10 +76,17 @@ function App() {
   const [question, setQuestion] = useState<string | undefined>(undefined);
   const [newQuestion, setNewQuestion] = useState<string | undefined>(undefined);
 
-
-
-
   const securityQuestion: TssSecurityQuestion = new TssSecurityQuestion();
+
+  async function setupProvider(chainConfig?: CustomChainConfig) {
+    if (coreKitInstance.keyType !== KeyType.secp256k1) {
+      console.warn(`Ethereum requires keytype ${KeyType.secp256k1}, skipping provider setup`);
+      return;
+    }
+    let localProvider = new EthereumSigningProvider({ config: { chainConfig: chainConfig || DEFAULT_CHAIN_CONFIG } });
+    localProvider.setupProvider(makeEthereumSigner(coreKitInstance));
+    setProvider(localProvider);
+  }
 
   // decide whether to rehydrate session
   const rehydrate = true;
@@ -92,12 +98,8 @@ function App() {
         await coreKitInstance.handleRedirectResult();
       }
 
-      
-
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-        let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
-        localProvider.setupProvider(coreKitInstance);
-        setProvider(localProvider);
+        await setupProvider();
       }
 
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
@@ -116,7 +118,7 @@ function App() {
       }
     };
     init();
-  }, []);
+  });
 
   useEffect(() => {
     if (provider) {
@@ -141,8 +143,8 @@ function App() {
     if (!factorPubs) {
       throw new Error('factorPubs not found');
     }
-    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map((pub: any) => {
-      return Point.fromTkeyPoint(pub).toBufferSEC1(true).toString('hex');
+    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map((pub: Point) => {
+      return pub.toSEC1(factorKeyCurve, true).toString('hex');
     });
     uiConsole(pubsHex);
   };
@@ -160,9 +162,7 @@ function App() {
       }, {prefetchTssPublicKeys: 1} );
 
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-        let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
-        localProvider.setupProvider(coreKitInstance);
-        setProvider(localProvider);
+        await setupProvider();
       }
       setCoreKitStatus(coreKitInstance.status);
     } catch (error: unknown) {
@@ -227,9 +227,7 @@ function App() {
     }
 
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-      let localProvider = new EthereumSigningProvider({ config: { chainConfig: DEFAULT_CHAIN_CONFIG } });
-      localProvider.setupProvider(coreKitInstance);
-      setProvider(localProvider);
+      await setupProvider();
     }
 
     setCoreKitStatus(coreKitInstance.status);
@@ -286,8 +284,8 @@ function App() {
       throw new Error("coreKitInstance is not set");
     }
     const pubBuffer = Buffer.from(factorPubToDelete, 'hex');
-    const pub = Point.fromBufferSEC1(pubBuffer);
-    await coreKitInstance.deleteFactor(pub.toTkeyPoint());
+    const pub = Point.fromSEC1(factorKeyCurve, pubBuffer.toString("hex"));
+    await coreKitInstance.deleteFactor(pub);
     uiConsole("factor deleted");
   }
 
@@ -385,9 +383,7 @@ function App() {
     };
 
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-      let localProvider = new EthereumSigningProvider({ config: { chainConfig: newChainConfig } });
-      localProvider.setupProvider(coreKitInstance);
-      setProvider(localProvider);
+      await setupProvider(newChainConfig);
     }
     uiConsole("Changed to Sepolia Network");
   };
@@ -409,9 +405,7 @@ function App() {
       tickerName: "MATIC",
     };
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-      let localProvider = new EthereumSigningProvider({ config: { chainConfig: newChainConfig } });
-      localProvider.setupProvider(coreKitInstance);
-      setProvider(localProvider);
+      await setupProvider(newChainConfig);
     }
     uiConsole("Changed to Sepolia Network");
   };
@@ -541,7 +535,7 @@ function App() {
           Get User Info
         </button>
 
-        <button onClick={async () => uiConsole(await coreKitInstance.getTssPublicKey())} className="card">
+        <button onClick={async () => uiConsole(await coreKitInstance.getPubKey())} className="card">
           Get Public Key
         </button>
 

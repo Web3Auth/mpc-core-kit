@@ -1,4 +1,4 @@
-import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
 import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -405,4 +405,21 @@ export interface SessionData {
 
 export interface TkeyLocalStoreData {
   factorKey: string;
+}
+
+export interface CoreKitSigner {
+  keyType: KeyType;
+  sign(data: Buffer, hashed?: boolean): Promise<Buffer>;
+  getPubKey(): Promise<Buffer>;
+}
+
+export interface EthSig {
+  v: number;
+  r: Buffer;
+  s: Buffer;
+}
+
+export interface EthereumSigner {
+  sign: (msgHash: Buffer) => Promise<EthSig>;
+  getPublic: () => Promise<Buffer>;
 }

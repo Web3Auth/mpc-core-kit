@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/member-ordering */
 import { BNString, KeyType, Point as TkeyPoint, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
@@ -549,15 +548,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  // Deprecated soon
-  // use getPublicSync instead
-  public getTssPublicKey(): TkeyPoint {
-    this.checkReady();
-    // pass this optional account index;
-    return this.tKey.getTSSPub(this.state.accountIndex);
-  }
-
-  // mutation function
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
@@ -660,7 +650,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
   }
 
-  public getPublic: () => Promise<Buffer> = async () => {
+  public getPubKey: () => Promise<Buffer> = async () => {
     const { tssPubKey } = this.state;
     return Buffer.from(tssPubKey);
   };
@@ -700,7 +690,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord);
 
     // Get pub key.
-    const tssPubKey = await this.getPublic();
+    const tssPubKey = await this.getPubKey();
     const tssPubKeyPoint = ec.keyFromPublic(tssPubKey).getPublic();
 
     // Get client key share and adjust by coefficient.
@@ -744,7 +734,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // PreSetup
     const { tssShareIndex } = this.state;
-    let tssPubKey = await this.getPublic();
+    let tssPubKey = await this.getPubKey();
 
     const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
       verifier: this.tkey.serviceProvider.verifierName,

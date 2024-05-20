@@ -1,4 +1,4 @@
-import { Point, Point as TkeyPoint } from "@tkey/common-types";
+import { KeyType, Point, Point as TkeyPoint, secp256k1 } from "@tkey/common-types";
 import { generatePrivateBN } from "@tkey/core";
 import { factorKeyCurve } from "@tkey/tss";
 import { EllipticCurve } from "@toruslabs/elliptic-wrapper";
@@ -7,7 +7,7 @@ import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 
 import { DELIMITERS, SCALAR_LEN } from "./constants";
-import { IAsyncStorage, IStorage } from "./interfaces";
+import { CoreKitSigner, EthereumSigner, IAsyncStorage, IStorage } from "./interfaces";
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const keyPair = factorKeyCurve.genKeyPair();
@@ -158,4 +158,28 @@ export function generateSessionNonce() {
 
 export function getSessionId(verifier: string, verifierId: string, tssTag: string, tssNonce: number, sessionNonce: string) {
   return `${verifier}${DELIMITERS.Delimiter1}${verifierId}${DELIMITERS.Delimiter2}${tssTag}${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}${sessionNonce}`;
+}
+
+export function sigToRSV(sig: Buffer) {
+  if (sig.length !== 65) {
+    throw new Error(`Invalid signature length: expected 65, got ${sig.length}`);
+  }
+
+  return { r: sig.subarray(0, 32), s: sig.subarray(32, 64), v: sig[64] };
+}
+
+export function makeEthereumSigner(kit: CoreKitSigner): EthereumSigner {
+  if (kit.keyType !== KeyType.secp256k1) {
+    throw new Error(`Invalid key type: expected secp256k1, got ${kit.keyType}`);
+  }
+  return {
+    sign: async (msgHash: Buffer) => {
+      const sig = await kit.sign(msgHash);
+      return sigToRSV(sig);
+    },
+    getPublic: async () => {
+      const pk = Point.fromSEC1(secp256k1, (await kit.getPubKey()).toString("hex"));
+      return pk.toSEC1(secp256k1).subarray(1);
+    },
+  };
 }
