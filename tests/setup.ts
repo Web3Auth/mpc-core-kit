@@ -1,3 +1,4 @@
+import { EllipticPoint, secp256k1 } from "@tkey/common-types";
 import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
@@ -123,4 +124,8 @@ export class AsyncMemoryStorage implements IAsyncStorage {
   async setItem(key: string, value: string): Promise<void> {
     this._store[key] = value;
   }
+}
+
+export function bufferToElliptic(p: Buffer, ec = secp256k1): EllipticPoint {
+  return ec.keyFromPublic(p).getPublic();
 }

@@ -8,7 +8,7 @@ import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 
 import { COREKIT_STATUS, IAsyncStorage, IStorage, MemoryStorage, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
-import { AsyncMemoryStorage, criticalResetAccount, mockLogin } from "./setup";
+import { AsyncMemoryStorage, bufferToElliptic, criticalResetAccount, mockLogin } from "./setup";
 
 type FactorTestVariable = {
   manualSync?: boolean;
@@ -57,13 +57,13 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       coreKitInstance.setTssWalletIndex(1);
 
       coreKitInstance.setTssWalletIndex(0);
-      const tssPubKeyIndex0 = coreKitInstance.getTssPublicKey();
+      const tssPubKeyIndex0 = bufferToElliptic(coreKitInstance.getPubKey());
 
       coreKitInstance.setTssWalletIndex(1);
-      const tssPubKeyIndex1 = coreKitInstance.getTssPublicKey();
+      const tssPubKeyIndex1 = bufferToElliptic(coreKitInstance.getPubKey());
 
       coreKitInstance.setTssWalletIndex(99);
-      const tssPubKeyIndex99 = coreKitInstance.getTssPublicKey();
+      const tssPubKeyIndex99 = bufferToElliptic(coreKitInstance.getPubKey());
 
       const firstFactor = coreKitInstance.getCurrentFactorKey();
       // try delete hash factor factor
@@ -88,13 +88,13 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       }
 
       coreKitInstance.setTssWalletIndex(0);
-      const tssPubKeyIndexPost0 = coreKitInstance.getTssPublicKey();
+      const tssPubKeyIndexPost0 = bufferToElliptic(coreKitInstance.getPubKey());
 
       coreKitInstance.setTssWalletIndex(1);
-      const tssPubKeyIndexPost1 = coreKitInstance.getTssPublicKey();
+      const tssPubKeyIndexPost1 = bufferToElliptic(coreKitInstance.getPubKey());
 
       coreKitInstance.setTssWalletIndex(99);
-      const tssPubKeyIndexPost99 = coreKitInstance.getTssPublicKey();
+      const tssPubKeyIndexPost99 = bufferToElliptic(coreKitInstance.getPubKey());
 
       // clear session prevent rehydration
       await coreKitInstance.logout();
@@ -120,29 +120,21 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       }
 
       instance2.setTssWalletIndex(0);
-      const tssPubKey2IndexPost0 = instance2.getTssPublicKey();
+      const tssPubKey2IndexPost0 = bufferToElliptic(instance2.getPubKey());
 
       instance2.setTssWalletIndex(1);
-      const tssPubKey2IndexPost1 = instance2.getTssPublicKey();
+      const tssPubKey2IndexPost1 = bufferToElliptic(instance2.getPubKey());
 
       instance2.setTssWalletIndex(99);
-      const tssPubKey2IndexPost99 = instance2.getTssPublicKey();
+      const tssPubKey2IndexPost99 = bufferToElliptic(instance2.getPubKey());
 
-      assert.equal(tssPubKeyIndex0.x.toString("hex"), tssPubKeyIndexPost0.x.toString("hex"));
-      assert.equal(tssPubKeyIndex1.x.toString("hex"), tssPubKeyIndexPost1.x.toString("hex"));
-      assert.equal(tssPubKeyIndex99.x.toString("hex"), tssPubKeyIndexPost99.x.toString("hex"));
+      assert(tssPubKeyIndex0.eq(tssPubKeyIndexPost0));
+      assert(tssPubKeyIndex1.eq(tssPubKeyIndexPost1));
+      assert(tssPubKeyIndex99.eq(tssPubKeyIndexPost99));
 
-      assert.equal(tssPubKeyIndex0.y.toString("hex"), tssPubKeyIndexPost0.y.toString("hex"));
-      assert.equal(tssPubKeyIndex1.y.toString("hex"), tssPubKeyIndexPost1.y.toString("hex"));
-      assert.equal(tssPubKeyIndex99.y.toString("hex"), tssPubKeyIndexPost99.y.toString("hex"));
-
-      assert.equal(tssPubKey2IndexPost0.x.toString("hex"), tssPubKeyIndex0.x.toString("hex"));
-      assert.equal(tssPubKey2IndexPost1.x.toString("hex"), tssPubKeyIndex1.x.toString("hex"));
-      assert.equal(tssPubKey2IndexPost99.x.toString("hex"), tssPubKeyIndex99.x.toString("hex"));
-
-      assert.equal(tssPubKey2IndexPost0.y.toString("hex"), tssPubKeyIndex0.y.toString("hex"));
-      assert.equal(tssPubKey2IndexPost1.y.toString("hex"), tssPubKeyIndex1.y.toString("hex"));
-      assert.equal(tssPubKey2IndexPost99.y.toString("hex"), tssPubKeyIndex99.y.toString("hex"));
+      assert(tssPubKey2IndexPost0.eq(tssPubKeyIndex0));
+      assert(tssPubKey2IndexPost1.eq(tssPubKeyIndex1));
+      assert(tssPubKey2IndexPost99.eq(tssPubKeyIndex99));
 
       // new instance
       const instance3 = await newInstance();

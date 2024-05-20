@@ -2,13 +2,13 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import { Point } from "@tkey/common-types";
+import { Point, secp256k1 } from "@tkey/common-types";
 import { tssLib } from "@toruslabs/tss-dkls-lib";
 import { log } from "@web3auth/base";
 import { BN } from "bn.js";
 
 import { AsyncStorage, IdTokenLoginParams, MemoryStorage, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
-import { criticalResetAccount, mockLogin, mockLogin2, newCoreKitLogInInstance } from "./setup";
+import { bufferToElliptic, criticalResetAccount, mockLogin, mockLogin2, newCoreKitLogInInstance } from "./setup";
 
 type ImportKeyTestVariable = {
   manualSync?: boolean;
@@ -146,11 +146,11 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
       await coreKitInstance3.init();
       await coreKitInstance3.loginWithJWT(newIdTokenLoginParams3);
-      const tssPubkey = coreKitInstance3.getTssPublicKey();
+      const tssPubkey = bufferToElliptic(coreKitInstance3.getPubKey());
 
       const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey();
       const pubkey = Point.fromScalar(new BN(exportedTssKey3, "hex"), coreKitInstance.tKey.tssCurve);
-      assert(tssPubkey.equals(pubkey));
+      assert(tssPubkey.eq(pubkey.toEllipticPoint(secp256k1)));
     });
 
     t.afterEach(function () {

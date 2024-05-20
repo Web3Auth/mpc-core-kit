@@ -56,6 +56,7 @@ import {
 } from "./interfaces";
 import {
   deriveShareCoefficients,
+  ed25519,
   generateFactorKey,
   generateSessionNonce,
   generateTSSEndpoints,
@@ -642,10 +643,31 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
   }
 
-  public getPubKey: () => Promise<Buffer> = async () => {
+  /**
+   * Get public key point in SEC1 format.
+   */
+  public getPubKey(): Buffer {
     const { tssPubKey } = this.state;
     return Buffer.from(tssPubKey);
-  };
+  }
+
+  /**
+   * Get public key point.
+   */
+  public getPubKeyPoint(): Point {
+    const { tssPubKey } = this.state;
+    return Point.fromSEC1(this.tkey.tssCurve, tssPubKey.toString("hex"));
+  }
+
+  /**
+   * Get public key in ed25519 format.
+   *
+   * Throws an error if keytype is not compatible with ed25519.
+   */
+  public getPubKeyEd25519(): Buffer {
+    const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
+    return ed25519.keyFromPublic(p).getPublic();
+  }
 
   public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {
     if (this.keyType === KeyType.secp256k1) {

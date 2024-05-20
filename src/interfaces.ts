@@ -410,7 +410,7 @@ export interface TkeyLocalStoreData {
 export interface CoreKitSigner {
   keyType: KeyType;
   sign(data: Buffer, hashed?: boolean): Promise<Buffer>;
-  getPubKey(): Promise<Buffer>;
+  getPubKey(): Buffer;
 }
 
 export interface EthSig {

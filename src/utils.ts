@@ -5,9 +5,12 @@ import { EllipticCurve } from "@toruslabs/elliptic-wrapper";
 import { safeatob } from "@toruslabs/openlogin-utils";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
+import { eddsa as EDDSA } from "elliptic";
 
 import { DELIMITERS, SCALAR_LEN } from "./constants";
 import { CoreKitSigner, EthereumSigner, IAsyncStorage, IStorage } from "./interfaces";
+
+export const ed25519 = new EDDSA("ed25519");
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const keyPair = factorKeyCurve.genKeyPair();
