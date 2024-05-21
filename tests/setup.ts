@@ -2,8 +2,9 @@ import { EllipticPoint, secp256k1 } from "@tkey/common-types";
 import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
+import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 
-import { IAsyncStorage, IStorage, parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { IAsyncStorage, IStorage, parseToken, TssLib, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -92,13 +93,14 @@ export const newCoreKitLogInInstance = async ({
   manualSync: boolean;
   email: string;
   storageInstance: IStorage | IAsyncStorage;
+  tssLib?: TssLib,
 }) => {
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
-    tssLib,
+    tssLib: tssLib || tssLibDKLS,
     storage: storageInstance,
     manualSync,
   });

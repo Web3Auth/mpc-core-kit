@@ -2,17 +2,19 @@ import assert from "node:assert";
 import test from "node:test";
 
 import { Point, secp256k1 } from "@tkey/common-types";
-import { tssLib } from "@toruslabs/tss-dkls-lib";
+import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
+import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 import { log } from "@web3auth/base";
 import { BN } from "bn.js";
 
-import { AsyncStorage, IdTokenLoginParams, MemoryStorage, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
+import { AsyncStorage, IdTokenLoginParams, MemoryStorage, TssLib, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { bufferToElliptic, criticalResetAccount, mockLogin, mockLogin2, newCoreKitLogInInstance } from "./setup";
 
 type ImportKeyTestVariable = {
   manualSync?: boolean;
   email: string;
   importKeyEmail: string;
+  tssLib: TssLib;
 };
 
 const storageInstance = new MemoryStorage();
@@ -24,6 +26,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         manualSync: false,
         email: testVariable.email,
         storageInstance,
+        tssLib: testVariable.tssLib,
       });
       await criticalResetAccount(instance);
       await instance.logout();
@@ -33,6 +36,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         manualSync: testVariable.manualSync,
         email: testVariable.importKeyEmail,
         storageInstance,
+        tssLib: testVariable.tssLib,
       });
       await criticalResetAccount(instance2);
       await instance2.logout();
@@ -54,7 +58,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
         baseUrl: "http://localhost:3000",
         uxMode: "nodejs",
-        tssLib,
+        tssLib: testVariable.tssLib,
         storage: new MemoryStorage(),
         manualSync: testVariable.manualSync,
       });
@@ -108,7 +112,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
         baseUrl: "http://localhost:3000",
         uxMode: "nodejs",
-        tssLib,
+        tssLib: testVariable.tssLib,
         storage: new MemoryStorage(),
       });
 
@@ -139,7 +143,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
         web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
         baseUrl: "http://localhost:3000",
         uxMode: "nodejs",
-        tssLib,
+        tssLib: testVariable.tssLib,
         storage: new MemoryStorage(),
       });
 
@@ -162,8 +166,9 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 };
 
 const variable: ImportKeyTestVariable[] = [
-  { manualSync: false, email: "emailexport", importKeyEmail: "emailimport" },
-  { manualSync: true, email: "emailexport", importKeyEmail: "emailimport" },
+  { manualSync: false, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
+  { manualSync: true, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
+  { manualSync: false, email: "emailexport_ed25519", importKeyEmail: "emailimport_ed25519", tssLib: tssLibFROST },
 ];
 
 variable.forEach(async (testVariable) => {

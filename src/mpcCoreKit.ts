@@ -189,6 +189,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.sessionManager.sessionId;
   }
 
+  get supportsAccountIndex(): boolean {
+    return this._keyType !== KeyType.ed25519;
+  }
+
   private get verifier(): string {
     if (this.state.userInfo?.aggregateVerifier) {
       return this.state.userInfo.aggregateVerifier;
