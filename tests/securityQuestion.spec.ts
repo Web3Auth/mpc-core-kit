@@ -1,5 +1,3 @@
-/* eslint-disable mocha/handle-done-callback */
-/* eslint-disable no-console */
 import assert from "node:assert";
 import test from "node:test";
 

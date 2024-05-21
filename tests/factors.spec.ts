@@ -1,4 +1,3 @@
-/* eslint-disable mocha/handle-done-callback */
 import assert from "node:assert";
 import test from "node:test";
 

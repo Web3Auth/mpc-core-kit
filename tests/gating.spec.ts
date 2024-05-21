@@ -1,4 +1,3 @@
-/* eslint-disable mocha/handle-done-callback */
 import test from "node:test";
 
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
