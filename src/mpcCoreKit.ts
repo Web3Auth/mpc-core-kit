@@ -1,4 +1,4 @@
-import { BNString, KeyType, Point, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
+import { BNString, KeyType, Point, secp256k1, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
@@ -20,7 +20,6 @@ import bowser from "bowser";
 import { ec as EC } from "elliptic";
 
 import {
-  CURVE_SECP256K1,
   DEFAULT_CHAIN_CONFIG,
   ERRORS,
   FactorKeyTypeShareDescription,
@@ -1234,9 +1233,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const sockets = await setupSockets(tssWSEndpoints, randomSessionNonce);
 
     const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
-    const denormalisedShare = dklsCoeff.mul(tssShare).umod(CURVE_SECP256K1.curve.n);
+    const denormalisedShare = dklsCoeff.mul(tssShare).umod(secp256k1.curve.n);
     const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
-    const derivedShare = denormalisedShare.add(accountNonce).umod(CURVE_SECP256K1.curve.n);
+    const derivedShare = denormalisedShare.add(accountNonce).umod(secp256k1.curve.n);
     const share = scalarBNToBufferSEC1(derivedShare).toString("base64");
 
     if (!currentSession) {
