@@ -83,12 +83,15 @@ export const mockLogin = async (email?: string) => {
   return { idToken, parsedToken };
 };
 
+export type LoginFunc = (email: string) => Promise<{ idToken: string, parsedToken: any }>;
+
 export const newCoreKitLogInInstance = async ({
   network,
   manualSync,
   email,
   storageInstance,
   importTssKey,
+  login,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
   manualSync: boolean;
@@ -96,6 +99,7 @@ export const newCoreKitLogInInstance = async ({
   storageInstance: IStorage | IAsyncStorage;
   tssLib?: TssLib;
   importTssKey?: string;
+  login?: LoginFunc;
 }) => {
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
@@ -107,7 +111,7 @@ export const newCoreKitLogInInstance = async ({
     manualSync,
   });
 
-  const { idToken, parsedToken } = await mockLogin(email);
+  const { idToken, parsedToken } = login ? await login(email) : await mockLogin(email);
   await instance.init();
   await instance.loginWithJWT({
     verifier: "torus-test-health",
