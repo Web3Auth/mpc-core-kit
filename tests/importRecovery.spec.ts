@@ -1,14 +1,12 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import { Point, secp256k1 } from "@tkey/common-types";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 import { log } from "@web3auth/base";
-import { BN } from "bn.js";
 
-import { AsyncStorage, IdTokenLoginParams, MemoryStorage, TssLib, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
-import { bufferToElliptic, criticalResetAccount, mockLogin, mockLogin2, newCoreKitLogInInstance } from "./setup";
+import { AsyncStorage, MemoryStorage, TssLib, TssShareType, WEB3AUTH_NETWORK } from "../src";
+import { bufferToElliptic, criticalResetAccount, newCoreKitLogInInstance } from "./setup";
 
 type ImportKeyTestVariable = {
   manualSync?: boolean;
@@ -19,13 +17,14 @@ type ImportKeyTestVariable = {
 
 const storageInstance = new MemoryStorage();
 export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
-  async function newCoreKitInstance(email: string) {
+  async function newCoreKitInstance(email: string, importTssKey?: string) {
     return newCoreKitLogInInstance({
       network: WEB3AUTH_NETWORK.DEVNET,
       manualSync: testVariable.manualSync,
       email: email,
       storageInstance,
       tssLib: testVariable.tssLib,
+      importTssKey,
     });
   }
 
@@ -43,10 +42,11 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
     };
 
     await beforeTest();
+
     await t.test("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
       const coreKitInstance = await newCoreKitInstance(testVariable.email);
 
-      // Create 2 factors which will be use to recover tss key
+      // Create 2 factors which will be used to recover tss key.
       const factorKeyDevice = await coreKitInstance.createFactor({
         shareType: TssShareType.DEVICE,
       });
@@ -63,32 +63,28 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       const exportedTssKey1 = await coreKitInstance._UNSAFE_exportTssKey();
       await coreKitInstance.logout();
 
-      // recover key
+      // Recover key from any two factors.
       const recoveredTssKey = await coreKitInstance._UNSAFE_recoverTssKey([factorKeyDevice, factorKeyRecovery]);
       assert.strictEqual(recoveredTssKey, exportedTssKey1);
-      
-      // reset account
-      // await criticalResetAccount(coreKitInstance);
-      // BrowserStorage.getInstance("memory").resetStore();
 
-      // initialize new instance
-      const coreKitInstance2 = await newCoreKitInstance(testVariable.importKeyEmail);
+      // Initialize new instance and import existing key.
+      const coreKitInstance2 = await newCoreKitInstance(testVariable.importKeyEmail, recoveredTssKey);
       if (testVariable.manualSync) {
         await coreKitInstance2.commitChanges();
       }
 
+      // Export key.
       const exportedTssKey = await coreKitInstance2._UNSAFE_exportTssKey();
-      // BrowserStorage.getInstance("memory").resetStore();
-
       assert.strictEqual(exportedTssKey, recoveredTssKey);
 
-      // reinitialize corekit
+      // Check exported key corresponds to pub key.
       const coreKitInstance3 = await newCoreKitInstance(testVariable.importKeyEmail);
       const tssPubkey = bufferToElliptic(coreKitInstance3.getPubKey());
 
       const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey();
-      const pubkey = Point.fromScalar(new BN(exportedTssKey3, "hex"), coreKitInstance.tKey.tssCurve);
-      assert(tssPubkey.eq(pubkey.toEllipticPoint(secp256k1)));
+      const tssCurve = coreKitInstance3.tKey.tssCurve;
+      const exportedPub = tssCurve.keyFromPrivate(exportedTssKey3).getPublic();
+      assert(tssPubkey.eq(exportedPub));
     });
 
     t.afterEach(function () {
@@ -102,8 +98,8 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
 const variable: ImportKeyTestVariable[] = [
   // TODO enable again
-  // { manualSync: false, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
-  // { manualSync: true, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
+  { manualSync: false, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
+  { manualSync: true, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
   { manualSync: false, email: "emailexport_ed25519", importKeyEmail: "emailimport_ed25519", tssLib: tssLibFROST },
 ];
 

@@ -88,12 +88,14 @@ export const newCoreKitLogInInstance = async ({
   manualSync,
   email,
   storageInstance,
+  importTssKey,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
   manualSync: boolean;
   email: string;
   storageInstance: IStorage | IAsyncStorage;
-  tssLib?: TssLib,
+  tssLib?: TssLib;
+  importTssKey?: string;
 }) => {
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
@@ -111,6 +113,7 @@ export const newCoreKitLogInInstance = async ({
     verifier: "torus-test-health",
     verifierId: parsedToken.email,
     idToken,
+    importTssKey,
   });
 
   return instance;
