@@ -97,7 +97,6 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 };
 
 const variable: ImportKeyTestVariable[] = [
-  // TODO enable again
   { manualSync: false, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
   { manualSync: true, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
   { manualSync: false, email: "emailexport_ed25519", importKeyEmail: "emailimport_ed25519", tssLib: tssLibFROST },

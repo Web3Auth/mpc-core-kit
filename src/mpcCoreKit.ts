@@ -66,8 +66,6 @@ import {
   scalarBNToBufferSEC1,
 } from "./utils";
 
-TorusUtils.enableLogging(false); // TODO remove this line
-
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
 
@@ -421,15 +419,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const postBoxKey = this._getPostBoxKey(loginResponse);
 
       this.torusSp.postboxKey = new BN(postBoxKey, "hex");
-
-      /* eslint-disable */
-      // TODO: remove
-      {
-        console.log("verifierName", this.torusSp.verifierName);
-        console.log("verifierId", this.torusSp.verifierId);
-        console.log("postboxKey", this.torusSp.postboxKey.toString("hex"));
-      }
-      /* eslint-enable */
 
       this.updateState({
         oAuthKey: postBoxKey,
@@ -1271,7 +1260,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       true,
       this._tssLib.lib
     );
-    client.log = (_msg) => {}; // TODO remove this line
+
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
       const serverIndex = participatingServerDKGIndexes[i];
