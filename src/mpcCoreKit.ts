@@ -422,6 +422,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       this.torusSp.postboxKey = new BN(postBoxKey, "hex");
 
+      /* eslint-disable */
+      // TODO: remove
+      {
+        console.log("verifierName", this.torusSp.verifierName);
+        console.log("verifierId", this.torusSp.verifierId);
+        console.log("postboxKey", this.torusSp.postboxKey.toString("hex"));
+      }
+      /* eslint-enable */
+
       this.updateState({
         oAuthKey: postBoxKey,
         userInfo: { ...parseToken(idToken), verifier, verifierId },
@@ -1019,7 +1028,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async isMetadataPresent(privateKey: string) {
     const privateKeyBN = new BN(privateKey, "hex");
     const metadata = await this.tKey?.readMetadata<StringifiedType>(privateKeyBN);
-    if (metadata && Object.keys(metadata).length > 0 && metadata.message !== "KEY_NOT_FOUND") {
+    if (metadata && metadata.message !== "KEY_NOT_FOUND") {
       return true;
     }
     return false;
