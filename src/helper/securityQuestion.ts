@@ -1,4 +1,4 @@
-import { Point, Point as TKeyPoint, secp256k1, StringifiedType } from "@tkey/common-types";
+import { Point, secp256k1, StringifiedType } from "@tkey/common-types";
 import { factorKeyCurve, getPubKeyPoint } from "@tkey/tss";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
@@ -176,7 +176,7 @@ export class TssSecurityQuestion {
 
       const store = TssSecurityQuestionStore.fromJSON(storeDomain);
       if (store.factorPublicKey) {
-        await mpcCoreKit.deleteFactor(TKeyPoint.fromSEC1(factorKeyCurve, store.factorPublicKey));
+        await mpcCoreKit.deleteFactor(Point.fromSEC1(factorKeyCurve, store.factorPublicKey));
       }
     }
     tkey.metadata.deleteGeneralStoreDomain(domainKey);
