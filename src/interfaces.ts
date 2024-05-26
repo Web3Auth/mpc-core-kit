@@ -76,7 +76,7 @@ export type MPCKeyDetails = {
   requiredFactors: number;
   totalFactors: number;
   shareDescriptions: ShareDescriptionMap;
-  keyType: string;
+  keyType: KeyType;
   tssPubKey?: TkeyPoint;
 };
 
