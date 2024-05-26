@@ -407,13 +407,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           ...idTokenLoginParams.extraVerifierParams,
           ...idTokenLoginParams.additionalParams,
         });
-        // this.torusSp.verifierType = "normal";
       } else {
         // aggregate verifier login
         loginResponse = await this.torusSp.customAuthInstance.getAggregateTorusKey(verifier, verifierId, [
           { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
         ]);
-        // this.torusSp.verifierType = "aggregate";
       }
 
       const postBoxKey = this._getPostBoxKey(loginResponse);
@@ -461,7 +459,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           userInfo: data.userInfo,
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
-        // this.torusSp.verifierType = "normal";
         const userInfo = this.getUserInfo();
         this.torusSp.verifierName = userInfo.verifier;
       } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
@@ -474,7 +471,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           userInfo: data.userInfo[0],
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
-        // this.torusSp.verifierType = "aggregate";
         const userInfo = this.getUserInfo();
         this.torusSp.verifierName = userInfo.aggregateVerifier;
       } else {
@@ -965,7 +961,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.torusSp.postboxKey = new BN(result.oAuthKey, "hex");
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
-      // this.torusSp.verifierType = result.userInfo.aggregateVerifier ? "aggregate" : "normal";
       const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
       await this.tKey.initialize({ neverInitializeNewKey: true });
       await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
