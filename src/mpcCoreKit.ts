@@ -534,7 +534,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
-    const postBoxKey = this.state.postBoxKey || this.state.oAuthKey;
+    const { postBoxKey } = this.state;
     const hashedFactorKey = getHashedPrivateKey(postBoxKey, this.options.hashedFactorNonce);
     if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
       if (this.tKey._localMetadataTransitions[0].length) {

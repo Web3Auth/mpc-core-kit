@@ -143,10 +143,6 @@ export interface IdTokenLoginParams {
 }
 
 export interface Web3AuthState {
-  /**
-   * @deprecated Use `postBoxKey` instead.
-   */
-  oAuthKey?: string;
   postBoxKey?: string;
   signatures?: string[];
   userInfo?: UserInfo;
