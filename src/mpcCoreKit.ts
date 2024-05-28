@@ -472,7 +472,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       const userInfo = this.getUserInfo();
       if (!this.state.postBoxKey) {
-        throw CoreKitError.oauthKeyMissing("postBoxKey not present in state after processing redirect result.");
+        throw CoreKitError.postBoxKeyMissing("postBoxKey not present in state after processing redirect result.");
       }
       this.torusSp.postboxKey = new BN(this.state.postBoxKey, "hex");
       this.torusSp.verifierId = userInfo.verifierId;

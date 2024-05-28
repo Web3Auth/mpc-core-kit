@@ -243,7 +243,7 @@ class CoreKitError extends AbstractCoreKitError {
     return CoreKitError.fromCode(1108, extraMessage);
   }
 
-  public static oauthKeyMissing(extraMessage = ""): ICoreKitError {
+  public static postBoxKeyMissing(extraMessage = ""): ICoreKitError {
     return CoreKitError.fromCode(1109, extraMessage);
   }
 

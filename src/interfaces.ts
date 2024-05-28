@@ -143,7 +143,9 @@ export interface IdTokenLoginParams {
 }
 
 export interface Web3AuthState {
-  // deprecated soon
+  /**
+   * @deprecated Use `postBoxKey` instead.
+   */
   oAuthKey?: string;
   postBoxKey?: string;
   signatures?: string[];
@@ -397,6 +399,9 @@ export interface Web3AuthOptions {
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
 export interface SessionData {
+  /**
+   * @deprecated Use `postBoxKey` instead.
+   */
   oAuthKey?: string;
   postBoxKey?: string;
   factorKey: string;
