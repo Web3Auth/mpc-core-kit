@@ -159,13 +159,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.state?.signatures ? this.state.signatures : [];
   }
 
-  get metadataKey(): string | null {
-    // this return oauthkey which is used by demo to reset account.
-    // this is not the same metadataKey from tkey.
-    // to be fixed in next major release
-    return this.state?.oAuthKey ? this.state.oAuthKey : null;
-  }
-
   public get _storageKey(): string {
     return this._storageBaseKey;
   }
@@ -339,7 +332,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         if (this.isRedirectMode) return;
 
         this.updateState({
-          oAuthKey: this._getPostBoxKey(loginResponse),
+          postBoxKey: this._getPostBoxKey(loginResponse),
           userInfo: loginResponse.userInfo,
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
@@ -353,7 +346,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         if (this.isRedirectMode) return;
 
         this.updateState({
-          oAuthKey: this._getPostBoxKey(loginResponse),
+          postBoxKey: this._getPostBoxKey(loginResponse),
           userInfo: loginResponse.userInfo[0],
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
@@ -419,7 +412,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.torusSp.postboxKey = new BN(postBoxKey, "hex");
 
       this.updateState({
-        oAuthKey: postBoxKey,
+        postBoxKey,
         userInfo: { ...parseToken(idToken), verifier, verifierId },
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
@@ -455,7 +448,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           throw CoreKitError.invalidTorusLoginResponse();
         }
         this.updateState({
-          oAuthKey: this._getPostBoxKey(data),
+          postBoxKey: this._getPostBoxKey(data),
           userInfo: data.userInfo,
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
@@ -467,7 +460,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           throw CoreKitError.invalidTorusAggregateLoginResponse();
         }
         this.updateState({
-          oAuthKey: this._getPostBoxKey(data),
+          postBoxKey: this._getPostBoxKey(data),
           userInfo: data.userInfo[0],
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
@@ -478,10 +471,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       const userInfo = this.getUserInfo();
-      if (!this.state.oAuthKey) {
-        throw CoreKitError.oauthKeyMissing("oAuthKey not present in state after processing redirect result.");
+      if (!this.state.postBoxKey) {
+        throw CoreKitError.oauthKeyMissing("postBoxKey not present in state after processing redirect result.");
       }
-      this.torusSp.postboxKey = new BN(this.state.oAuthKey, "hex");
+      this.torusSp.postboxKey = new BN(this.state.postBoxKey, "hex");
       this.torusSp.verifierId = userInfo.verifierId;
       await this.setupTkey();
     } catch (error: unknown) {
@@ -541,7 +534,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
-    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
+    const postBoxKey = this.state.postBoxKey || this.state.oAuthKey;
+    const hashedFactorKey = getHashedPrivateKey(postBoxKey, this.options.hashedFactorNonce);
     if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
       if (this.tKey._localMetadataTransitions[0].length) {
         throw CoreKitError.commitChangesBeforeMFA();
@@ -850,10 +844,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async setupTkey(importTssKey?: string): Promise<void> {
-    if (!this.state.oAuthKey) {
+    if (!this.state.postBoxKey) {
       throw CoreKitError.userNotLoggedIn();
     }
-    const existingUser = await this.isMetadataPresent(this.state.oAuthKey);
+    const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
     if (!existingUser) {
       await this.handleNewUser(importTssKey);
     } else {
@@ -872,10 +866,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (this.options.disableHashedFactorKey) {
         factorKey = generateFactorKey().private;
         // delete previous hashed factorKey if present
-        const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
+        const hashedFactorKey = getHashedPrivateKey(this.state.postBoxKey, this.options.hashedFactorNonce);
         await this.deleteMetadataShareBackup(hashedFactorKey);
       } else {
-        factorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
+        factorKey = getHashedPrivateKey(this.state.postBoxKey, this.options.hashedFactorNonce);
       }
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey, factorKeyCurve);
@@ -909,7 +903,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       return;
     }
 
-    const hashedFactorKey = getHashedPrivateKey(this.state.oAuthKey, this.options.hashedFactorNonce);
+    const hashedFactorKey = getHashedPrivateKey(this.state.postBoxKey, this.options.hashedFactorNonce);
     this.state.factorKey = hashedFactorKey;
     if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
       // Initialize tkey with existing hashed share if available.
@@ -958,7 +952,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (!factorKey) {
         throw CoreKitError.providedFactorKeyInvalid();
       }
-      this.torusSp.postboxKey = new BN(result.oAuthKey, "hex");
+      const postBoxKey = result.postBoxKey || result.oAuthKey;
+      if (!postBoxKey) {
+        throw CoreKitError.default("postBoxKey or oAuthKey not present in session data");
+      }
+      this.torusSp.postboxKey = new BN(postBoxKey, "hex");
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
       const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
@@ -968,7 +966,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       this.updateState({
         factorKey: new BN(result.factorKey, "hex"),
-        oAuthKey: result.oAuthKey,
+        postBoxKey,
         tssShareIndex: result.tssShareIndex,
         tssPubKey: this.tkey.getTSSPub().toSEC1(this.tKey.tssCurve, false),
         signatures: result.signatures,
@@ -983,18 +981,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       const sessionId = OpenloginSessionManager.generateRandomSessionKey();
       this.sessionManager.sessionId = sessionId;
-      const { oAuthKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
+      const { postBoxKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
       if (!this.state.factorKey) {
         throw CoreKitError.factorKeyNotPresent("factorKey not present in state when creating session.");
       }
       const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
         accountIndex: this.state.accountIndex,
       });
-      if (!oAuthKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
+      if (!postBoxKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw CoreKitError.userNotLoggedIn();
       }
       const payload: SessionData = {
-        oAuthKey,
+        postBoxKey,
         factorKey: factorKey?.toString("hex"),
         tssShareIndex: tssShareIndex as number,
         tssPubKey: Buffer.from(tssPubKey).toString("hex"),

@@ -143,7 +143,9 @@ export interface IdTokenLoginParams {
 }
 
 export interface Web3AuthState {
+  // deprecated soon
   oAuthKey?: string;
+  postBoxKey?: string;
   signatures?: string[];
   userInfo?: UserInfo;
   tssShareIndex?: number;
@@ -395,7 +397,8 @@ export interface Web3AuthOptions {
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
 export interface SessionData {
-  oAuthKey: string;
+  oAuthKey?: string;
+  postBoxKey?: string;
   factorKey: string;
   tssShareIndex: number;
   tssPubKey: string;
