@@ -1185,7 +1185,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // PreSetup
     const { tssShareIndex } = this.state;
-    let tssPubKey = await this.getPubKey();
+    const tssPubKey = await this.getPubKeyPoint();
 
     const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
       verifier: this.tkey.serviceProvider.verifierName,
@@ -1202,10 +1202,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (!tssPubKey || !torusNodeTSSEndpoints) {
       throw CoreKitError.tssPublicKeyOrEndpointsMissing();
-    }
-
-    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
-      tssPubKey = tssPubKey.subarray(1);
     }
 
     // session is needed for authentication to the web3auth infrastructure holding the factor 1
@@ -1242,17 +1238,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.signaturesNotPresent();
     }
 
-    const client = new Client(
-      currentSession,
-      clientIndex,
-      partyIndexes,
-      endpoints,
-      sockets,
-      share,
-      tssPubKey.toString("base64"),
-      true,
-      this._tssLib.lib
-    );
+    // Client lib expects pub key in XY-format, base64-encoded.
+    const tssPubKeyBase64 = tssPubKey.toSEC1(secp256k1).subarray(1).toString("base64");
+
+    const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKeyBase64, true, this._tssLib.lib);
 
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
