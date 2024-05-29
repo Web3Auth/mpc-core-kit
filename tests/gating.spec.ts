@@ -1,8 +1,7 @@
-/* eslint-disable mocha/handle-done-callback */
 import test from "node:test";
 
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
-import * as TssLib from "@toruslabs/tss-lib-node";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 import assert from "assert";
 
 import { COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
@@ -53,7 +52,7 @@ variable.forEach((testVariable) => {
     web3AuthNetwork,
     baseUrl: "http://localhost:3000",
     uxMode,
-    tssLib: TssLib,
+    tssLib,
     storage: new MemoryStorage(),
     manualSync,
   });
@@ -74,7 +73,7 @@ variable.forEach((testVariable) => {
       const { idToken, parsedToken } = await mockLogin(email);
 
       if (expectedErrorThrown) {
-        assert.rejects(() => coreKitInstance.init({ handleRedirectResult: false, rehydrate: false }));
+        await assert.rejects(() => coreKitInstance.init({ handleRedirectResult: false, rehydrate: false }));
         return;
       }
 

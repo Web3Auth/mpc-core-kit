@@ -1,18 +1,21 @@
-import { getPubKeyPoint, Point, Point as TkeyPoint, randomSelection } from "@tkey-mpc/common-types";
-import ThresholdKey from "@tkey-mpc/core";
-import { generatePrivate } from "@toruslabs/eccrypto";
+import { KeyType, Point, Point as TkeyPoint, secp256k1 } from "@tkey/common-types";
+import { generatePrivateBN } from "@tkey/core";
+import { factorKeyCurve } from "@tkey/tss";
+import { EllipticCurve } from "@toruslabs/elliptic-wrapper";
 import { safeatob } from "@toruslabs/openlogin-utils";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
+import { eddsa as EDDSA } from "elliptic";
 
-import { SCALAR_LEN, VALID_SHARE_INDICES as VALID_TSS_INDICES } from "./constants";
-import CoreKitError from "./helper/errors";
-import { IAsyncStorage, IStorage } from "./interfaces";
+import { DELIMITERS, SCALAR_LEN } from "./constants";
+import { CoreKitSigner, EthereumSigner, IAsyncStorage, IStorage } from "./interfaces";
+
+export const ed25519 = new EDDSA("ed25519");
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
-  const factorKey = new BN(generatePrivate());
-  const factorPub = getPubKeyPoint(factorKey);
-  return { private: factorKey, pub: factorPub };
+  const keyPair = factorKeyCurve.genKeyPair();
+  const pub = Point.fromElliptic(keyPair.getPublic());
+  return { private: keyPair.getPrivate(), pub };
 };
 
 export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number, nodeIndexes: number[]) => {
@@ -66,95 +69,6 @@ export function parseToken(token: string) {
   return JSON.parse(safeatob(payload));
 }
 
-/**
- * Refreshes TSS shares. Allows to change number of shares. New user shares are
- * only produced for the target indices.
- * @param tKey - Tkey instance to use.
- * @param factorPubs - Factor pub keys after refresh.
- * @param tssIndices - Target tss indices to generate new shares for.
- * @param factorKeyForExistingTSSShare - Factor key for existing TSS share.
- * @param signatures - Signatures for authentication against RSS servers.
- */
-async function refreshTssShares(
-  tKey: ThresholdKey,
-  factorPubs: Point[],
-  tssIndices: number[],
-  factorKeyForExistingTSSShare: BN,
-  signatures: string[],
-  updateMetadata = false
-) {
-  const { tssShare, tssIndex } = await tKey.getTSSShare(factorKeyForExistingTSSShare);
-
-  const rssNodeDetails = await tKey._getRssNodeDetails();
-  const { serverEndpoints, serverPubKeys, serverThreshold } = rssNodeDetails;
-  const randomSelectedServers = randomSelection(
-    new Array(rssNodeDetails.serverEndpoints.length).fill(null).map((_, i) => i + 1),
-    Math.ceil(rssNodeDetails.serverEndpoints.length / 2)
-  );
-
-  const verifierNameVerifierId = tKey.serviceProvider.getVerifierNameVerifierId();
-  await tKey._refreshTSSShares(updateMetadata, tssShare, tssIndex, factorPubs, tssIndices, verifierNameVerifierId, {
-    selectedServers: randomSelectedServers,
-    serverEndpoints,
-    serverPubKeys,
-    serverThreshold,
-    authSignatures: signatures,
-  });
-}
-
-export async function addFactorAndRefresh(
-  tKey: ThresholdKey,
-  newFactorPub: Point,
-  newFactorTSSIndex: number,
-  factorKeyForExistingTSSShare: BN,
-  signatures: string[]
-) {
-  if (!tKey) {
-    throw CoreKitError.tkeyInstanceUninitialized(
-      "'tkey' instance is undefined. Ensure 'tKey' is initialized before attempting to add a factor public key."
-    );
-  }
-  if (VALID_TSS_INDICES.indexOf(newFactorTSSIndex) === -1) {
-    throw CoreKitError.newShareIndexInvalid(
-      `The new share index '${newFactorTSSIndex}' is not valid. It must be one of ${VALID_TSS_INDICES.join(", ")}.`
-    );
-  }
-  if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
-    throw CoreKitError.factorPubsMissing(`No 'factorPubs' array found for the specified 'tssTag' (${tKey.tssTag}).`);
-  }
-
-  const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
-  const updatedFactorPubs = existingFactorPubs.concat([newFactorPub]);
-
-  const existingTSSIndexes = existingFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
-  const updatedTSSIndexes = existingTSSIndexes.concat([newFactorTSSIndex]);
-
-  await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
-}
-
-export async function deleteFactorAndRefresh(tKey: ThresholdKey, factorPubToDelete: Point, factorKeyForExistingTSSShare: BN, signatures: string[]) {
-  if (!tKey) {
-    throw CoreKitError.tkeyInstanceUninitialized(
-      "'tkey' instance is undefined. Ensure 'tKey' is initialized before attempting to delete a factor public key."
-    );
-  }
-  if (!tKey.metadata.factorPubs || !Array.isArray(tKey.metadata.factorPubs[tKey.tssTag])) {
-    throw CoreKitError.factorPubsMissing(`No 'factorPubs' array found for the specified 'tssTag' (${tKey.tssTag}).`);
-  }
-
-  const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
-  const factorIndex = existingFactorPubs.findIndex((p) => p.x.eq(factorPubToDelete.x));
-  if (factorIndex === -1) {
-    throw CoreKitError.factorPubsMissing(`The specified factorPub (${factorPubToDelete}) does not exist.`);
-  }
-
-  const updatedFactorPubs = existingFactorPubs.slice();
-  updatedFactorPubs.splice(factorIndex, 1);
-  const updatedTSSIndexes = updatedFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
-
-  await refreshTssShares(tKey, updatedFactorPubs, updatedTSSIndexes, factorKeyForExistingTSSShare, signatures);
-}
-
 export const getHashedPrivateKey = (postboxKey: string, clientId: string): BN => {
   const uid = `${postboxKey}_${clientId}`;
   let hashUid = keccak256(Buffer.from(uid, "utf8"));
@@ -163,11 +77,112 @@ export const getHashedPrivateKey = (postboxKey: string, clientId: string): BN =>
 };
 
 /**
- * Converts a elliptic curve scalar represented by a BN to a byte buffer in SEC1
+ * Converts an elliptic curve scalar represented by a BN to a byte buffer in SEC1
  * format (i.e., padded to maximum length).
  * @param s - The scalar of type BN.
  * @returns The SEC1 encoded representation of the scalar.
  */
 export function scalarBNToBufferSEC1(s: BN): Buffer {
   return s.toArrayLike(Buffer, "be", SCALAR_LEN);
+}
+
+export interface ServerEndpoint {
+  index: number;
+  url: string;
+}
+
+export function sampleEndpoints(endpoints: ServerEndpoint[], n: number): ServerEndpoint[] {
+  if (n > endpoints.length) {
+    throw new Error("Invalid number of endpoints");
+  }
+  const shuffledEndpoints = endpoints.slice().sort(() => Math.random() - 0.5);
+  return shuffledEndpoints.slice(0, n).sort((a, b) => a.index - b.index);
+}
+
+export function fraction(curve: EllipticCurve, nom: BN, denom: BN): BN {
+  return nom.mul(denom.invm(curve.n)).umod(curve.n);
+}
+
+export function lagrangeCoefficient(curve: EllipticCurve, xCoords: BN[], targetCoeff: number, targetX: BN): BN {
+  return xCoords
+    .filter((_, i) => i !== targetCoeff)
+    .reduce((prev, cur) => {
+      const frac = fraction(curve, targetX.sub(cur), xCoords[targetCoeff].sub(cur));
+      return prev.mul(frac).umod(curve.n);
+    }, new BN(1));
+}
+
+export function lagrangeCoefficients(curve: EllipticCurve, xCoords: BN[] | number[], targetX: BN | number): BN[] {
+  const xCoordsBN = xCoords.map((i) => new BN(i));
+  const targetXBN = new BN(targetX);
+  return xCoordsBN.map((_value, i) => lagrangeCoefficient(curve, xCoordsBN, i, targetXBN));
+}
+
+const SERVER_INDEX_L1 = 1;
+const CLIENT_INDEX_L1 = 2;
+
+/**
+ * Derive share coefficients for client and servers.
+ *
+ * @param curve - The curve to be used.
+ * @param serverXCoords - The x-coordinates of the selected servers.
+ * @returns - The share coefficients for the client and the servers, and the
+ * remapped x-coordinate of the client.
+ */
+export function deriveShareCoefficients(
+  ec: EllipticCurve,
+  serverXCoords: number[],
+  clientXCoord: number
+): { serverCoefficients: BN[]; clientCoefficient: BN } {
+  const l1Coefficients = lagrangeCoefficients(ec, [SERVER_INDEX_L1, CLIENT_INDEX_L1], 0);
+  const l2Coefficients = lagrangeCoefficients(ec, serverXCoords, 0);
+
+  if (serverXCoords.includes(clientXCoord)) {
+    throw new Error(`Invalid server x-coordinates: overlapping with client x-coordinate: ${serverXCoords} ${clientXCoord}`);
+  }
+
+  const targetCoefficients = lagrangeCoefficients(ec, [clientXCoord, ...serverXCoords], 0);
+
+  // Derive server coefficients.
+  const serverCoefficients = l2Coefficients.map((coeff, i) => fraction(ec, l1Coefficients[0].mul(coeff), targetCoefficients[i + 1]));
+
+  // Derive client coefficient.
+  const clientCoefficient = fraction(ec, l1Coefficients[1], targetCoefficients[0]);
+
+  return {
+    serverCoefficients,
+    clientCoefficient,
+  };
+}
+
+export function generateSessionNonce() {
+  return keccak256(Buffer.from(generatePrivateBN().toString("hex") + Date.now(), "utf8"));
+}
+
+export function getSessionId(verifier: string, verifierId: string, tssTag: string, tssNonce: number, sessionNonce: string) {
+  return `${verifier}${DELIMITERS.Delimiter1}${verifierId}${DELIMITERS.Delimiter2}${tssTag}${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}${sessionNonce}`;
+}
+
+export function sigToRSV(sig: Buffer) {
+  if (sig.length !== 65) {
+    throw new Error(`Invalid signature length: expected 65, got ${sig.length}`);
+  }
+
+  return { r: sig.subarray(0, 32), s: sig.subarray(32, 64), v: sig[64] };
+}
+
+export function makeEthereumSigner(kit: CoreKitSigner): EthereumSigner {
+  if (kit.keyType !== KeyType.secp256k1) {
+    throw new Error(`Invalid key type: expected secp256k1, got ${kit.keyType}`);
+  }
+  return {
+    sign: async (msgHash: Buffer) => {
+      const sig = await kit.sign(msgHash);
+      return sigToRSV(sig);
+    },
+    getPublic: async () => {
+      const pk = Point.fromSEC1(secp256k1, (await kit.getPubKey()).toString("hex"));
+      return pk.toSEC1(secp256k1).subarray(1);
+    },
+  };
 }

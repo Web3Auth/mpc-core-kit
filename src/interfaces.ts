@@ -1,5 +1,5 @@
-import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey-mpc/common-types";
-import ThresholdKey from "@tkey-mpc/core";
+import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
@@ -27,6 +27,8 @@ export interface IAsyncStorage {
 }
 
 export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
+
+export type TssLib = { keyType: string; lib: unknown };
 
 export interface InitParams {
   /**
@@ -74,6 +76,7 @@ export type MPCKeyDetails = {
   requiredFactors: number;
   totalFactors: number;
   shareDescriptions: ShareDescriptionMap;
+  keyType: KeyType;
   tssPubKey?: TkeyPoint;
 };
 
@@ -140,7 +143,7 @@ export interface IdTokenLoginParams {
 }
 
 export interface Web3AuthState {
-  oAuthKey?: string;
+  postBoxKey?: string;
   signatures?: string[];
   userInfo?: UserInfo;
   tssShareIndex?: number;
@@ -154,7 +157,7 @@ export interface ICoreKit {
    * The tKey instance, if initialized.
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
-  tKey: ThresholdKey | null;
+  tKey: TKeyTSS | null;
 
   /**
    * Signatures generated from the OAuth Login.
@@ -273,6 +276,11 @@ export interface Web3AuthOptions {
   web3AuthClientId: string;
 
   /**
+   * The threshold signing library to use.
+   */
+  tssLib: TssLib;
+
+  /**
    * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.
    */
   chainConfig?: CustomChainConfig;
@@ -371,14 +379,6 @@ export interface Web3AuthOptions {
   disableHashedFactorKey?: boolean;
 
   /**
-   * @defaultValue `null`
-   * Overwrite tss-lib for nodejs.
-   * Required for nodejs mode.
-   * Do not use this option for non nodejs mode.
-   */
-  tssLib?: unknown;
-
-  /**
    * @defaultValue `Web3AuthOptions.web3AuthClientId`
    * Overwrites the default value ( clientId ) used as nonce for hashing the hash factor key.
    *
@@ -395,7 +395,11 @@ export interface Web3AuthOptions {
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
 export interface SessionData {
-  oAuthKey: string;
+  /**
+   * @deprecated Use `postBoxKey` instead.
+   */
+  oAuthKey?: string;
+  postBoxKey?: string;
   factorKey: string;
   tssShareIndex: number;
   tssPubKey: string;
@@ -405,4 +409,21 @@ export interface SessionData {
 
 export interface TkeyLocalStoreData {
   factorKey: string;
+}
+
+export interface CoreKitSigner {
+  keyType: KeyType;
+  sign(data: Buffer, hashed?: boolean): Promise<Buffer>;
+  getPubKey(): Buffer;
+}
+
+export interface EthSig {
+  v: number;
+  r: Buffer;
+  s: Buffer;
+}
+
+export interface EthereumSigner {
+  sign: (msgHash: Buffer) => Promise<EthSig>;
+  getPublic: () => Promise<Buffer>;
 }

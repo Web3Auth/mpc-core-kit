@@ -1,16 +1,15 @@
-/* eslint-disable mocha/handle-done-callback */
-import assert, { strictEqual } from "node:assert";
+import assert from "node:assert";
 import test from "node:test";
 
-import { Point } from "@tkey-mpc/common-types";
+import { EllipticPoint } from "@tkey/common-types";
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
 import { keccak256 } from "@toruslabs/metadata-helpers";
-import * as TssLib from "@toruslabs/tss-lib-node";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import { ec as EC } from "elliptic";
 
-import { AsyncStorage, COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
-import { criticalResetAccount, mockLogin, mockLogin2, stringGen } from "./setup";
+import { AsyncStorage, COREKIT_STATUS, MemoryStorage, sigToRSV, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { bufferToElliptic, criticalResetAccount, mockLogin, mockLogin2, stringGen } from "./setup";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -49,14 +48,14 @@ variable.forEach((testVariable) => {
       web3AuthNetwork,
       baseUrl: "http://localhost:3000",
       uxMode,
-      tssLib: TssLib,
+      tssLib,
       storage: storageInstance,
       manualSync,
     });
 
   const testNameSuffix = JSON.stringify(testVariable);
 
-  let checkPubKey: Point;
+  let checkPubKey: EllipticPoint;
   let checkTssShare: BN;
 
   test(`#Login Test with JWT + logout :  ${testNameSuffix}`, async (t) => {
@@ -66,7 +65,7 @@ variable.forEach((testVariable) => {
         web3AuthNetwork,
         baseUrl: "http://localhost:3000",
         uxMode,
-        tssLib: TssLib,
+        tssLib,
         storage: storageInstance,
         manualSync,
       });
@@ -96,7 +95,7 @@ variable.forEach((testVariable) => {
       // get key details
       await checkLogin(coreKitInstance);
 
-      checkPubKey = coreKitInstance.getTssPublicKey();
+      checkPubKey = bufferToElliptic(coreKitInstance.getPubKey());
       const factorkey = coreKitInstance.getCurrentFactorKey();
       const { tssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
         threshold: 0,
@@ -136,12 +135,11 @@ variable.forEach((testVariable) => {
 
       // get key details
       await checkLogin(coreKitInstance);
-      const newPubKey = coreKitInstance.getTssPublicKey();
+      const newPubKey = bufferToElliptic(coreKitInstance.getPubKey());
       const factorkey = coreKitInstance.getCurrentFactorKey();
       const { tssShare: newTssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"));
-      strictEqual(checkPubKey.x.toString("hex"), newPubKey.x.toString("hex"));
-      strictEqual(checkPubKey.y.toString("hex"), newPubKey.y.toString("hex"));
-      strictEqual(checkTssShare.toString("hex"), newTssShare.toString("hex"));
+      assert(checkPubKey.eq(newPubKey));
+      assert(checkTssShare.eq(newTssShare));
     });
 
     await t.test("#able to sign", async function () {
@@ -156,13 +154,18 @@ variable.forEach((testVariable) => {
       const msg = "hello world";
       const msgBuffer = Buffer.from(msg);
       const msgHash = keccak256(msgBuffer);
-      const signature = await coreKitInstance.sign(msgHash);
-
       const secp256k1 = new EC("secp256k1");
-      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v);
-      const publicKeyPoint = coreKitInstance.getTssPublicKey();
-      assert.strictEqual(pubkey.x.toString("hex"), publicKeyPoint.x.toString("hex"));
-      assert.strictEqual(pubkey.y.toString("hex"), publicKeyPoint.y.toString("hex"));
+
+      // Sign hash.
+      const signature = sigToRSV(await coreKitInstance.sign(msgHash, true));
+      const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v) as EllipticPoint;
+      const publicKeyPoint = bufferToElliptic(coreKitInstance.getPubKey());
+      assert(pubkey.eq(publicKeyPoint));
+
+      // Sign full message.
+      const signature2 = sigToRSV(await coreKitInstance.sign(msgBuffer));
+      const pubkey2 = secp256k1.recoverPubKey(msgHash, signature2, signature2.v) as EllipticPoint;
+      assert(pubkey2.eq(publicKeyPoint));
     });
 
     await t.test("#Login and sign with different account/wallet index", async function () {
@@ -183,12 +186,11 @@ variable.forEach((testVariable) => {
       const msg = "hello world 1";
       const msgBuffer = Buffer.from(msg);
       const msgHash = keccak256(msgBuffer);
-      const signature1 = await coreKitInstance.sign(msgHash);
+      const signature1 = sigToRSV(await coreKitInstance.sign(msgHash, true));
 
       const pubkeyIndex0 = secp256k1.recoverPubKey(msgHash, signature1, signature1.v);
-      const publicKeyPoint0 = coreKitInstance.getTssPublicKey();
-      assert.strictEqual(pubkeyIndex0.x.toString("hex"), publicKeyPoint0.x.toString("hex"));
-      assert.strictEqual(pubkeyIndex0.y.toString("hex"), publicKeyPoint0.y.toString("hex"));
+      const publicKeyPoint0 = bufferToElliptic(coreKitInstance.getPubKey());
+      assert(pubkeyIndex0.eq(publicKeyPoint0));
 
       await coreKitInstance.setTssWalletIndex(1);
 
@@ -196,12 +198,11 @@ variable.forEach((testVariable) => {
       const msgBuffer1 = Buffer.from(msg1);
       const msgHash1 = keccak256(msgBuffer1);
 
-      const signature2 = await coreKitInstance.sign(msgHash1);
+      const signature2 = sigToRSV(await coreKitInstance.sign(msgHash1, true));
 
-      const pubkeyIndex1 = secp256k1.recoverPubKey(msgHash1, signature2, signature2.v);
-      const publicKeyPoint1 = coreKitInstance.getTssPublicKey();
-      assert.strictEqual(pubkeyIndex1.x.toString("hex"), publicKeyPoint1.x.toString("hex"));
-      assert.strictEqual(pubkeyIndex1.y.toString("hex"), publicKeyPoint1.y.toString("hex"));
+      const pubkeyIndex1 = secp256k1.recoverPubKey(msgHash1, signature2, signature2.v) as EllipticPoint;
+      const publicKeyPoint1 = bufferToElliptic(coreKitInstance.getPubKey());
+      assert(pubkeyIndex1.eq(publicKeyPoint1));
 
       await checkLogin(coreKitInstance, 1);
 
@@ -210,22 +211,17 @@ variable.forEach((testVariable) => {
       const msg2 = "hello world 3";
       const msgBuffer2 = Buffer.from(msg2);
       const msgHash2 = keccak256(msgBuffer2);
-      const signature3 = await coreKitInstance.sign(msgHash2);
+      const signature3 = sigToRSV(await coreKitInstance.sign(msgHash2, true));
 
-      const pubkeyIndex2 = secp256k1.recoverPubKey(msgHash2, signature3, signature3.v);
-      const publicKeyPoint2 = coreKitInstance.getTssPublicKey();
-      assert.strictEqual(pubkeyIndex2.x.toString("hex"), publicKeyPoint2.x.toString("hex"));
-      assert.strictEqual(pubkeyIndex2.y.toString("hex"), publicKeyPoint2.y.toString("hex"));
+      const pubkeyIndex2 = secp256k1.recoverPubKey(msgHash2, signature3, signature3.v) as EllipticPoint;
+      const publicKeyPoint2 = bufferToElliptic(coreKitInstance.getPubKey());
+      assert(pubkeyIndex2.eq(publicKeyPoint2));
 
       await checkLogin(coreKitInstance, 2);
 
-      assert.notEqual(publicKeyPoint0.x.toString("hex"), publicKeyPoint1.x.toString("hex"));
-      assert.notEqual(publicKeyPoint0.x.toString("hex"), publicKeyPoint2.x.toString("hex"));
-      assert.notEqual(publicKeyPoint1.x.toString("hex"), publicKeyPoint2.x.toString("hex"));
-
-      assert.notEqual(publicKeyPoint0.y.toString("hex"), publicKeyPoint1.y.toString("hex"));
-      assert.notEqual(publicKeyPoint0.y.toString("hex"), publicKeyPoint2.y.toString("hex"));
-      assert.notEqual(publicKeyPoint1.y.toString("hex"), publicKeyPoint2.y.toString("hex"));
+      assert(!publicKeyPoint0.eq(publicKeyPoint1));
+      assert(!publicKeyPoint0.eq(publicKeyPoint2));
+      assert(!publicKeyPoint1.eq(publicKeyPoint2));
 
       if (manualSync) {
         await coreKitInstance.commitChanges();
@@ -241,20 +237,15 @@ variable.forEach((testVariable) => {
       });
 
       coreKitInstance.setTssWalletIndex(0);
-      const pubkey3index0 = coreKitInstance3.getTssPublicKey();
+      const pubkey3index0 = bufferToElliptic(coreKitInstance3.getPubKey());
       coreKitInstance3.setTssWalletIndex(1);
-      const pubkey3index1 = coreKitInstance3.getTssPublicKey();
+      const pubkey3index1 = bufferToElliptic(coreKitInstance3.getPubKey());
       coreKitInstance3.setTssWalletIndex(2);
-      const pubkey3index2 = coreKitInstance3.getTssPublicKey();
+      const pubkey3index2 = bufferToElliptic(coreKitInstance3.getPubKey());
 
-      assert.strictEqual(pubkeyIndex0.x.toString("hex"), pubkey3index0.x.toString("hex"));
-      assert.strictEqual(pubkeyIndex0.y.toString("hex"), pubkey3index0.y.toString("hex"));
-
-      assert.strictEqual(pubkeyIndex1.x.toString("hex"), pubkey3index1.x.toString("hex"));
-      assert.strictEqual(pubkeyIndex1.y.toString("hex"), pubkey3index1.y.toString("hex"));
-
-      assert.strictEqual(pubkeyIndex2.x.toString("hex"), pubkey3index2.x.toString("hex"));
-      assert.strictEqual(pubkeyIndex2.y.toString("hex"), pubkey3index2.y.toString("hex"));
+      assert(pubkeyIndex0.eq(pubkey3index0));
+      assert(pubkeyIndex1.eq(pubkey3index1));
+      assert(pubkeyIndex2.eq(pubkey3index2));
     });
   });
 });
