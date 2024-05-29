@@ -156,7 +156,8 @@ function App() {
         verifier: 'torus-test-health',
         verifierId: parsedToken.email,
         idToken,
-      }, {prefetchTssPublicKeys: 1} );
+        prefetchTssPublicKeys: 1
+      });
 
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await setupProvider();

@@ -39,9 +39,9 @@ import {
   CreateFactorParams,
   EnableMFAParams,
   ICoreKit,
-  IdTokenLoginParams,
   IFactorKey,
   InitParams,
+  JWTLoginParams,
   MPCKeyDetails,
   OauthLoginParams,
   SessionData,
@@ -364,46 +364,37 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  /**
-   * login with JWT.
-   * @param idTokenLoginParams - login parameter required by web3auth for login with JWT.
-   * @param opt - prefetchTssPublicKeys - option prefetch server tssPubs for new user registration.
-   *              For best performance, set it to the number of factor you want to create for new user. Set it 0 for existing user.
-   *              default is 1, max value is 3
-   */
-  public async loginWithJWT(
-    idTokenLoginParams: IdTokenLoginParams,
-    opt: { prefetchTssPublicKeys: number } = { prefetchTssPublicKeys: 1 }
-  ): Promise<void> {
+  public async loginWithJWT(params: JWTLoginParams): Promise<void> {
     this.checkReady();
-    if (opt.prefetchTssPublicKeys > 3) {
-      throw CoreKitError.prefetchValueExceeded(`The prefetch value '${opt.prefetchTssPublicKeys}' exceeds the maximum allowed limit of 3.`);
+    const { prefetchTssPublicKeys = 1 } = params;
+    if (prefetchTssPublicKeys > 3) {
+      throw CoreKitError.prefetchValueExceeded(`The prefetch value '${prefetchTssPublicKeys}' exceeds the maximum allowed limit of 3.`);
     }
 
-    const { importTssKey } = idTokenLoginParams;
-    const { verifier, verifierId, idToken } = idTokenLoginParams;
+    const { verifier, verifierId, idToken, importTssKey } = params;
 
     this.torusSp.verifierName = verifier;
     this.torusSp.verifierId = verifierId;
 
     try {
-      // prefetch tss pub key
+      // prefetch tss pub keys.
       const prefetchTssPubs = [];
-      for (let i = 0; i < opt.prefetchTssPublicKeys; i++) {
-        prefetchTssPubs.push(this.torusSp.getTSSPubKey("default", i));
+      for (let i = 0; i < prefetchTssPublicKeys; i++) {
+        prefetchTssPubs.push(this.torusSp.getTSSPubKey(this.tkey.tssTag, i));
       }
-      // oAuth login.
+
+      // get postbox key.
       let loginResponse: TorusKey;
-      if (!idTokenLoginParams.subVerifier) {
+      if (!params.subVerifier) {
         // single verifier login.
         loginResponse = await this.torusSp.customAuthInstance.getTorusKey(verifier, verifierId, { verifier_id: verifierId }, idToken, {
-          ...idTokenLoginParams.extraVerifierParams,
-          ...idTokenLoginParams.additionalParams,
+          ...params.extraVerifierParams,
+          ...params.additionalParams,
         });
       } else {
         // aggregate verifier login
         loginResponse = await this.torusSp.customAuthInstance.getAggregateTorusKey(verifier, verifierId, [
-          { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
+          { verifier: params.subVerifier, idToken, extraVerifierParams: params.extraVerifierParams },
         ]);
       }
 
