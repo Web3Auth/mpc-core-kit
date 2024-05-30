@@ -38,7 +38,7 @@
     "@tkey/core": "13.0.0-alpha.1",
     "@tkey/share-serialization": "13.0.0-alpha.1",
     "@tkey/storage-layer-torus": "13.0.0-alpha.1",
-    "@tkey/tss": "13.0.0-alpha.2",
+    "@tkey/tss": "13.0.0-alpha.3",
     "@toruslabs/constants": "^13.3.0",
     "@toruslabs/customauth": "19.0.0-alpha.6",
     "@toruslabs/elliptic-wrapper": "^0.1.0",
