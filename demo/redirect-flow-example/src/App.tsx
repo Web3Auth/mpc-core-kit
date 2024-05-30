@@ -110,6 +110,7 @@ function App() {
       try {
         let result = securityQuestion.getQuestion(coreKitInstance!);
         setQuestion(result);
+        uiConsole("security question set");
       } catch (e) {
         uiConsole("security question not set");
       }
