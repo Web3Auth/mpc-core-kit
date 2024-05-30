@@ -85,6 +85,15 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       const tssCurve = coreKitInstance3.tKey.tssCurve;
       const exportedPub = tssCurve.keyFromPrivate(exportedTssKey3).getPublic();
       assert(tssPubkey.eq(exportedPub));
+
+      // Check exported key corresponds to pub key for account index > 0.
+      if (coreKitInstance3.supportsAccountIndex) {
+        coreKitInstance3.setTssWalletIndex(1);
+        const exportedTssKeyIndex1 = await coreKitInstance3._UNSAFE_exportTssKey();
+        const exportedPubIndex1 = tssCurve.keyFromPrivate(exportedTssKeyIndex1).getPublic();
+        const tssPubKeyIndex1 = bufferToElliptic(coreKitInstance3.getPubKey());
+        assert(exportedPubIndex1.eq(tssPubKeyIndex1));
+      }
     });
 
     t.afterEach(function () {
