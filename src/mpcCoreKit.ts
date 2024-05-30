@@ -788,6 +788,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tKeyLocalStore.factorKey;
   }
 
+  /**
+   * WARNING: Use with caution. This will export the private key.
+   *
+   * Exports the private signing key for the current account index.
+   */
   public async _UNSAFE_exportTssKey(): Promise<string> {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss key.");
@@ -796,12 +801,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.signaturesNotPresent("Signatures not present in state when exporting tss key.");
     }
 
-    const exportTssKey = await this.tKey._UNSAFE_exportTssKey({
+    const exportTssKey0 = await this.tKey._UNSAFE_exportTssKey({
       factorKey: this.state.factorKey,
       authSignatures: this.state.signatures,
     });
 
-    return exportTssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
+    const accountNonce = this.getAccountNonce();
+    const tssKey = exportTssKey0.add(accountNonce).umod(this.tKey.tssCurve.n);
+
+    return tssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
   }
 
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
