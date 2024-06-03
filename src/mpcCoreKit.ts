@@ -14,13 +14,11 @@ import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
 import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
-import { CHAIN_NAMESPACES, log } from "@web3auth/base";
 import BN from "bn.js";
 import bowser from "bowser";
 import { ec as EC } from "elliptic";
 
 import {
-  DEFAULT_CHAIN_CONFIG,
   ERRORS,
   FactorKeyTypeShareDescription,
   FIELD_ELEMENT_HEX_LEN,
@@ -61,6 +59,7 @@ import {
   generateTSSEndpoints,
   getHashedPrivateKey,
   getSessionId,
+  log,
   parseToken,
   sampleEndpoints,
   scalarBNToBufferSEC1,
@@ -94,10 +93,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private _keyType: KeyType;
 
   constructor(options: Web3AuthOptions) {
-    if (!options.chainConfig) options.chainConfig = DEFAULT_CHAIN_CONFIG;
-    if (options.chainConfig.chainNamespace !== CHAIN_NAMESPACES.EIP155) {
-      throw CoreKitError.chainConfigInvalid();
-    }
     if (!options.web3AuthClientId) {
       throw CoreKitError.clientIdInvalid();
     }

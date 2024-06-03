@@ -9,7 +9,6 @@ import type {
   TorusVerifierResponse,
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
-import { CustomChainConfig } from "@web3auth/base";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
@@ -286,11 +285,6 @@ export interface Web3AuthOptions {
    * The threshold signing library to use.
    */
   tssLib: TssLib;
-
-  /**
-   * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.
-   */
-  chainConfig?: CustomChainConfig;
 
   /**
    * @defaultValue `false`
