@@ -3,7 +3,6 @@ import test from "node:test";
 
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
-import { log } from "@web3auth/base";
 
 import { AsyncStorage, MemoryStorage, TssLib, TssShareType, WEB3AUTH_NETWORK } from "../src";
 import { bufferToElliptic, criticalResetAccount, newCoreKitLogInInstance } from "./setup";
@@ -88,10 +87,10 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
     });
 
     t.afterEach(function () {
-      return log.info("finished running recovery test");
+      return console.info("finished running recovery test");
     });
     t.after(function () {
-      return log.info("finished running recovery tests");
+      return console.info("finished running recovery tests");
     });
   });
 };

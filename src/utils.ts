@@ -6,6 +6,7 @@ import { safeatob } from "@toruslabs/openlogin-utils";
 import { keccak256 } from "@toruslabs/torus.js";
 import BN from "bn.js";
 import { eddsa as EDDSA } from "elliptic";
+import loglevel from "loglevel";
 
 import { DELIMITERS, SCALAR_LEN } from "./constants";
 import { CoreKitSigner, EthereumSigner, IAsyncStorage, IStorage } from "./interfaces";
@@ -186,3 +187,6 @@ export function makeEthereumSigner(kit: CoreKitSigner): EthereumSigner {
     },
   };
 }
+
+export const log = loglevel.getLogger("mpc-core-kit");
+log.disableAll();
