@@ -1200,7 +1200,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
-      tssPubKey = tssPubKey.subarray(1);
+      // Buffer is needed as react native buffer polyfill not able to polyfill subarray function
+      tssPubKey = Buffer.from(tssPubKey.subarray(1));
     }
 
     // session is needed for authentication to the web3auth infrastructure holding the factor 1
