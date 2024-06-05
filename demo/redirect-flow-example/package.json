@@ -13,6 +13,7 @@
     "@types/node": "^16.18.48",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
+    "@web3auth/base": "^8.6.2",
     "@web3auth/ethereum-mpc-provider": "^8.4.0",
     "@web3auth/mpc-core-kit": "file:../..",
     "browserify-zlib": "^0.2.0",
@@ -67,6 +68,7 @@
     "react-app-rewired": "^2.2.1",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",
-    "url": "^0.11.1"
+    "url": "^0.11.1",
+    "vm-browserify": "^1.1.2"
   }
 }

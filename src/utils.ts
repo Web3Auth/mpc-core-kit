@@ -178,11 +178,11 @@ export function makeEthereumSigner(kit: CoreKitSigner): EthereumSigner {
   }
   return {
     sign: async (msgHash: Buffer) => {
-      const sig = await kit.sign(msgHash);
+      const sig = await kit.sign(msgHash, true);
       return sigToRSV(sig);
     },
     getPublic: async () => {
-      const pk = Point.fromSEC1(secp256k1, (await kit.getPubKey()).toString("hex"));
+      const pk = Point.fromSEC1(secp256k1, kit.getPubKey().toString("hex"));
       return pk.toSEC1(secp256k1).subarray(1);
     },
   };

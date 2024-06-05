@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, SubVerifierDetailsParams, TssShareType, keyToMnemonic, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, DEFAULT_CHAIN_CONFIG, factorKeyCurve, makeEthereumSigner } from "@web3auth/mpc-core-kit";
+import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, SubVerifierDetailsParams, TssShareType, keyToMnemonic, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, factorKeyCurve, makeEthereumSigner } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import type { provider } from "web3-core";
 import { CHAIN_NAMESPACES, CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
@@ -22,6 +22,17 @@ const uiConsole = (...args: any[]): void => {
 };
 
 const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
+
+const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
+  chainNamespace: CHAIN_NAMESPACES.EIP155,
+  chainId: "0xaa36a7",
+  rpcTarget: "https://rpc.ankr.com/eth_sepolia",
+  displayName: "Ethereum Sepolia Testnet",
+  blockExplorerUrl: "https://sepolia.etherscan.io",
+  ticker: "ETH",
+  tickerName: "Ethereum",
+  decimals: 18,
+}
 
 const coreKitInstance = new Web3AuthMPCCoreKit(
   {
@@ -66,7 +77,7 @@ function App() {
 
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
   const [provider, setProvider] = useState<SafeEventEmitterProvider | null>(null);
-  const [web3, setWeb3] = useState<any>(undefined)
+  const [web3, setWeb3] = useState<Web3|undefined>(undefined)
   const [exportTssShareType, setExportTssShareType] = useState<TssShareType>(TssShareType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
   const [coreKitStatus, setCoreKitStatus] = useState<COREKIT_STATUS>(COREKIT_STATUS.NOT_INITIALIZED);
@@ -81,7 +92,7 @@ function App() {
       console.warn(`Ethereum requires keytype ${KeyType.secp256k1}, skipping provider setup`);
       return;
     }
-    let localProvider = new EthereumSigningProvider({ config: { chainConfig: chainConfig || DEFAULT_CHAIN_CONFIG } });
+    let localProvider = new EthereumSigningProvider({ config: { chainConfig: chainConfig || DEFAULT_CHAIN_CONFIG} });
     localProvider.setupProvider(makeEthereumSigner(coreKitInstance));
     setProvider(localProvider);
   }
@@ -110,6 +121,7 @@ function App() {
       try {
         let result = securityQuestion.getQuestion(coreKitInstance!);
         setQuestion(result);
+        uiConsole("security question set");
       } catch (e) {
         uiConsole("security question not set");
       }
@@ -156,7 +168,8 @@ function App() {
         verifier: 'torus-test-health',
         verifierId: parsedToken.email,
         idToken,
-      }, {prefetchTssPublicKeys: 1} );
+        prefetchTssPublicKeys: 1
+      });
 
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await setupProvider();
@@ -448,7 +461,7 @@ function App() {
     //   throw new Error("reset account is not recommended on mainnet");
     // }
     await coreKitInstance.tKey.storageLayer.setMetadata({
-      privKey: new BN(coreKitInstance.metadataKey!, "hex"),
+      privKey: new BN(coreKitInstance.state.postBoxKey!, "hex"),
       input: { message: "KEY_NOT_FOUND" },
     });
     uiConsole('reset');
