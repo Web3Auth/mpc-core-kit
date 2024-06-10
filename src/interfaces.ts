@@ -79,7 +79,7 @@ export type MPCKeyDetails = {
   tssPubKey?: TkeyPoint;
 };
 
-export type OauthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
+export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface EnableMFAParams {
@@ -196,7 +196,7 @@ export interface ICoreKit {
    * Login using OAuth flow and initialize all relevant components.
    * @param loginParams - Parameters for OAuth-based Login.
    */
-  loginWithOauth(loginParams: OauthLoginParams): Promise<void>;
+  loginWithOAuth(loginParams: OAuthLoginParams): Promise<void>;
 
   /**
    * Login using JWT Token and initialize all relevant components.

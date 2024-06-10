@@ -41,7 +41,7 @@ import {
   InitParams,
   JWTLoginParams,
   MPCKeyDetails,
-  OauthLoginParams,
+  OAuthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
@@ -308,7 +308,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
-  public async loginWithOauth(params: OauthLoginParams): Promise<void> {
+  public async loginWithOAuth(params: OAuthLoginParams): Promise<void> {
     this.checkReady();
     if (this.isNodejsOrRN(this.options.uxMode)) {
       throw CoreKitError.oauthLoginUnsupported(`Oauth login is NOT supported in ${this.options.uxMode} mode.`);
