@@ -1233,7 +1233,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     // Client lib expects pub key in XY-format, base64-encoded.
-    const tssPubKeyBase64 = tssPubKey.toSEC1(secp256k1).subarray(1).toString("base64");
+    const tssPubKeyBase64 = Buffer.from(tssPubKey.toSEC1(secp256k1).subarray(1)).toString("base64");
 
     const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKeyBase64, true, this._tssLib.lib);
 
