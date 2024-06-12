@@ -208,7 +208,7 @@ function App() {
         }
       } as SubVerifierDetailsParams;
 
-      await coreKitInstance.loginWithOauth(verifierConfig);
+      await coreKitInstance.loginWithOAuth(verifierConfig);
       setCoreKitStatus(coreKitInstance.status);
 
     } catch (error: unknown) {
