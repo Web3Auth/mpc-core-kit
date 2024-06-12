@@ -1,4 +1,4 @@
-import { ShareSerializationModule } from "@tkey-mpc/share-serialization";
+import { ShareSerializationModule } from "@tkey/share-serialization";
 import BN from "bn.js";
 
 /**

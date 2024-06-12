@@ -6,11 +6,16 @@
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
+    "@tkey/common-types": "^13.0.0-alpha.1",
+    "@toruslabs/tss-dkls-lib": "3.0.0-alpha.0",
+    "@toruslabs/tss-frost-lib": "0.1.1-alpha.0",
     "@types/jest": "^27.5.2",
     "@types/node": "^16.18.48",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
-    "@web3auth/mpc-core-kit": "file://../../",
+    "@web3auth/base": "^8.6.2",
+    "@web3auth/ethereum-mpc-provider": "^8.4.0",
+    "@web3auth/mpc-core-kit": "file:../..",
     "browserify-zlib": "^0.2.0",
     "copy-webpack-plugin": "^11.0.0",
     "html-webpack-plugin": "^5.5.3",
@@ -24,7 +29,7 @@
     "web3": "^1.8.1"
   },
   "scripts": {
-    "start": "react-app-rewired start",
+    "start": "BROWSER=none react-app-rewired start",
     "serve": "serve -s build",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
@@ -63,6 +68,7 @@
     "react-app-rewired": "^2.2.1",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",
-    "url": "^0.11.1"
+    "url": "^0.11.1",
+    "vm-browserify": "^1.1.2"
   }
 }

@@ -1,14 +1,20 @@
-/* eslint-disable mocha/handle-done-callback */
-/* eslint-disable no-console */
 import assert from "node:assert";
 import test from "node:test";
 
 // import { getPubKeyPoint } from "@tkey-mpc/common-types";
 import { UX_MODE_TYPE } from "@toruslabs/customauth";
-import * as TssLib from "@toruslabs/tss-lib-node";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 
-import { BrowserStorage, SupportedStorageType, TssSecurityQuestion, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import {
+  AsyncStorage,
+  MemoryStorage,
+  SupportedStorageType,
+  TssSecurityQuestion,
+  WEB3AUTH_NETWORK,
+  WEB3AUTH_NETWORK_TYPE,
+  Web3AuthMPCCoreKit,
+} from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
@@ -18,14 +24,16 @@ type TestVariable = {
   storage?: SupportedStorageType;
 };
 
+const storageInstance = new MemoryStorage();
 export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3AuthMPCCoreKit>, testVariable: TestVariable) => {
   test(`#Tss Security Question - ${testVariable.manualSync} `, async function (t) {
-    await t.before(async function () {
+    async function beforeTest() {
       const coreKitInstance = await newInstance();
       await criticalResetAccount(coreKitInstance);
       await coreKitInstance.logout();
-      BrowserStorage.getInstance("corekit_store", testVariable.storage).resetStore();
-    });
+
+      await new AsyncStorage(coreKitInstance._storageKey, storageInstance).resetStore();
+    }
     t.afterEach(function () {
       return console.log("finished running test");
     });
@@ -33,6 +41,7 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       return console.log("finished running tests");
     });
 
+    await beforeTest();
     await t.test("should work", async function () {
       // set security question
       const instance = await newInstance();
@@ -56,10 +65,7 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       // check factor
       await instance.tKey.getTSSShare(new BN(factor, "hex"));
       // check wrong answer
-      try {
-        await securityQuestion.recoverFactor(instance, "wrong answer");
-        throw new Error("should not reach here");
-      } catch {}
+      await assert.rejects(() => securityQuestion.recoverFactor(instance, "wrong answer"));
 
       // change factor
       await securityQuestion.changeSecurityQuestion({
@@ -90,25 +96,18 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       assert.strictEqual(newFactor, newFactor2);
       assert.strictEqual(newFactor, newFactor3);
 
-      try {
-        await instance.tKey.getTSSShare(new BN(factor, "hex"));
-        throw new Error("should not reach here");
-      } catch {}
+      await assert.rejects(() => instance.tKey.getTSSShare(new BN(factor, "hex")));
 
       // recover factor
       // check wrong answer
-      try {
-        await securityQuestion.recoverFactor(instance, answer);
-        throw new Error("should not reach here");
-      } catch {}
+      await assert.rejects(() => securityQuestion.recoverFactor(instance, answer));
 
       // delete factor
       await securityQuestion.deleteSecurityQuestion(instance);
+
       // recover factor
-      try {
-        await securityQuestion.recoverFactor(instance, answer);
-        throw new Error("should not reach here");
-      } catch {}
+      await assert.rejects(() => securityQuestion.recoverFactor(instance, newAnswer));
+      await assert.rejects(() => securityQuestion.recoverFactor(instance, answer));
 
       // input factor
       assert.strictEqual(true, true);
@@ -133,20 +132,18 @@ variable.forEach(async (testVariable) => {
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
-      tssLib: TssLib,
-      storageKey: "memory",
+      tssLib,
+      storage: storageInstance,
       manualSync: testVariable.manualSync,
     });
 
     const { idToken, parsedToken } = await mockLogin(email);
     await instance.init({ handleRedirectResult: false });
-    try {
-      await instance.loginWithJWT({
-        verifier: "torus-test-health",
-        verifierId: parsedToken.email,
-        idToken,
-      });
-    } catch (error) {}
+    await instance.loginWithJWT({
+      verifier: "torus-test-health",
+      verifierId: parsedToken.email,
+      idToken,
+    });
 
     return instance;
   };

@@ -1,71 +1,89 @@
-/* eslint-disable mocha/handle-done-callback */
 import assert from "node:assert";
 import test from "node:test";
 
-import * as TssLib from "@toruslabs/tss-lib-node";
-import { log } from "@web3auth/base";
+import { EllipticPoint, Point } from "@tkey/common-types";
+import { factorKeyCurve } from "@tkey/tss";
+import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
+import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 
-import {
-  asyncGetFactor,
-  COREKIT_STATUS,
-  getWebBrowserFactor,
-  IAsyncStorage,
-  MemoryStorage,
-  Point,
-  SupportedStorageType,
-  TssShareType,
-  WEB3AUTH_NETWORK,
-  Web3AuthMPCCoreKit,
-} from "../src";
-import { AsyncMemoryStorage, criticalResetAccount, mockLogin } from "./setup";
+import { COREKIT_STATUS, IAsyncStorage, IStorage, MemoryStorage, TssLib, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
+import { AsyncMemoryStorage, bufferToElliptic, criticalResetAccount, mockLogin } from "./setup";
 
 type FactorTestVariable = {
-  types: TssShareType;
   manualSync?: boolean;
-  storage?: SupportedStorageType;
-  asyncStorage?: IAsyncStorage;
+  storage?: IAsyncStorage | IStorage;
+  email: string;
+  tssLib?: TssLib;
 };
 
-//   const { types } = factor;
-export const FactorManipulationTest = async (
-  newInstance: (ignoreError?: boolean) => Promise<Web3AuthMPCCoreKit>,
-  testVariable: FactorTestVariable
-) => {
-  test(`#Factor manipulation - ${testVariable.types} `, async function (t) {
-    await t.before(async function () {
-      const coreKitInstance = await newInstance(true);
-      await criticalResetAccount(coreKitInstance);
-      await coreKitInstance.logout();
+function getPubKeys(kit: Web3AuthMPCCoreKit, indices: number[]): EllipticPoint[] {
+  if (!kit.supportsAccountIndex) {
+    indices = indices.filter((i) => i === 0);
+  }
+  const pubKeys = indices.map((i) => {
+    kit.setTssWalletIndex(i);
+    return bufferToElliptic(kit.getPubKey());
+  });
+  return pubKeys;
+}
+
+export const FactorManipulationTest = async (testVariable: FactorTestVariable) => {
+  const { email, tssLib } = testVariable;
+  const newInstance = async () => {
+    const instance = new Web3AuthMPCCoreKit({
+      web3AuthClientId: "torus-key-test",
+      web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
+      baseUrl: "http://localhost:3000",
+      uxMode: "nodejs",
+      tssLib: tssLib || tssLibDKLS,
+      storage: testVariable.storage,
+      manualSync: testVariable.manualSync,
     });
 
-    await t.test("should able to create factor", async function () {
+    const { idToken, parsedToken } = await mockLogin(email);
+    await instance.init({ handleRedirectResult: false, rehydrate: false });
+    await instance.loginWithJWT({
+      verifier: "torus-test-health",
+      verifierId: parsedToken.email,
+      idToken,
+    });
+    return instance;
+  };
+
+  async function beforeTest() {
+    const resetInstance = await newInstance();
+    await criticalResetAccount(resetInstance);
+    await resetInstance.logout();
+  }
+
+  await test(`#Factor manipulation - manualSync ${testVariable.manualSync} `, async function (t) {
+    await beforeTest();
+
+    await t.test("should be able to create factor", async function () {
       const coreKitInstance = await newInstance();
-      coreKitInstance.setTssWalletIndex(1);
+      assert.equal(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
 
-      coreKitInstance.setTssWalletIndex(0);
-      const tssPubKeyIndex0 = coreKitInstance.getTssPublicKey();
-
-      coreKitInstance.setTssWalletIndex(1);
-      const tssPubKeyIndex1 = coreKitInstance.getTssPublicKey();
-
-      coreKitInstance.setTssWalletIndex(99);
-      const tssPubKeyIndex99 = coreKitInstance.getTssPublicKey();
+      if (coreKitInstance.supportsAccountIndex) {
+        coreKitInstance.setTssWalletIndex(1);
+      }
+      const tssPubKeys = getPubKeys(coreKitInstance, [0, 1, 99]);
 
       const firstFactor = coreKitInstance.getCurrentFactorKey();
       // try delete hash factor factor
-      try {
-        const pt = Point.fromPrivateKey(firstFactor.factorKey);
-        await coreKitInstance.deleteFactor(pt.toTkeyPoint());
-        throw new Error("should not reach here");
-      } catch {}
+      await assert.rejects(async () => {
+        const pt = Point.fromScalar(firstFactor.factorKey, factorKeyCurve);
+        await coreKitInstance.deleteFactor(pt);
+      });
 
       // create factor
       const factorKey1 = await coreKitInstance.createFactor({
         shareType: TssShareType.DEVICE,
       });
 
-      coreKitInstance.setTssWalletIndex(2);
+      if (coreKitInstance.supportsAccountIndex) {
+        coreKitInstance.setTssWalletIndex(2);
+      }
       const factorKey2 = await coreKitInstance.createFactor({
         shareType: TssShareType.RECOVERY,
       });
@@ -75,14 +93,7 @@ export const FactorManipulationTest = async (
         await coreKitInstance.commitChanges();
       }
 
-      coreKitInstance.setTssWalletIndex(0);
-      const tssPubKeyIndexPost0 = coreKitInstance.getTssPublicKey();
-
-      coreKitInstance.setTssWalletIndex(1);
-      const tssPubKeyIndexPost1 = coreKitInstance.getTssPublicKey();
-
-      coreKitInstance.setTssWalletIndex(99);
-      const tssPubKeyIndexPost99 = coreKitInstance.getTssPublicKey();
+      const tssPubKeysPost = getPubKeys(coreKitInstance, [0, 1, 99]);
 
       // clear session prevent rehydration
       await coreKitInstance.logout();
@@ -94,43 +105,29 @@ export const FactorManipulationTest = async (
       // try inputFactor ( set as active factor )
 
       // delete factor
-      instance2.setTssWalletIndex(0);
-      const pt = Point.fromPrivateKey(factorKey1);
-      await instance2.deleteFactor(pt.toTkeyPoint());
+      if (coreKitInstance.supportsAccountIndex) {
+        instance2.setTssWalletIndex(0);
+      }
+      const pt = Point.fromScalar(new BN(factorKey1, "hex"), factorKeyCurve);
+      await instance2.deleteFactor(pt);
 
       // delete factor
-      instance2.setTssWalletIndex(1);
-      const pt2 = Point.fromPrivateKey(factorKey2);
-      await instance2.deleteFactor(pt2.toTkeyPoint());
+      if (coreKitInstance.supportsAccountIndex) {
+        instance2.setTssWalletIndex(1);
+      }
+      const pt2 = Point.fromScalar(new BN(factorKey2, "hex"), factorKeyCurve);
+      await instance2.deleteFactor(pt2);
 
       if (testVariable.manualSync) {
         await instance2.commitChanges();
       }
 
-      instance2.setTssWalletIndex(0);
-      const tssPubKey2IndexPost0 = instance2.getTssPublicKey();
+      const tssPubKeysPost2 = getPubKeys(instance2, [0, 1, 99]);
 
-      instance2.setTssWalletIndex(1);
-      const tssPubKey2IndexPost1 = instance2.getTssPublicKey();
-
-      instance2.setTssWalletIndex(99);
-      const tssPubKey2IndexPost99 = instance2.getTssPublicKey();
-
-      assert.equal(tssPubKeyIndex0.x.toString("hex"), tssPubKeyIndexPost0.x.toString("hex"));
-      assert.equal(tssPubKeyIndex1.x.toString("hex"), tssPubKeyIndexPost1.x.toString("hex"));
-      assert.equal(tssPubKeyIndex99.x.toString("hex"), tssPubKeyIndexPost99.x.toString("hex"));
-
-      assert.equal(tssPubKeyIndex0.y.toString("hex"), tssPubKeyIndexPost0.y.toString("hex"));
-      assert.equal(tssPubKeyIndex1.y.toString("hex"), tssPubKeyIndexPost1.y.toString("hex"));
-      assert.equal(tssPubKeyIndex99.y.toString("hex"), tssPubKeyIndexPost99.y.toString("hex"));
-
-      assert.equal(tssPubKey2IndexPost0.x.toString("hex"), tssPubKeyIndex0.x.toString("hex"));
-      assert.equal(tssPubKey2IndexPost1.x.toString("hex"), tssPubKeyIndex1.x.toString("hex"));
-      assert.equal(tssPubKey2IndexPost99.x.toString("hex"), tssPubKeyIndex99.x.toString("hex"));
-
-      assert.equal(tssPubKey2IndexPost0.y.toString("hex"), tssPubKeyIndex0.y.toString("hex"));
-      assert.equal(tssPubKey2IndexPost1.y.toString("hex"), tssPubKeyIndex1.y.toString("hex"));
-      assert.equal(tssPubKey2IndexPost99.y.toString("hex"), tssPubKeyIndex99.y.toString("hex"));
+      tssPubKeys.forEach((pk, i) => {
+        assert(pk.eq(tssPubKeysPost[i]));
+        assert(pk.eq(tssPubKeysPost2[i]));
+      });
 
       // new instance
       const instance3 = await newInstance();
@@ -141,7 +138,11 @@ export const FactorManipulationTest = async (
 
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
-      instance.setTssWalletIndex(1);
+      assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
+
+      if (instance.supportsAccountIndex) {
+        instance.setTssWalletIndex(1);
+      }
       const recoverFactor = await instance.enableMFA({});
 
       if (testVariable.manualSync) {
@@ -153,13 +154,9 @@ export const FactorManipulationTest = async (
 
       // new instance
       const instance2 = await newInstance();
+      assert.strictEqual(instance2.status, COREKIT_STATUS.REQUIRED_SHARE);
 
-      let browserFactor;
-      if (testVariable.storage) {
-        browserFactor = await getWebBrowserFactor(instance2, testVariable.storage);
-      } else {
-        browserFactor = await asyncGetFactor(instance2, testVariable.asyncStorage);
-      }
+      const browserFactor = await instance2.getDeviceFactor();
 
       // login with mfa factor
       await instance2.inputFactorKey(new BN(recoverFactor, "hex"));
@@ -177,45 +174,15 @@ export const FactorManipulationTest = async (
 };
 
 const variable: FactorTestVariable[] = [
-  { types: TssShareType.DEVICE, manualSync: true, storage: new MemoryStorage() },
-  { types: TssShareType.RECOVERY, manualSync: true, storage: "memory" },
+  { manualSync: true, storage: new MemoryStorage(), email: "testmail1012" },
+  { manualSync: false, storage: new MemoryStorage(), email: "testmail1013" },
 
-  { types: TssShareType.RECOVERY, manualSync: true, asyncStorage: new AsyncMemoryStorage() },
-  { types: TssShareType.RECOVERY, manualSync: false, asyncStorage: new AsyncMemoryStorage() },
+  { manualSync: true, storage: new AsyncMemoryStorage(), email: "testmail1014" },
+  { manualSync: false, storage: new AsyncMemoryStorage(), email: "testmail1015" },
+
+  { manualSync: true, storage: new MemoryStorage(), email: "testmail1012ed25519", tssLib: tssLibFROST },
 ];
 
-const email = "testmail102";
 variable.forEach(async (testVariable) => {
-  const newCoreKitLogInInstance = async (ignoreError: boolean) => {
-    const instance = new Web3AuthMPCCoreKit({
-      web3AuthClientId: "torus-key-test",
-      web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
-      baseUrl: "http://localhost:3000",
-      uxMode: "nodejs",
-      tssLib: TssLib,
-      storageKey: testVariable.storage,
-      asyncStorageKey: testVariable.asyncStorage,
-      manualSync: testVariable.manualSync,
-    });
-
-    const { idToken, parsedToken } = await mockLogin(email);
-    await instance.init({ handleRedirectResult: false, rehydrate: false });
-    try {
-      await instance.loginWithJWT({
-        verifier: "torus-test-health",
-        verifierId: parsedToken.email,
-        idToken,
-      });
-    } catch (e) {
-      // handle error
-      if (!ignoreError) {
-        throw e;
-      }
-      log.error(e);
-    }
-
-    return instance;
-  };
-
-  await FactorManipulationTest(newCoreKitLogInInstance, testVariable);
+  await FactorManipulationTest(testVariable);
 });

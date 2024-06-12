@@ -71,7 +71,7 @@ Once you're done initialising, just create a button that triggers login for your
         }
       } as SubVerifierDetailsParams;
 
-      await coreKitInstance.loginWithOauth(verifierConfig);
+      await coreKitInstance.loginWithOAuth(verifierConfig);
 ```
 
 For JWT(idToken) login

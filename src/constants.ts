@@ -1,17 +1,4 @@
 import { TORUS_SAPPHIRE_NETWORK } from "@toruslabs/constants";
-import { CHAIN_NAMESPACES, CustomChainConfig } from "@web3auth/base";
-import { ec as EllipticCurve } from "elliptic";
-
-export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
-  chainNamespace: CHAIN_NAMESPACES.EIP155,
-  chainId: "0xaa36a7",
-  rpcTarget: "https://rpc.ankr.com/eth_sepolia",
-  displayName: "Ethereum Sepolia Testnet",
-  blockExplorer: "https://sepolia.etherscan.io",
-  ticker: "ETH",
-  tickerName: "Ethereum",
-  decimals: 18,
-};
 
 export const WEB3AUTH_NETWORK = {
   MAINNET: TORUS_SAPPHIRE_NETWORK.SAPPHIRE_MAINNET,
@@ -61,7 +48,6 @@ export const VALID_SHARE_INDICES = [TssShareType.DEVICE, TssShareType.RECOVERY];
 
 export const SCALAR_LEN = 32; // Length of secp256k1 scalar in bytes.
 export const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field element in hex form.
-export const CURVE = new EllipticCurve("secp256k1");
 
 export const MAX_FACTORS = 10; // Maximum number of factors that can be added to an account.
 export const SOCIAL_TKEY_INDEX = 1;
