@@ -37,11 +37,11 @@ import {
   CreateFactorParams,
   EnableMFAParams,
   ICoreKit,
-  IdTokenLoginParams,
   IFactorKey,
   InitParams,
+  JWTLoginParams,
   MPCKeyDetails,
-  OauthLoginParams,
+  OAuthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
@@ -308,7 +308,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // if not redirect flow or session rehydration, ask for factor key to login
   }
 
-  public async loginWithOauth(params: OauthLoginParams): Promise<void> {
+  public async loginWithOAuth(params: OAuthLoginParams): Promise<void> {
     this.checkReady();
     if (this.isNodejsOrRN(this.options.uxMode)) {
       throw CoreKitError.oauthLoginUnsupported(`Oauth login is NOT supported in ${this.options.uxMode} mode.`);
@@ -359,46 +359,37 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  /**
-   * login with JWT.
-   * @param idTokenLoginParams - login parameter required by web3auth for login with JWT.
-   * @param opt - prefetchTssPublicKeys - option prefetch server tssPubs for new user registration.
-   *              For best performance, set it to the number of factor you want to create for new user. Set it 0 for existing user.
-   *              default is 1, max value is 3
-   */
-  public async loginWithJWT(
-    idTokenLoginParams: IdTokenLoginParams,
-    opt: { prefetchTssPublicKeys: number } = { prefetchTssPublicKeys: 1 }
-  ): Promise<void> {
+  public async loginWithJWT(params: JWTLoginParams): Promise<void> {
     this.checkReady();
-    if (opt.prefetchTssPublicKeys > 3) {
-      throw CoreKitError.prefetchValueExceeded(`The prefetch value '${opt.prefetchTssPublicKeys}' exceeds the maximum allowed limit of 3.`);
+    const { prefetchTssPublicKeys = 1 } = params;
+    if (prefetchTssPublicKeys > 3) {
+      throw CoreKitError.prefetchValueExceeded(`The prefetch value '${prefetchTssPublicKeys}' exceeds the maximum allowed limit of 3.`);
     }
 
-    const { importTssKey } = idTokenLoginParams;
-    const { verifier, verifierId, idToken } = idTokenLoginParams;
+    const { verifier, verifierId, idToken, importTssKey } = params;
 
     this.torusSp.verifierName = verifier;
     this.torusSp.verifierId = verifierId;
 
     try {
-      // prefetch tss pub key
+      // prefetch tss pub keys.
       const prefetchTssPubs = [];
-      for (let i = 0; i < opt.prefetchTssPublicKeys; i++) {
-        prefetchTssPubs.push(this.torusSp.getTSSPubKey("default", i));
+      for (let i = 0; i < prefetchTssPublicKeys; i++) {
+        prefetchTssPubs.push(this.torusSp.getTSSPubKey(this.tkey.tssTag, i));
       }
-      // oAuth login.
+
+      // get postbox key.
       let loginResponse: TorusKey;
-      if (!idTokenLoginParams.subVerifier) {
+      if (!params.subVerifier) {
         // single verifier login.
         loginResponse = await this.torusSp.customAuthInstance.getTorusKey(verifier, verifierId, { verifier_id: verifierId }, idToken, {
-          ...idTokenLoginParams.extraVerifierParams,
-          ...idTokenLoginParams.additionalParams,
+          ...params.extraVerifierParams,
+          ...params.additionalParams,
         });
       } else {
         // aggregate verifier login
         loginResponse = await this.torusSp.customAuthInstance.getAggregateTorusKey(verifier, verifierId, [
-          { verifier: idTokenLoginParams.subVerifier, idToken, extraVerifierParams: idTokenLoginParams.extraVerifierParams },
+          { verifier: params.subVerifier, idToken, extraVerifierParams: params.extraVerifierParams },
         ]);
       }
 
@@ -792,6 +783,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tKeyLocalStore.factorKey;
   }
 
+  /**
+   * WARNING: Use with caution. This will export the private key.
+   *
+   * Exports the private signing key for the current account index.
+   */
   public async _UNSAFE_exportTssKey(): Promise<string> {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss key.");
@@ -800,12 +796,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.signaturesNotPresent("Signatures not present in state when exporting tss key.");
     }
 
-    const exportTssKey = await this.tKey._UNSAFE_exportTssKey({
+    const exportTssKey0 = await this.tKey._UNSAFE_exportTssKey({
       factorKey: this.state.factorKey,
       authSignatures: this.state.signatures,
     });
 
-    return exportTssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
+    const accountNonce = this.getAccountNonce();
+    const tssKey = exportTssKey0.add(accountNonce).umod(this.tKey.tssCurve.n);
+
+    return tssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
   }
 
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
@@ -1180,7 +1179,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // PreSetup
     const { tssShareIndex } = this.state;
-    let tssPubKey = await this.getPubKey();
+    const tssPubKey = await this.getPubKeyPoint();
 
     const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
       verifier: this.tkey.serviceProvider.verifierName,
@@ -1197,11 +1196,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (!tssPubKey || !torusNodeTSSEndpoints) {
       throw CoreKitError.tssPublicKeyOrEndpointsMissing();
-    }
-
-    if (tssPubKey.length === FIELD_ELEMENT_HEX_LEN + 1) {
-      // Buffer is needed as react native buffer polyfill not able to polyfill subarray function
-      tssPubKey = Buffer.from(tssPubKey.subarray(1));
     }
 
     // session is needed for authentication to the web3auth infrastructure holding the factor 1
@@ -1238,17 +1232,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.signaturesNotPresent();
     }
 
-    const client = new Client(
-      currentSession,
-      clientIndex,
-      partyIndexes,
-      endpoints,
-      sockets,
-      share,
-      tssPubKey.toString("base64"),
-      true,
-      this._tssLib.lib
-    );
+    // Client lib expects pub key in XY-format, base64-encoded.
+    const tssPubKeyBase64 = tssPubKey.toSEC1(secp256k1).subarray(1).toString("base64");
+
+    const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKeyBase64, true, this._tssLib.lib);
 
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {

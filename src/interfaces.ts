@@ -79,7 +79,7 @@ export type MPCKeyDetails = {
   tssPubKey?: TkeyPoint;
 };
 
-export type OauthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
+export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface EnableMFAParams {
@@ -104,7 +104,7 @@ export interface CreateFactorParams extends EnableMFAParams {
   shareType: TssShareType;
 }
 
-export interface IdTokenLoginParams {
+export interface JWTLoginParams {
   /**
    * Name of the verifier created on Web3Auth Dashboard. In case of Aggregate Verifier, the name of the top level aggregate verifier.
    */
@@ -139,6 +139,13 @@ export interface IdTokenLoginParams {
    * Key to import key into Tss during first time login.
    */
   importTssKey?: string;
+
+  /**
+   * Number of TSS public keys to prefetch. For the best performance, set it to
+   * the number of factors you want to create. Set it to 0 for an existing user.
+   * Default is 1, maximum is 3.
+   */
+  prefetchTssPublicKeys?: number;
 }
 
 export interface Web3AuthState {
@@ -186,16 +193,16 @@ export interface ICoreKit {
   init(initParams?: InitParams): Promise<void>;
 
   /**
-   * Login into the SDK in an implicit flow and initialize all relevant components.
-   * @param loginParams - Parameters for Implicit Login.
+   * Login using OAuth flow and initialize all relevant components.
+   * @param loginParams - Parameters for OAuth-based Login.
    */
-  loginWithOauth(loginParams: OauthLoginParams): Promise<void>;
+  loginWithOAuth(loginParams: OAuthLoginParams): Promise<void>;
 
   /**
-   * Login into the SDK using ID Token based login and initialize all relevant components.
-   * @param idTokenLoginParams - Parameters with ID Token based Login.
+   * Login using JWT Token and initialize all relevant components.
+   * @param loginParams - Parameters for JWT-based Login.
    */
-  loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
+  loginWithJWT(loginParams: JWTLoginParams): Promise<void>;
 
   /**
    * Enable MFA for the user. Deletes the Cloud factor and generates a new
