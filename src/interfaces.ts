@@ -271,7 +271,7 @@ export interface ICoreKit {
   _UNSAFE_exportTssKey(): Promise<string>;
 
   /**
-   * Export the user's current ED25519 TSS MPC account as a private key
+   * Export the user's current ED25519 TSS MPC account seed
    */
   _UNSAFE_exportTssEd25519Seed(): Promise<Buffer>;
 }
