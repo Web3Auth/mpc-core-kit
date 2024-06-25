@@ -784,9 +784,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   /**
-   * WARNING: Use with caution. This will export the private key.
+   * WARNING: Use with caution. This will export the private signing key.
    *
-   * Exports the private signing key for the current account index.
+   * Exports the private key scalar for the current account index.
    */
   public async _UNSAFE_exportTssKey(): Promise<string> {
     if (!this.state.factorKey) {
@@ -808,8 +808,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   /**
-   * WARNING: Use with caution. This will export the seed  for ed25519 KeyType.
+   * WARNING: Use with caution. This will export the private signing key.
    *
+   * Exports the private key seed. Only works for key type ed25519.
    */
   public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
     if (this.keyType !== KeyType.ed25519) throw new Error("wrong key type to call this method");
