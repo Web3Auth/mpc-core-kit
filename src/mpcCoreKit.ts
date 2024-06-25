@@ -807,6 +807,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
   }
 
+  /**
+   * WARNING: Use with caution. This will export the seed  for ed25519 KeyType.
+   *
+   * Exports the seed for the current account index.
+   */
+  public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
+    if (this.keyType !== KeyType.ed25519) throw new Error("wrong key type to call this method");
+    if (!this.state.factorKey) throw new Error("factorKey not present");
+    if (!this.state.signatures) throw new Error("signatures not present");
+
+    const exportEd25519Seed = await this.tKey._UNSAFE_exportTssEd25519Seed({
+      factorKey: this.state.factorKey,
+      authSignatures: this.state.signatures,
+    });
+
+    return exportEd25519Seed;
+  }
+
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
     this.tkey.manualSync = true;
     try {

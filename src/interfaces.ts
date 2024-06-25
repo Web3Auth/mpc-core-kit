@@ -269,6 +269,11 @@ export interface ICoreKit {
    * Export the user's current TSS MPC account as a private key
    */
   _UNSAFE_exportTssKey(): Promise<string>;
+
+  /**
+   * Export the user's current ED25519 TSS MPC account as a private key
+   */
+  _UNSAFE_exportTssEd25519Seed(): Promise<Buffer>;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
