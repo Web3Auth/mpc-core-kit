@@ -266,9 +266,19 @@ export interface ICoreKit {
   commitChanges(): Promise<void>;
 
   /**
-   * Export the user's current TSS MPC account as a private key
+   * WARNING: Use with caution. This will export the private signing key.
+   *
+   * Exports the private key scalar for the current account index.
    */
   _UNSAFE_exportTssKey(): Promise<string>;
+
+  /**
+   * WARNING: Use with caution. This will export the private signing key.
+   *
+   * Attempts to export the ed25519 private key seed. Only works if the seed has
+   * previsouly been imported.
+   */
+  _UNSAFE_exportTssEd25519Seed(): Promise<Buffer>;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
