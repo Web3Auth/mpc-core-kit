@@ -810,7 +810,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   /**
    * WARNING: Use with caution. This will export the private signing key.
    *
-   * Exports the private key seed. Only works for key type ed25519.
+   * Attempts to export the ed25519 private key seed. Only works if the seed has
+   * previsouly been imported.
    */
   public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
     if (this.keyType !== KeyType.ed25519) throw new Error("wrong key type to call this method");
