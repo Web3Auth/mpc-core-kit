@@ -810,7 +810,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   /**
    * WARNING: Use with caution. This will export the seed  for ed25519 KeyType.
    *
-   * Exports the seed for the current account index.
    */
   public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
     if (this.keyType !== KeyType.ed25519) throw new Error("wrong key type to call this method");
