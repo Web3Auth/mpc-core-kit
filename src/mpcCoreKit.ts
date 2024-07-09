@@ -787,6 +787,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * WARNING: Use with caution. This will export the private signing key.
    *
    * Exports the private key scalar for the current account index.
+   *
+   * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
    */
   public async _UNSAFE_exportTssKey(): Promise<string> {
     if (!this.state.factorKey) {
@@ -810,20 +812,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   /**
    * WARNING: Use with caution. This will export the private signing key.
    *
-   * Attempts to export the ed25519 private key seed. Only works if the seed has
-   * previsouly been imported.
+   * Attempts to export the ed25519 private key seed. Only works if import key
+   * flow has been used.
    */
   public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
     if (this.keyType !== KeyType.ed25519) throw new Error("wrong key type to call this method");
     if (!this.state.factorKey) throw new Error("factorKey not present");
     if (!this.state.signatures) throw new Error("signatures not present");
 
-    const exportEd25519Seed = await this.tKey._UNSAFE_exportTssEd25519Seed({
-      factorKey: this.state.factorKey,
-      authSignatures: this.state.signatures,
-    });
+    try {
+      const exportEd25519Seed = await this.tKey._UNSAFE_exportTssEd25519Seed({
+        factorKey: this.state.factorKey,
+        authSignatures: this.state.signatures,
+      });
 
-    return exportEd25519Seed;
+      return exportEd25519Seed;
+    } catch (error: unknown) {
+      throw new Error(`error exporting ed25519 seed: ${error}`);
+    }
   }
 
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {

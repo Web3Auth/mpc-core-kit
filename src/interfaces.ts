@@ -269,14 +269,16 @@ export interface ICoreKit {
    * WARNING: Use with caution. This will export the private signing key.
    *
    * Exports the private key scalar for the current account index.
+   *
+   * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
    */
   _UNSAFE_exportTssKey(): Promise<string>;
 
   /**
    * WARNING: Use with caution. This will export the private signing key.
    *
-   * Attempts to export the ed25519 private key seed. Only works if the seed has
-   * previsouly been imported.
+   * Attempts to export the ed25519 private key seed. Only works if import key
+   * flow has been used.
    */
   _UNSAFE_exportTssEd25519Seed(): Promise<Buffer>;
 }
