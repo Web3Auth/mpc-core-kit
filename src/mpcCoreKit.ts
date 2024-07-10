@@ -667,7 +667,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     await this.atomicSync(async () => {
       const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
-      if (remainingFactors <= 1) { 
+      if (remainingFactors <= 1) {
         throw CoreKitError.cannotDeleteLastFactor("Cannot delete last factor");
       }
       const fpp = factorPub;
@@ -764,8 +764,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!replace) {
       const existingFactor = await this.getDeviceFactor();
       if (existingFactor) {
-        throw CoreKitError.default("Device factor already exists")
-      };
+        throw CoreKitError.default("Device factor already exists");
+      }
     }
 
     const metadata = this.tKey.getMetadata();
@@ -795,7 +795,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
    */
   public async _UNSAFE_exportTssKey(): Promise<string> {
-    if (this.keyType !== KeyType.secp256k1) { 
+    if (this.keyType !== KeyType.secp256k1) {
       throw CoreKitError.default("Wrong KeyType. Method can only be used when KeyType is secp256k1");
     }
     if (!this.state.factorKey) {
@@ -823,7 +823,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * flow has been used.
    */
   public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
-    if (this.keyType !== KeyType.ed25519) { 
+    if (this.keyType !== KeyType.ed25519) {
       throw CoreKitError.default("Wrong KeyType. Method can only be used when KeyType is ed25519");
     }
     if (!this.state.factorKey) throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss ed25519 seed.");
