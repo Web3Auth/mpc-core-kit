@@ -10,10 +10,11 @@ import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
 import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { keccak256 } from "@toruslabs/metadata-helpers";
-import { OpenloginSessionManager } from "@toruslabs/openlogin-session-manager";
-import TorusUtils, { TorusKey } from "@toruslabs/torus.js";
+import { SessionManager } from "@toruslabs/session-manager";
+import { Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
+import type FrostWasmLib from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 import bowser from "bowser";
 import { ec as EC } from "elliptic";
@@ -76,7 +77,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private tkey: TKeyTSS | null = null;
 
-  private sessionManager!: OpenloginSessionManager<SessionData>;
+  private sessionManager!: SessionManager<SessionData>;
 
   private currentStorage: AsyncStorage;
 
@@ -131,7 +132,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const asyncConstructor = async () => {
       const sessionId = await this.currentStorage.get<string>("sessionId");
-      this.sessionManager = new OpenloginSessionManager({
+      this.sessionManager = new SessionManager({
         sessionTime: this.options.sessionTime,
         sessionId,
       });
@@ -165,7 +166,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const { tkey } = this;
       if (!tkey) return COREKIT_STATUS.NOT_INITIALIZED;
       if (!tkey.metadata) return COREKIT_STATUS.INITIALIZED;
-      if (!tkey.privKey || !this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
+      if (!tkey.secp256k1Key || !this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
       return COREKIT_STATUS.LOGGED_IN;
     } catch (e) {}
     return COREKIT_STATUS.NOT_INITIALIZED;
@@ -202,9 +203,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const factorKeyBN = new BN(factorKey[0], "hex");
     const shareStore0 = await this.getFactorKeyMetadata(factorKeyBN);
     await this.tKey.initialize({ withShare: shareStore0 });
-
-    this.tkey.privKey = new BN(factorKey[1], "hex");
-
     const tssShares: BN[] = [];
     const tssIndexes: number[] = [];
     const tssIndexesBN: BN[] = [];
@@ -475,7 +473,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     try {
       // input tkey device share when required share > 0 ( or not reconstructed )
       // assumption tkey shares will not changed
-      if (!this.tKey.privKey) {
+      if (!this.tKey.secp256k1Key) {
         const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
         await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
       }
@@ -1007,7 +1005,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async createSession() {
     try {
-      const sessionId = OpenloginSessionManager.generateRandomSessionKey();
+      const sessionId = SessionManager.generateRandomSessionKey();
       this.sessionManager.sessionId = sessionId;
       const { postBoxKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
       if (!this.state.factorKey) {
@@ -1334,7 +1332,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
     const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
     const signature = await signEd25519(
-      this._tssLib.lib,
+      this._tssLib.lib as typeof FrostWasmLib,
       session,
       this.signatures,
       serverXCoords,
