@@ -35,10 +35,10 @@
   },
   "dependencies": {
     "@tkey/common-types": "^15.0.0",
-    "@tkey/core": "^15.0.0",
+    "@tkey/core": "^15.0.1",
     "@tkey/share-serialization": "^15.0.0",
     "@tkey/storage-layer-torus": "^15.0.0",
-    "@tkey/tss": "^15.0.0",
+    "@tkey/tss": "^15.0.1",
     "@toruslabs/constants": "^13.4.0",
     "@toruslabs/customauth": "^20.0.3",
     "@toruslabs/elliptic-wrapper": "^0.1.0",
