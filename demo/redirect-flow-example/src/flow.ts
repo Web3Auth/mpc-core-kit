@@ -1,5 +1,6 @@
 
 import { WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit, TssSecurityQuestion } from "@web3auth/mpc-core-kit";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 
 export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, manualSync: boolean, setupProviderOnInit: boolean, verifier: string, verifierId: string, idToken: string }) => {
     const startTime = Date.now();
@@ -11,7 +12,8 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
           web3AuthNetwork: params.selectedNetwork,
           uxMode: 'redirect',
           manualSync: params.manualSync,
-          setupProviderOnInit: params.setupProviderOnInit,
+          storage: window.localStorage,
+          tssLib,
         }
     );
     
@@ -21,7 +23,8 @@ export const flow = async (params: { selectedNetwork: WEB3AUTH_NETWORK_TYPE, man
         verifier: params.verifier,
         verifierId: params.verifierId,
         idToken: params.idToken,
-    }, { prefetchTssPublicKeys: 2  });
+        prefetchTssPublicKeys: 2,
+    });
 
     let loggedInTime = Date.now();
     console.log("logged Time :", loggedInTime);

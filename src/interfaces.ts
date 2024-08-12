@@ -1,15 +1,14 @@
-import { Point as TkeyPoint, ShareDescriptionMap } from "@tkey-mpc/common-types";
-import ThresholdKey from "@tkey-mpc/core";
+import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
   LoginWindowResponse,
+  PasskeyExtraParams,
   SubVerifierDetails,
   TorusVerifierResponse,
   UX_MODE_TYPE,
-  WebAuthnExtraParams,
 } from "@toruslabs/customauth";
-import { CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
@@ -27,6 +26,8 @@ export interface IAsyncStorage {
 }
 
 export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
+
+export type TssLib = { keyType: string; lib: unknown };
 
 export interface InitParams {
   /**
@@ -74,10 +75,11 @@ export type MPCKeyDetails = {
   requiredFactors: number;
   totalFactors: number;
   shareDescriptions: ShareDescriptionMap;
+  keyType: KeyType;
   tssPubKey?: TkeyPoint;
 };
 
-export type OauthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
+export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface EnableMFAParams {
@@ -102,7 +104,7 @@ export interface CreateFactorParams extends EnableMFAParams {
   shareType: TssShareType;
 }
 
-export interface IdTokenLoginParams {
+export interface JWTLoginParams {
   /**
    * Name of the verifier created on Web3Auth Dashboard. In case of Aggregate Verifier, the name of the top level aggregate verifier.
    */
@@ -126,7 +128,7 @@ export interface IdTokenLoginParams {
   /**
    * Extra verifier params in case of a WebAuthn verifier type.
    */
-  extraVerifierParams?: WebAuthnExtraParams;
+  extraVerifierParams?: PasskeyExtraParams;
 
   /**
    * Any additional parameter (key value pair) you'd like to pass to the login function.
@@ -137,10 +139,17 @@ export interface IdTokenLoginParams {
    * Key to import key into Tss during first time login.
    */
   importTssKey?: string;
+
+  /**
+   * Number of TSS public keys to prefetch. For the best performance, set it to
+   * the number of factors you want to create. Set it to 0 for an existing user.
+   * Default is 1, maximum is 3.
+   */
+  prefetchTssPublicKeys?: number;
 }
 
 export interface Web3AuthState {
-  oAuthKey?: string;
+  postBoxKey?: string;
   signatures?: string[];
   userInfo?: UserInfo;
   tssShareIndex?: number;
@@ -154,12 +163,7 @@ export interface ICoreKit {
    * The tKey instance, if initialized.
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
-  tKey: ThresholdKey | null;
-
-  /**
-   * Provider for making the blockchain calls.
-   **/
-  provider: SafeEventEmitterProvider | null;
+  tKey: TKeyTSS | null;
 
   /**
    * Signatures generated from the OAuth Login.
@@ -189,16 +193,16 @@ export interface ICoreKit {
   init(initParams?: InitParams): Promise<void>;
 
   /**
-   * Login into the SDK in an implicit flow and initialize all relevant components.
-   * @param loginParams - Parameters for Implicit Login.
+   * Login using OAuth flow and initialize all relevant components.
+   * @param loginParams - Parameters for OAuth-based Login.
    */
-  loginWithOauth(loginParams: OauthLoginParams): Promise<void>;
+  loginWithOAuth(loginParams: OAuthLoginParams): Promise<void>;
 
   /**
-   * Login into the SDK using ID Token based login and initialize all relevant components.
-   * @param idTokenLoginParams - Parameters with ID Token based Login.
+   * Login using JWT Token and initialize all relevant components.
+   * @param loginParams - Parameters for JWT-based Login.
    */
-  loginWithJWT(idTokenLoginParams: IdTokenLoginParams): Promise<void>;
+  loginWithJWT(loginParams: JWTLoginParams): Promise<void>;
 
   /**
    * Enable MFA for the user. Deletes the Cloud factor and generates a new
@@ -262,9 +266,21 @@ export interface ICoreKit {
   commitChanges(): Promise<void>;
 
   /**
-   * Export the user's current TSS MPC account as a private key
+   * WARNING: Use with caution. This will export the private signing key.
+   *
+   * Exports the private key scalar for the current account index.
+   *
+   * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
    */
   _UNSAFE_exportTssKey(): Promise<string>;
+
+  /**
+   * WARNING: Use with caution. This will export the private signing key.
+   *
+   * Attempts to export the ed25519 private key seed. Only works if import key
+   * flow has been used.
+   */
+  _UNSAFE_exportTssEd25519Seed(): Promise<Buffer>;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
@@ -278,9 +294,9 @@ export interface Web3AuthOptions {
   web3AuthClientId: string;
 
   /**
-   * Chain Config for the chain you want to connect to. Currently supports only EVM based chains.
+   * The threshold signing library to use.
    */
-  chainConfig?: CustomChainConfig;
+  tssLib: TssLib;
 
   /**
    * @defaultValue `false`
@@ -299,17 +315,21 @@ export interface Web3AuthOptions {
   web3AuthNetwork?: WEB3AUTH_NETWORK_TYPE;
 
   /**
+   *  storage for mpc-core-kit's local state.
+   *  storage replaces previous' storageKey and asyncStorage options.
    *
-   * @defaultValue `'local'`
+   *  Migration from storageKey and asyncStorage to storage guide.
+   *
+   *  For StorageKey, please replace
+   *  - undefined with localStorage
+   *  - "local" with localStorage
+   *  - "session" with sessionStorage
+   *  - "memory" with new MemoryStorage()
+   *
+   *  For asyncStorage, provide instance of IAsyncStorage.
+   *
    */
-  storageKey?: SupportedStorageType;
-
-  /**
-   *  asyncStorageKey take precedence over storageKey.
-   *  if asyncStorageKey is provided, storageKey will be ignored.
-   * @defaultValue `undefined`
-   */
-  asyncStorageKey?: IAsyncStorage;
+  storage: IAsyncStorage | IStorage;
 
   /**
    * @defaultValue 86400
@@ -372,14 +392,6 @@ export interface Web3AuthOptions {
   disableHashedFactorKey?: boolean;
 
   /**
-   * @defaultValue `null`
-   * Overwrite tss-lib for nodejs.
-   * Required for nodejs mode.
-   * Do not use this option for non nodejs mode.
-   */
-  tssLib?: unknown;
-
-  /**
    * @defaultValue `Web3AuthOptions.web3AuthClientId`
    * Overwrites the default value ( clientId ) used as nonce for hashing the hash factor key.
    *
@@ -390,17 +402,17 @@ export interface Web3AuthOptions {
    */
   hashedFactorNonce?: string;
 
-  /**
-   * @defaultValue `true`
-   * Setup Provider after `login success` reconstruct.
-   */
-  setupProviderOnInit?: boolean;
+  serverTimeOffset?: number;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
 export interface SessionData {
-  oAuthKey: string;
+  /**
+   * @deprecated Use `postBoxKey` instead.
+   */
+  oAuthKey?: string;
+  postBoxKey?: string;
   factorKey: string;
   tssShareIndex: number;
   tssPubKey: string;
@@ -410,4 +422,21 @@ export interface SessionData {
 
 export interface TkeyLocalStoreData {
   factorKey: string;
+}
+
+export interface CoreKitSigner {
+  keyType: KeyType;
+  sign(data: Buffer, hashed?: boolean): Promise<Buffer>;
+  getPubKey(): Buffer;
+}
+
+export interface EthSig {
+  v: number;
+  r: Buffer;
+  s: Buffer;
+}
+
+export interface EthereumSigner {
+  sign: (msgHash: Buffer) => Promise<EthSig>;
+  getPublic: () => Promise<Buffer>;
 }

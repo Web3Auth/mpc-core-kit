@@ -1,8 +1,10 @@
-import * as TssLib from "@toruslabs/tss-lib-node";
+import { EllipticPoint, secp256k1 } from "@tkey/common-types";
+import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
+import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 
-import { IAsyncStorage, parseToken, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { IAsyncStorage, IStorage, parseToken, TssLib, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -28,10 +30,14 @@ export const criticalResetAccount = async (coreKitInstance: Web3AuthMPCCoreKit):
     throw new Error("coreKitInstance is not set");
   }
 
-  await coreKitInstance.tKey.storageLayer.setMetadata({
-    privKey: new BN(coreKitInstance.state.oAuthKey!, "hex"),
-    input: { message: "KEY_NOT_FOUND" },
-  });
+  if (coreKitInstance.tKey.secp256k1Key) {
+    await coreKitInstance.tKey.CRITICAL_deleteTkey();
+  } else {
+    await coreKitInstance.tKey.storageLayer.setMetadata({
+      privKey: new BN(coreKitInstance.state.postBoxKey!, "hex"),
+      input: { message: "KEY_NOT_FOUND" },
+    });
+  }
 };
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
@@ -77,34 +83,42 @@ export const mockLogin = async (email?: string) => {
   return { idToken, parsedToken };
 };
 
+export type LoginFunc = (email: string) => Promise<{ idToken: string, parsedToken: any }>;
+
 export const newCoreKitLogInInstance = async ({
   network,
   manualSync,
   email,
+  storageInstance,
+  importTssKey,
+  login,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
   manualSync: boolean;
   email: string;
+  storageInstance: IStorage | IAsyncStorage;
+  tssLib?: TssLib;
+  importTssKey?: string;
+  login?: LoginFunc;
 }) => {
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
-    tssLib: TssLib,
-    storageKey: "memory",
+    tssLib: tssLib || tssLibDKLS,
+    storage: storageInstance,
     manualSync,
   });
 
-  const { idToken, parsedToken } = await mockLogin(email);
+  const { idToken, parsedToken } = login ? await login(email) : await mockLogin(email);
   await instance.init();
-  try {
-    await instance.loginWithJWT({
-      verifier: "torus-test-health",
-      verifierId: parsedToken.email,
-      idToken,
-    });
-  } catch (error) {}
+  await instance.loginWithJWT({
+    verifier: "torus-test-health",
+    verifierId: parsedToken.email,
+    idToken,
+    importTssKey,
+  });
 
   return instance;
 };
@@ -119,4 +133,8 @@ export class AsyncMemoryStorage implements IAsyncStorage {
   async setItem(key: string, value: string): Promise<void> {
     this._store[key] = value;
   }
+}
+
+export function bufferToElliptic(p: Buffer, ec = secp256k1): EllipticPoint {
+  return ec.keyFromPublic(p).getPublic();
 }
