@@ -653,7 +653,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else if (this.keyType === KeyType.ed25519) {
       return this.sign_ed25519(data, hashed);
     }
-    throw new Error(`sign not supported for key type ${this.keyType}`);
+    throw CoreKitError.default(`sign not supported for key type ${this.keyType}`);
   }
 
   // mutation function
@@ -667,11 +667,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     await this.atomicSync(async () => {
       const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
-      if (remainingFactors <= 1) throw new Error("Cannot delete last factor");
+      if (remainingFactors <= 1) {
+        throw CoreKitError.cannotDeleteLastFactor("Cannot delete last factor");
+      }
       const fpp = factorPub;
       const stateFpp = getPubKeyPoint(this.state.factorKey, factorKeyCurve);
       if (fpp.equals(stateFpp)) {
-        throw new Error("Cannot delete current active factor");
+        throw CoreKitError.factorInUseCannotBeDeleted("Cannot delete current active factor");
       }
 
       await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
@@ -761,7 +763,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async setDeviceFactor(factorKey: BN, replace = false): Promise<void> {
     if (!replace) {
       const existingFactor = await this.getDeviceFactor();
-      if (existingFactor) throw new Error("Device factor already exists");
+      if (existingFactor) {
+        throw CoreKitError.default("Device factor already exists");
+      }
     }
 
     const metadata = this.tKey.getMetadata();
@@ -791,6 +795,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
    */
   public async _UNSAFE_exportTssKey(): Promise<string> {
+    if (this.keyType !== KeyType.secp256k1) {
+      throw CoreKitError.default("Wrong KeyType. Method can only be used when KeyType is secp256k1");
+    }
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss key.");
     }
@@ -816,9 +823,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * flow has been used.
    */
   public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
-    if (this.keyType !== KeyType.ed25519) throw new Error("wrong key type to call this method");
-    if (!this.state.factorKey) throw new Error("factorKey not present");
-    if (!this.state.signatures) throw new Error("signatures not present");
+    if (this.keyType !== KeyType.ed25519) {
+      throw CoreKitError.default("Wrong KeyType. Method can only be used when KeyType is ed25519");
+    }
+    if (!this.state.factorKey) throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss ed25519 seed.");
+    if (!this.state.signatures) throw CoreKitError.signaturesNotPresent("Signatures not present in state when exporting tss ed25519 seed.");
 
     try {
       const exportEd25519Seed = await this.tKey._UNSAFE_exportTssEd25519Seed({
@@ -828,7 +837,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       return exportEd25519Seed;
     } catch (error: unknown) {
-      throw new Error(`error exporting ed25519 seed: ${error}`);
+      throw CoreKitError.default(`Error exporting ed25519 seed: ${error}`);
     }
   }
 
@@ -1076,9 +1085,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.tKey.metadata.factorPubs[this.tKey.tssTag].length >= MAX_FACTORS) {
       throw CoreKitError.maximumFactorsReached(`The maximum number of allowable factors (${MAX_FACTORS}) has been reached.`);
     }
-    if (!this.state.factorKey) {
-      throw new Error("factorKey not present");
-    }
 
     // Generate new share.
     await this.tkey.addFactorPub({
@@ -1284,12 +1290,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async sign_ed25519(data: Buffer, hashed: boolean = false): Promise<Buffer> {
     if (hashed) {
-      throw new Error("hashed data not supported for ed25519");
+      throw CoreKitError.default("hashed data not supported for ed25519");
     }
 
     const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
     if (!nodeDetails.torusNodeTSSEndpoints) {
-      throw new Error("could not fetch tss node endpoints");
+      throw CoreKitError.default("could not fetch tss node endpoints");
     }
 
     // Endpoints must end with backslash, but URLs returned by
@@ -1312,7 +1318,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // Get client key share and adjust by coefficient.
     if (this.state.accountIndex !== 0) {
-      throw new Error("Account index not supported for ed25519");
+      throw CoreKitError.default("Account index not supported for ed25519");
     }
     const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
     const clientShareAdjusted = tssShare.mul(clientCoefficient).umod(ec.n);
