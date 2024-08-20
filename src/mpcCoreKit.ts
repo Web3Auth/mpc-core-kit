@@ -245,6 +245,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         locationReplaceOnRedirect: true,
         serverTimeOffset: this.options.serverTimeOffset,
         keyType: this.keyType,
+        useDkg: this.options.useDkg,
       },
     });
 
@@ -582,8 +583,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   // mutation function
   public async createFactor(createFactorParams: CreateFactorParams): Promise<string> {
     this.checkReady();
+    const { shareType } = createFactorParams;
 
-    let { shareType, factorKey, shareDescription, additionalMetadata } = createFactorParams;
+    let { factorKey, shareDescription, additionalMetadata } = createFactorParams;
 
     if (!VALID_SHARE_INDICES.includes(shareType)) {
       throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${shareType}). Valid share types are ${VALID_SHARE_INDICES}.`);

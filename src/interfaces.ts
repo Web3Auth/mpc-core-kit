@@ -79,7 +79,7 @@ export type MPCKeyDetails = {
   tssPubKey?: TkeyPoint;
 };
 
-export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
+export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string; useDkg?: boolean };
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface EnableMFAParams {
@@ -403,6 +403,13 @@ export interface Web3AuthOptions {
   hashedFactorNonce?: string;
 
   serverTimeOffset?: number;
+
+  /**
+   * Set this flag to false to generate keys on client side
+   * by default keys are generated on using dkg protocol on a distributed network
+   * @defaultValue undefined
+   */
+  useDkg?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
