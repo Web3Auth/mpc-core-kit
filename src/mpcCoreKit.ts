@@ -246,7 +246,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         locationReplaceOnRedirect: true,
         serverTimeOffset: this.options.serverTimeOffset,
         keyType: this.keyType,
-        useDkg: this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? true : this.options.useDKG,
+        useDkg: this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? false : this.options.useDKG,
       },
     });
 

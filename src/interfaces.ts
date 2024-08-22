@@ -407,7 +407,7 @@ export interface Web3AuthOptions {
   /**
    * Set this flag to false to generate keys on client side
    * by default keys are generated on using dkg protocol on a distributed network
-   * @defaultValue true if keyType is ed25519, false for secp256k1 keys
+   * @defaultValue false if keyType is ed25519, true for secp256k1 keys
    */
   useDKG?: boolean;
 }
