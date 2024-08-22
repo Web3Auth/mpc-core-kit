@@ -643,7 +643,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   public getPubKeyEd25519(): Buffer {
     const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
-    return ed25519.keyFromPublic(p).getPublic();
+    return ed25519().keyFromPublic(p).getPublic();
   }
 
   public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {

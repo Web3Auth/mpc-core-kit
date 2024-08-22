@@ -11,7 +11,9 @@ import loglevel from "loglevel";
 import { DELIMITERS, SCALAR_LEN } from "./constants";
 import { CoreKitSigner, EthereumSigner, IAsyncStorage, IStorage } from "./interfaces";
 
-export const ed25519 = new EDDSA("ed25519");
+export const ed25519 = () => {
+  return new EDDSA("ed25519");
+};
 
 /**
  * Secure PRNG. Uses `crypto.getRandomValues`, which defers to OS.
