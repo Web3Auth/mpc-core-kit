@@ -196,6 +196,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
+  private get useDKG(): boolean {
+    return this.options.useDKG === undefined ? false : this.options.useDKG;
+  }
+
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
   // TssShareType.DEVICE and TssShareType.RECOVERY
   // if the factors key provided is the same type recovery will not works
@@ -878,13 +882,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
     let importTssKey = providedImportTssKey;
     if (!existingUser) {
-      if (!importTssKey && !this.options.useDKG) {
+      if (!importTssKey && !this.useDKG) {
         if (this.keyType === KeyType.ed25519) {
           const k = generateEd25519Seed();
           importTssKey = k.toString("hex");
         } else if (this.keyType === KeyType.secp256k1) {
           const k = secp256k1.genKeyPair().getPrivate();
-          importTssKey = scalarBNToBufferSEC1(k).toString("hex");
+          importTssKey = scalarBNToBufferSEC1(k).toString("hex", 64);
         } else {
           throw CoreKitError.default("Unsupported key type");
         }
