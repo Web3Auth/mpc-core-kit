@@ -53,6 +53,7 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import {
+  bytesToHex,
   deriveShareCoefficients,
   ed25519,
   generateFactorKey,
@@ -62,6 +63,7 @@ import {
   getSessionId,
   log,
   parseToken,
+  randomBytes,
   sampleEndpoints,
   scalarBNToBufferSEC1,
 } from "./utils";
@@ -245,7 +247,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         locationReplaceOnRedirect: true,
         serverTimeOffset: this.options.serverTimeOffset,
         keyType: this.keyType,
-        useDkg: this.options.useDkg,
+        useDkg: this.keyType === KeyType.ed25519 && this.options.useDkg === undefined ? true : this.options.useDkg,
       },
     });
 
@@ -312,8 +314,21 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.isNodejsOrRN(this.options.uxMode)) {
       throw CoreKitError.oauthLoginUnsupported(`Oauth login is NOT supported in ${this.options.uxMode} mode.`);
     }
-    const { importTssKey } = params;
+    const { importTssKey: providedImportTssKey } = params;
     const tkeyServiceProvider = this.torusSp;
+
+    let importTssKey = providedImportTssKey;
+
+    // use import key flow by default for ed25519
+    if (!importTssKey && !this.options.useDkg) {
+      if (this.keyType === KeyType.ed25519) {
+        importTssKey = bytesToHex(randomBytes(32));
+      } else if (this.keyType === KeyType.secp256k1) {
+        importTssKey = generateFactorKey().private.toString("hex", 64);
+      } else {
+        throw CoreKitError.default("Unsupported key type");
+      }
+    }
 
     try {
       // oAuth login.
@@ -643,7 +658,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   public getPubKeyEd25519(): Buffer {
     const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
-    return ed25519.keyFromPublic(p).getPublic();
+    return ed25519().keyFromPublic(p).getPublic();
   }
 
   public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {
