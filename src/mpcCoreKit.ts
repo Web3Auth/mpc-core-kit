@@ -319,7 +319,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     let importTssKey = providedImportTssKey;
 
-    // use import key flow by default for ed25519
     if (!importTssKey && !this.options.useDkg) {
       if (this.keyType === KeyType.ed25519) {
         importTssKey = bytesToHex(randomBytes(32));
@@ -380,8 +379,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.prefetchValueExceeded(`The prefetch value '${prefetchTssPublicKeys}' exceeds the maximum allowed limit of 3.`);
     }
 
-    const { verifier, verifierId, idToken, importTssKey } = params;
-
+    const { verifier, verifierId, idToken, importTssKey: providedImportTssKey } = params;
+    let importTssKey = providedImportTssKey;
+    if (!importTssKey && !this.options.useDkg) {
+      if (this.keyType === KeyType.ed25519) {
+        importTssKey = bytesToHex(randomBytes(32));
+      } else if (this.keyType === KeyType.secp256k1) {
+        importTssKey = generateFactorKey().private.toString("hex", 64);
+      } else {
+        throw CoreKitError.default("Unsupported key type");
+      }
+    }
     this.torusSp.verifierName = verifier;
     this.torusSp.verifierId = verifierId;
 
