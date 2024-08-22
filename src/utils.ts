@@ -11,7 +11,26 @@ import loglevel from "loglevel";
 import { DELIMITERS, SCALAR_LEN } from "./constants";
 import { CoreKitSigner, EthereumSigner, IAsyncStorage, IStorage } from "./interfaces";
 
-export const ed25519 = new EDDSA("ed25519");
+export const ed25519 = () => {
+  return new EDDSA("ed25519");
+};
+
+/**
+ * Secure PRNG. Uses `crypto.getRandomValues`, which defers to OS.
+ */
+export function randomBytes(bytesLength = 32): Uint8Array {
+  // We use WebCrypto aka globalThis.crypto, which exists in browsers and node.js 16+.
+  const crypto = typeof globalThis === "object" && "crypto" in globalThis ? globalThis.crypto : undefined;
+
+  if (crypto && typeof crypto.getRandomValues === "function") {
+    return crypto.getRandomValues(new Uint8Array(bytesLength));
+  }
+  throw new Error("crypto.getRandomValues must be defined");
+}
+
+export function generateEd25519Seed() {
+  return Buffer.from(randomBytes(32));
+}
 
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const keyPair = factorKeyCurve.genKeyPair();

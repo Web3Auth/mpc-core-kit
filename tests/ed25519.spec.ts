@@ -143,8 +143,8 @@ variable.forEach((testVariable) => {
       const msg = "hello world";
       const msgBuffer = Buffer.from(msg);
 
-      const signature = ed25519.makeSignature((await coreKitInstance.sign(msgBuffer)).toString("hex"));
-      const valid = ed25519.verify(msgBuffer, signature, coreKitInstance.getPubKeyEd25519());
+      const signature = ed25519().makeSignature((await coreKitInstance.sign(msgBuffer)).toString("hex"));
+      const valid = ed25519().verify(msgBuffer, signature, coreKitInstance.getPubKeyEd25519());
       assert(valid);
     });
   });

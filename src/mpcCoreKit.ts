@@ -55,6 +55,7 @@ import {
 import {
   deriveShareCoefficients,
   ed25519,
+  generateEd25519Seed,
   generateFactorKey,
   generateSessionNonce,
   generateTSSEndpoints,
@@ -195,6 +196,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
+  private get useDKG(): boolean {
+    return this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? false : this.options.useDKG;
+  }
+
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
   // TssShareType.DEVICE and TssShareType.RECOVERY
   // if the factors key provided is the same type recovery will not works
@@ -245,7 +250,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         locationReplaceOnRedirect: true,
         serverTimeOffset: this.options.serverTimeOffset,
         keyType: this.keyType,
-        useDkg: this.options.useDkg,
+        useDkg: this.useDKG,
       },
     });
 
@@ -366,7 +371,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     const { verifier, verifierId, idToken, importTssKey } = params;
-
     this.torusSp.verifierName = verifier;
     this.torusSp.verifierId = verifierId;
 
@@ -643,7 +647,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   public getPubKeyEd25519(): Buffer {
     const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
-    return ed25519.keyFromPublic(p).getPublic();
+    return ed25519().keyFromPublic(p).getPublic();
   }
 
   public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {
@@ -871,12 +875,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tssNonce;
   }
 
-  private async setupTkey(importTssKey?: string): Promise<void> {
+  private async setupTkey(providedImportTssKey?: string): Promise<void> {
     if (!this.state.postBoxKey) {
       throw CoreKitError.userNotLoggedIn();
     }
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
+    let importTssKey = providedImportTssKey;
     if (!existingUser) {
+      if (!importTssKey && !this.useDKG) {
+        if (this.keyType === KeyType.ed25519) {
+          const k = generateEd25519Seed();
+          importTssKey = k.toString("hex");
+        } else if (this.keyType === KeyType.secp256k1) {
+          const k = secp256k1.genKeyPair().getPrivate();
+          importTssKey = scalarBNToBufferSEC1(k).toString("hex", 64);
+        } else {
+          throw CoreKitError.default("Unsupported key type");
+        }
+      }
       await this.handleNewUser(importTssKey);
     } else {
       if (importTssKey) {

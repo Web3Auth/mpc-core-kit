@@ -43,6 +43,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit(
     storage: window.localStorage,
     // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
     tssLib,
+    useDkg: false
   }
 );
 

@@ -79,7 +79,7 @@ export type MPCKeyDetails = {
   tssPubKey?: TkeyPoint;
 };
 
-export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string; useDkg?: boolean };
+export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface EnableMFAParams {
@@ -407,9 +407,9 @@ export interface Web3AuthOptions {
   /**
    * Set this flag to false to generate keys on client side
    * by default keys are generated on using dkg protocol on a distributed network
-   * @defaultValue undefined
+   * @defaultValue false if keyType is ed25519, true for secp256k1 keys
    */
-  useDkg?: boolean;
+  useDKG?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
