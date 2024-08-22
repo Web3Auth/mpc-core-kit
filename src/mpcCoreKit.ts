@@ -197,7 +197,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private get useDKG(): boolean {
-    return this.options.useDKG === undefined ? false : this.options.useDKG;
+    return this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? false : this.options.useDKG;
   }
 
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
@@ -250,7 +250,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         locationReplaceOnRedirect: true,
         serverTimeOffset: this.options.serverTimeOffset,
         keyType: this.keyType,
-        useDkg: this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? false : this.options.useDKG,
+        useDkg: this.useDKG,
       },
     });
 
