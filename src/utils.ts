@@ -11,35 +11,25 @@ import loglevel from "loglevel";
 import { DELIMITERS, SCALAR_LEN } from "./constants";
 import { CoreKitSigner, EthereumSigner, IAsyncStorage, IStorage } from "./interfaces";
 
-export const ed25519 = () => {
-  return new EDDSA("ed25519");
-};
+export const ed25519 = new EDDSA("ed25519");
 
-const cr = () =>
-  // We support: 1) browsers 2) node.js 19+
-  typeof globalThis === "object" && "crypto" in globalThis ? globalThis.crypto : undefined;
-
-// Array where index 0xf0 (240) is mapped to string 'f0'
-const hexes = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
 /**
- * @example bytesToHex(Uint8Array.from([0xca, 0xfe, 0x01, 0x23])) // 'cafe0123'
+ * Secure PRNG. Uses `crypto.getRandomValues`, which defers to OS.
  */
-export function bytesToHex(bytes: Uint8Array): string {
-  let hex = "";
-  for (let i = 0; i < bytes.length; i++) {
-    hex += hexes[bytes[i]];
+export function randomBytes(bytesLength = 32): Uint8Array {
+  // We use WebCrypto aka globalThis.crypto, which exists in browsers and node.js 16+.
+  const crypto = typeof globalThis === "object" && "crypto" in globalThis ? globalThis.crypto : undefined;
+
+  if (crypto && typeof crypto.getRandomValues === "function") {
+    return crypto.getRandomValues(new Uint8Array(bytesLength));
   }
-  return hex;
+  throw new Error("crypto.getRandomValues must be defined");
 }
 
-export const randomBytes = (len = 32): Uint8Array => {
-  // CSPRNG (random number generator)
-  const crypto = cr(); // Can be shimmed in node.js <= 18 to prevent error:
-  // import { webcrypto } from 'node:crypto';
-  // if (!globalThis.crypto) globalThis.crypto = webcrypto;
-  if (!crypto || !crypto.getRandomValues) throw new Error("crypto.getRandomValues must be defined");
-  return crypto.getRandomValues(new Uint8Array(len));
-};
+export function generateEd25519Seed() {
+  return Buffer.from(randomBytes(32));
+}
+
 export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   const keyPair = factorKeyCurve.genKeyPair();
   const pub = Point.fromElliptic(keyPair.getPublic());

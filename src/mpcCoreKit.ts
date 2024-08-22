@@ -53,9 +53,9 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import {
-  bytesToHex,
   deriveShareCoefficients,
   ed25519,
+  generateEd25519Seed,
   generateFactorKey,
   generateSessionNonce,
   generateTSSEndpoints,
@@ -63,7 +63,6 @@ import {
   getSessionId,
   log,
   parseToken,
-  randomBytes,
   sampleEndpoints,
   scalarBNToBufferSEC1,
 } from "./utils";
@@ -644,7 +643,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   public getPubKeyEd25519(): Buffer {
     const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
-    return ed25519().keyFromPublic(p).getPublic();
+    return ed25519.keyFromPublic(p).getPublic();
   }
 
   public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {
@@ -881,9 +880,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!existingUser) {
       if (!importTssKey && !this.options.useDkg) {
         if (this.keyType === KeyType.ed25519) {
-          importTssKey = bytesToHex(randomBytes(32));
+          const k = generateEd25519Seed();
+          importTssKey = k.toString("hex");
         } else if (this.keyType === KeyType.secp256k1) {
-          importTssKey = generateFactorKey().private.toString("hex", 64);
+          const k = secp256k1.genKeyPair().getPrivate();
+          importTssKey = scalarBNToBufferSEC1(k).toString("hex");
         } else {
           throw CoreKitError.default("Unsupported key type");
         }
