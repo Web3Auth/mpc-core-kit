@@ -246,7 +246,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         locationReplaceOnRedirect: true,
         serverTimeOffset: this.options.serverTimeOffset,
         keyType: this.keyType,
-        useDkg: this.keyType === KeyType.ed25519 && this.options.useDkg === undefined ? true : this.options.useDkg,
+        useDkg: this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? true : this.options.useDKG,
       },
     });
 
@@ -878,7 +878,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
     let importTssKey = providedImportTssKey;
     if (!existingUser) {
-      if (!importTssKey && !this.options.useDkg) {
+      if (!importTssKey && !this.options.useDKG) {
         if (this.keyType === KeyType.ed25519) {
           const k = generateEd25519Seed();
           importTssKey = k.toString("hex");

@@ -409,7 +409,7 @@ export interface Web3AuthOptions {
    * by default keys are generated on using dkg protocol on a distributed network
    * @defaultValue true if keyType is ed25519, false for secp256k1 keys
    */
-  useDkg?: boolean;
+  useDKG?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
