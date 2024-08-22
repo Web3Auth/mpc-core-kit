@@ -314,20 +314,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.isNodejsOrRN(this.options.uxMode)) {
       throw CoreKitError.oauthLoginUnsupported(`Oauth login is NOT supported in ${this.options.uxMode} mode.`);
     }
-    const { importTssKey: providedImportTssKey } = params;
+    const { importTssKey } = params;
     const tkeyServiceProvider = this.torusSp;
-
-    let importTssKey = providedImportTssKey;
-
-    if (!importTssKey && !this.options.useDkg) {
-      if (this.keyType === KeyType.ed25519) {
-        importTssKey = bytesToHex(randomBytes(32));
-      } else if (this.keyType === KeyType.secp256k1) {
-        importTssKey = generateFactorKey().private.toString("hex", 64);
-      } else {
-        throw CoreKitError.default("Unsupported key type");
-      }
-    }
 
     try {
       // oAuth login.
@@ -379,17 +367,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.prefetchValueExceeded(`The prefetch value '${prefetchTssPublicKeys}' exceeds the maximum allowed limit of 3.`);
     }
 
-    const { verifier, verifierId, idToken, importTssKey: providedImportTssKey } = params;
-    let importTssKey = providedImportTssKey;
-    if (!importTssKey && !this.options.useDkg) {
-      if (this.keyType === KeyType.ed25519) {
-        importTssKey = bytesToHex(randomBytes(32));
-      } else if (this.keyType === KeyType.secp256k1) {
-        importTssKey = generateFactorKey().private.toString("hex", 64);
-      } else {
-        throw CoreKitError.default("Unsupported key type");
-      }
-    }
+    const { verifier, verifierId, idToken, importTssKey } = params;
     this.torusSp.verifierName = verifier;
     this.torusSp.verifierId = verifierId;
 
@@ -894,12 +872,22 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tssNonce;
   }
 
-  private async setupTkey(importTssKey?: string): Promise<void> {
+  private async setupTkey(providedImportTssKey?: string): Promise<void> {
     if (!this.state.postBoxKey) {
       throw CoreKitError.userNotLoggedIn();
     }
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
+    let importTssKey = providedImportTssKey;
     if (!existingUser) {
+      if (!importTssKey && !this.options.useDkg) {
+        if (this.keyType === KeyType.ed25519) {
+          importTssKey = bytesToHex(randomBytes(32));
+        } else if (this.keyType === KeyType.secp256k1) {
+          importTssKey = generateFactorKey().private.toString("hex", 64);
+        } else {
+          throw CoreKitError.default("Unsupported key type");
+        }
+      }
       await this.handleNewUser(importTssKey);
     } else {
       if (importTssKey) {
