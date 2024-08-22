@@ -888,7 +888,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           importTssKey = k.toString("hex");
         } else if (this.keyType === KeyType.secp256k1) {
           const k = secp256k1.genKeyPair().getPrivate();
-          importTssKey = scalarBNToBufferSEC1(k).toString("hex", 64);
+          importTssKey = scalarBNToBufferSEC1(k).toString("hex");
         } else {
           throw CoreKitError.default("Unsupported key type");
         }
