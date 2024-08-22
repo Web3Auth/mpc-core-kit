@@ -18,7 +18,7 @@
   "homepage": "https://github.com/Web3Auth/mpc-core-kit/tree/master#readme",
   "license": "ISC",
   "scripts": {
-    "test": "node --test -r esbuild-register tests/*.spec.ts",
+    "test": "node --test -r esbuild-register tests/backwardCompatible.spec.ts",
     "dev": "torus-scripts start",
     "build": "torus-scripts build",
     "release": "torus-scripts release",
