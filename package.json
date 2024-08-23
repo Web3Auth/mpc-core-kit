@@ -1,6 +1,6 @@
 {
   "name": "@web3auth/mpc-core-kit",
-  "version": "3.1.1-0",
+  "version": "3.1.1",
   "description": "MPC CoreKit SDK for web3Auth",
   "keywords": [
     "web3Auth/mpc-core-kit",
