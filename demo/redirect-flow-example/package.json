@@ -14,7 +14,7 @@
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
     "@web3auth/base": "^8.6.2",
-    "@web3auth/ethereum-mpc-provider": "^8.4.0",
+    "@web3auth/ethereum-mpc-provider": "^8.12.0",
     "@web3auth/mpc-core-kit": "file:../..",
     "browserify-zlib": "^0.2.0",
     "copy-webpack-plugin": "^11.0.0",
