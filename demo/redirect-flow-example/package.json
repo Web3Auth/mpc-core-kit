@@ -10,7 +10,7 @@
     "@toruslabs/tss-dkls-lib": "3.0.0-alpha.0",
     "@toruslabs/tss-frost-lib": "0.1.1-alpha.0",
     "@types/jest": "^27.5.2",
-    "@types/node": "^16.18.48",
+    "@types/node": "^16.18.104",
     "@types/react": "^18.2.21",
     "@types/react-dom": "^18.2.7",
     "@web3auth/base": "^8.6.2",
