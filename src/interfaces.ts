@@ -10,13 +10,14 @@ import type {
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
 // TODO: move the types to a base class for both dkls and frost in future
-import type { tssLib } from "@toruslabs/tss-dkls-lib";
+import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
+import type { tssLib as TssFrostLib } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
-export type TssLibType = typeof tssLib;
+export type TssLibType = typeof TssFrostLib | typeof TssDklsLib;
 export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;

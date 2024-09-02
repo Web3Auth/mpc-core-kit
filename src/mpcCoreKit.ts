@@ -316,6 +316,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // if not redirect flow or session rehydration, ask for factor key to login
 
     // dont wait for wasm to be loaded, we can reload it during signing if not loaded
+    if (this.wasmLib) return;
     this._tssLib
       .load()
       .then((lib) => {
