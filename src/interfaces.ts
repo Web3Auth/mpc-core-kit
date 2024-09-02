@@ -9,12 +9,14 @@ import type {
   TorusVerifierResponse,
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
+// TODO: move the types to a base class for both dkls and frost in future
+import type { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
-
+export type TssLibType = typeof tssLib;
 export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -26,8 +28,6 @@ export interface IAsyncStorage {
 }
 
 export type SupportedStorageType = "local" | "session" | "memory" | IStorage;
-
-export type TssLib = { keyType: string; lib: unknown };
 
 export interface InitParams {
   /**
@@ -296,7 +296,7 @@ export interface Web3AuthOptions {
   /**
    * The threshold signing library to use.
    */
-  tssLib: TssLib;
+  tssLib: TssLibType;
 
   /**
    * @defaultValue `false`
