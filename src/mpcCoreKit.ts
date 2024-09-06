@@ -13,8 +13,9 @@ import { keccak256 } from "@toruslabs/metadata-helpers";
 import { SessionManager } from "@toruslabs/session-manager";
 import { Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
+import type { WasmLib as DKLSWasmLib } from "@toruslabs/tss-dkls-lib";
 import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
-import type FrostWasmLib from "@toruslabs/tss-frost-lib";
+import type { WasmLib as FrostWasmLib } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 import bowser from "bowser";
 import { ec as EC } from "elliptic";
@@ -46,7 +47,7 @@ import {
   SessionData,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
-  TssLib,
+  TssLibType,
   UserInfo,
   Web3AuthOptions,
   Web3AuthOptionsWithDefaults,
@@ -90,7 +91,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
-  private _tssLib: TssLib;
+  private _tssLib: TssLibType;
+
+  private wasmLib: DKLSWasmLib | FrostWasmLib;
 
   private _keyType: KeyType;
 
@@ -277,6 +280,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else if (this.options.uxMode === UX_MODE.POPUP) {
       await this.torusSp.init({});
     }
+
     this.ready = true;
 
     // try handle redirect flow if enabled and return(redirect) from oauth login
@@ -310,6 +314,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     // if not redirect flow or session rehydration, ask for factor key to login
+
+    // dont wait for wasm to be loaded, we can reload it during signing if not loaded
+    if (this.wasmLib) return;
+    this._tssLib
+      .load()
+      .then((lib) => {
+        this.wasmLib = lib;
+        return true;
+      })
+      .catch((err: unknown) => {
+        log.error("error loading wasm lib", err);
+      });
   }
 
   public async loginWithOAuth(params: OAuthLoginParams): Promise<void> {
@@ -651,6 +667,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {
+    if (!this.wasmLib) {
+      this.wasmLib = await this._tssLib.load();
+    }
     if (this.keyType === KeyType.secp256k1) {
       const sig = await this.sign_ECDSA_secp256k1(data, hashed);
       return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
@@ -1282,7 +1301,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // Client lib expects pub key in XY-format, base64-encoded.
     const tssPubKeyBase64 = Buffer.from(tssPubKey.toSEC1(secp256k1).subarray(1)).toString("base64");
 
-    const client = new Client(currentSession, clientIndex, partyIndexes, endpoints, sockets, share, tssPubKeyBase64, true, this._tssLib.lib);
+    const client = new Client(
+      currentSession,
+      clientIndex,
+      partyIndexes,
+      endpoints,
+      sockets,
+      share,
+      tssPubKeyBase64,
+      true,
+      this.wasmLib as DKLSWasmLib
+    );
 
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
@@ -1350,7 +1379,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
     const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
     const signature = await signEd25519(
-      this._tssLib.lib as typeof FrostWasmLib,
+      this.wasmLib as FrostWasmLib,
       session,
       this.signatures,
       serverXCoords,
