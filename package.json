@@ -31,7 +31,16 @@
   ],
   "peerDependencies": {
     "@babel/runtime": "^7.x",
-    "@toruslabs/metadata-helpers": "^5.x"
+    "@toruslabs/tss-dkls-lib": "^4.0.0",
+    "@toruslabs/tss-frost-lib": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+        "@toruslabs/tss-dkls-lib": {
+          "optional": true
+        },
+        "@toruslabs/tss-frost-lib": {
+          "optional": true
+        }
   },
   "dependencies": {
     "@tkey/common-types": "^15.0.2",
