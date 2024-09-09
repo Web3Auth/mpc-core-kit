@@ -43,14 +43,14 @@ import {
   InitParams,
   JWTLoginParams,
   MPCKeyDetails,
-  NewTSSLibType,
   OAuthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
   TssLibType,
   UserInfo,
-  v3TSSLibType,
+  V3TSSLibType,
+  V4TSSLibType,
   Web3AuthOptions,
   Web3AuthOptionsWithDefaults,
   Web3AuthState,
@@ -1383,11 +1383,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async loadTssWasm() {
     if (this.wasmLib) return this.wasmLib;
-    if (typeof (this._tssLib as NewTSSLibType).load === "function") {
+    if (typeof (this._tssLib as V4TSSLibType).load === "function") {
       // dont wait for wasm to be loaded, we can reload it during signing if not loaded
-      return (this._tssLib as NewTSSLibType).load();
-    } else if ((this._tssLib as v3TSSLibType).lib) {
-      return (this._tssLib as v3TSSLibType).lib as DKLSWasmLib | FrostWasmLib;
+      return (this._tssLib as V4TSSLibType).load();
+    } else if ((this._tssLib as V3TSSLibType).lib) {
+      return (this._tssLib as V3TSSLibType).lib as DKLSWasmLib | FrostWasmLib;
     }
   }
 }
