@@ -17,7 +17,11 @@ import BN from "bn.js";
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
-export type TssLibType = typeof TssFrostLib | typeof TssDklsLib;
+
+export type V3TSSLibType = { keyType: string; lib: unknown };
+
+export type V4TSSLibType = typeof TssFrostLib | typeof TssDklsLib;
+export type TssLibType = V4TSSLibType | V3TSSLibType;
 export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
