@@ -43,12 +43,14 @@ import {
   InitParams,
   JWTLoginParams,
   MPCKeyDetails,
+  NewTSSLibType,
   OAuthLoginParams,
   SessionData,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
   TssLibType,
   UserInfo,
+  v3TSSLibType,
   Web3AuthOptions,
   Web3AuthOptionsWithDefaults,
   Web3AuthState,
@@ -312,20 +314,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.featureRequest();
       TorusUtils.setSessionTime(this.options.sessionTime);
     }
-
-    // if not redirect flow or session rehydration, ask for factor key to login
-
-    // dont wait for wasm to be loaded, we can reload it during signing if not loaded
-    if (this.wasmLib) return;
-    this._tssLib
-      .load()
-      .then((lib) => {
-        this.wasmLib = lib;
-        return true;
-      })
-      .catch((err: unknown) => {
-        log.error("error loading wasm lib", err);
-      });
   }
 
   public async loginWithOAuth(params: OAuthLoginParams): Promise<void> {
@@ -667,9 +655,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {
-    if (!this.wasmLib) {
-      this.wasmLib = await this._tssLib.load();
-    }
+    this.wasmLib = await this.loadTssWasm();
     if (this.keyType === KeyType.secp256k1) {
       const sig = await this.sign_ECDSA_secp256k1(data, hashed);
       return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
@@ -1393,5 +1379,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     log.info(`signature: ${signature}`);
     return Buffer.from(signature, "hex");
+  }
+
+  private async loadTssWasm() {
+    if (this.wasmLib) return this.wasmLib;
+    if (typeof (this._tssLib as NewTSSLibType).load === "function") {
+      // dont wait for wasm to be loaded, we can reload it during signing if not loaded
+      return (this._tssLib as NewTSSLibType).load();
+    } else if ((this._tssLib as v3TSSLibType).lib) {
+      return (this._tssLib as v3TSSLibType).lib as DKLSWasmLib | FrostWasmLib;
+    }
   }
 }
