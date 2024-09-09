@@ -3,7 +3,7 @@ import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
-import { SIGNER_MAP } from "@toruslabs/constants";
+import { KEY_TYPE, SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
@@ -205,6 +205,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? false : this.options.useDKG;
   }
 
+  private get useClientGeneratedKey(): boolean {
+    return this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? true : !!this.options.useDKG;
+  }
+
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
   // TssShareType.DEVICE and TssShareType.RECOVERY
   // if the factors key provided is the same type recovery will not works
@@ -243,6 +247,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (!nodeDetails) {
       throw CoreKitError.nodeDetailsRetrievalFailed();
+    }
+
+    if (this.keyType === KEY_TYPE.ED25519 && this.useDKG !== undefined) {
+      throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
     }
 
     this.torusSp = new TSSTorusServiceProvider({
@@ -887,7 +895,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
     let importTssKey = providedImportTssKey;
     if (!existingUser) {
-      if (!importTssKey && !this.useDKG) {
+      if (!importTssKey && this.useClientGeneratedKey) {
         if (this.keyType === KeyType.ed25519) {
           const k = generateEd25519Seed();
           importTssKey = k.toString("hex");

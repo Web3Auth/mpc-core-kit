@@ -412,9 +412,20 @@ export interface Web3AuthOptions {
   /**
    * Set this flag to false to generate keys on client side
    * by default keys are generated on using dkg protocol on a distributed network
-   * @defaultValue false if keyType is ed25519, true for secp256k1 keys
+   * Note: This option is not supported for ed25519 key type
+   * @defaultValue `true`
    */
   useDKG?: boolean;
+
+  /**
+   * @defaultValue `false` for secp256k1 and `true` for ed25519
+   * Set this flag to true to use the client generated key for signing
+   * Note: This option is set to true for ed25519 key type by default to ensure ed25519 mpc key  seed exportablity.
+   * The seed thn can be used for importing user's key other wallets like phantom etc
+   * If you set this flag to false for ed25519 key type, you will not be able to export the seed and
+   * only scalar will be exported, scalar can be used for signing outside of this sdk but not for importing the key in other wallets.
+   */
+  useClientGeneratedKey?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
