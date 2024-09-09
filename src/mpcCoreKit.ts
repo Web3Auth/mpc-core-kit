@@ -201,10 +201,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  private get useDKG(): boolean {
-    return this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? false : this.options.useDKG;
-  }
-
   private get useClientGeneratedKey(): boolean {
     return this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? true : !!this.options.useDKG;
   }
@@ -249,7 +245,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.nodeDetailsRetrievalFailed();
     }
 
-    if (this.keyType === KEY_TYPE.ED25519 && this.useDKG !== undefined) {
+    if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG !== undefined) {
       throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
     }
 
@@ -263,7 +259,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         locationReplaceOnRedirect: true,
         serverTimeOffset: this.options.serverTimeOffset,
         keyType: this.keyType,
-        useDkg: this.useDKG,
+        useDkg: this.options.useDKG,
       },
     });
 
