@@ -99,6 +99,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _keyType: KeyType;
 
+  private atomicInProgress: boolean = false;
+
   constructor(options: Web3AuthOptions) {
     if (!options.web3AuthClientId) {
       throw CoreKitError.clientIdInvalid();
@@ -851,13 +853,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
+    const isFirstAtomicCall = !this.atomicInProgress;
+    this.atomicInProgress = true;
+
     this.tkey.manualSync = true;
     try {
       const r = await f();
-      await this.commitChanges();
+      if (isFirstAtomicCall && this.atomicInProgress) {
+        if (!this.options.manualSync) {
+          await this.commitChanges();
+        }
+      }
       return r;
     } finally {
-      this.tkey.manualSync = this.options.manualSync;
+      if (isFirstAtomicCall) this.atomicInProgress = false;
     }
   }
 
