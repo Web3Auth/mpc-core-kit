@@ -866,7 +866,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       return r;
     } finally {
-      if (isFirstAtomicCall) this.atomicInProgress = false;
+      if (isFirstAtomicCall) {
+        this.atomicInProgress = false;
+        this.tkey.manualSync = this.options.manualSync;
+      }
     }
   }
 
