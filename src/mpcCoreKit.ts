@@ -201,8 +201,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  private get useClientGeneratedKey(): boolean {
-    return this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? true : !!this.options.useDKG;
+  private get useClientGeneratedTSSKey(): boolean {
+    return this.keyType === KeyType.ed25519 && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
   }
 
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
@@ -891,7 +891,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
     let importTssKey = providedImportTssKey;
     if (!existingUser) {
-      if (!importTssKey && this.useClientGeneratedKey) {
+      if (!importTssKey && this.useClientGeneratedTSSKey) {
         if (this.keyType === KeyType.ed25519) {
           const k = generateEd25519Seed();
           importTssKey = k.toString("hex");

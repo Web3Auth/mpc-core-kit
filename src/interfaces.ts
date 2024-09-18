@@ -422,10 +422,10 @@ export interface Web3AuthOptions {
    * Set this flag to true to use the client generated key for signing
    * Note: This option is set to true for ed25519 key type by default to ensure ed25519 mpc key  seed exportablity.
    * The seed thn can be used for importing user's key other wallets like phantom etc
-   * If you set this flag to false for ed25519 key type, you will not be able to export the seed and
+   * If you set this flag to false for ed25519 key type, you will not be able to export the seed for ed25519 keys and
    * only scalar will be exported, scalar can be used for signing outside of this sdk but not for importing the key in other wallets.
    */
-  useClientGeneratedKey?: boolean;
+  useClientGeneratedTSSKey?: boolean;
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
