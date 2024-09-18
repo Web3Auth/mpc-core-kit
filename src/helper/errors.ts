@@ -134,6 +134,7 @@ class CoreKitError extends AbstractCoreKitError {
     1004: "OAuth login is NOT supported in this UX mode.",
     1005: "No valid storage option found.",
     1006: "No data found in storage.",
+    1007: "Invalid config.",
 
     // TSS and key management errors
     1101: "'tssLib' is required when running in this UX mode.",
@@ -208,6 +209,10 @@ class CoreKitError extends AbstractCoreKitError {
 
   public static noDataFoundInStorage(extraMessage = ""): ICoreKitError {
     return CoreKitError.fromCode(1006, extraMessage);
+  }
+
+  public static invalidConfig(extraMessage = ""): ICoreKitError {
+    return CoreKitError.fromCode(1007, extraMessage);
   }
 
   // TSS and key management errors

@@ -3,7 +3,7 @@ import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
-import { SIGNER_MAP } from "@toruslabs/constants";
+import { KEY_TYPE, SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
@@ -201,8 +201,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  private get useDKG(): boolean {
-    return this.keyType === KeyType.ed25519 && this.options.useDKG === undefined ? false : this.options.useDKG;
+  private get useClientGeneratedTSSKey(): boolean {
+    return this.keyType === KeyType.ed25519 && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
   }
 
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
@@ -245,6 +245,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.nodeDetailsRetrievalFailed();
     }
 
+    if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG !== undefined) {
+      throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
+    }
+
     this.torusSp = new TSSTorusServiceProvider({
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
@@ -255,7 +259,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         locationReplaceOnRedirect: true,
         serverTimeOffset: this.options.serverTimeOffset,
         keyType: this.keyType,
-        useDkg: this.useDKG,
+        useDkg: this.options.useDKG,
       },
     });
 
@@ -887,7 +891,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
     let importTssKey = providedImportTssKey;
     if (!existingUser) {
-      if (!importTssKey && !this.useDKG) {
+      if (!importTssKey && this.useClientGeneratedTSSKey) {
         if (this.keyType === KeyType.ed25519) {
           const k = generateEd25519Seed();
           importTssKey = k.toString("hex");
