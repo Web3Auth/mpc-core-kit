@@ -85,8 +85,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private currentStorage: AsyncStorage;
 
-  private nodeDetailManager!: NodeDetailManager;
-
   private _storageBaseKey = "corekit_store";
 
   private enableLogging = false;
@@ -130,11 +128,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
-
-    this.nodeDetailManager = new NodeDetailManager({
-      network: this.options.web3AuthNetwork,
-      enableLogging: options.enableLogging,
-    });
   }
 
   get tKey(): TKeyTSS {
@@ -230,11 +223,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.resetState();
     if (params.rehydrate === undefined) params.rehydrate = true;
 
-    const nodeDetails = await this.nodeDetailManager.getNodeDetails({ verifier: "test-verifier", verifierId: "test@example.com" });
-
-    if (!nodeDetails) {
-      throw CoreKitError.nodeDetailsRetrievalFailed();
-    }
+    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
     if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG !== undefined) {
       throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
@@ -1234,10 +1223,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const { tssShareIndex } = this.state;
     const tssPubKey = await this.getPubKeyPoint();
 
-    const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
-      verifier: this.tkey.serviceProvider.verifierName,
-      verifierId: this.tkey.serviceProvider.verifierId,
-    });
+    const { torusNodeTSSEndpoints } = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when signing.");
