@@ -135,15 +135,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       network: this.options.web3AuthNetwork,
       enableLogging: options.enableLogging,
     });
-
-    const asyncConstructor = async () => {
-      const sessionId = await this.currentStorage.get<string>("sessionId");
-      this.sessionManager = new SessionManager({
-        sessionTime: this.options.sessionTime,
-        sessionId,
-      });
-    };
-    asyncConstructor();
   }
 
   get tKey(): TKeyTSS {
@@ -179,7 +170,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   get sessionId(): string {
-    return this.sessionManager.sessionId;
+    return this.sessionManager?.sessionId;
   }
 
   get supportsAccountIndex(): boolean {
@@ -289,6 +280,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.ready = true;
 
+    // setup session Manager during init instead of async constructor
+    const sessionId = await this.currentStorage.get<string>("sessionId");
+    this.sessionManager = new SessionManager({
+      sessionTime: this.options.sessionTime,
+      sessionId,
+    });
+
     // try handle redirect flow if enabled and return(redirect) from oauth login
     if (
       params.handleRedirectResult &&
@@ -297,7 +295,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     ) {
       // on failed redirect, instance is reseted.
       await this.handleRedirectResult();
-
       // if not redirect flow try to rehydrate session if available
     } else if (params.rehydrate && this.sessionManager.sessionId) {
       // swallowed, should not throw on rehydrate timed out session
