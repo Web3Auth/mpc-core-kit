@@ -81,7 +81,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private tkey: TKeyTSS | null = null;
 
-  private sessionManager!: SessionManager<SessionData>;
+  private sessionManager?: SessionManager<SessionData>;
 
   private currentStorage: AsyncStorage;
 
@@ -280,12 +280,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.ready = true;
 
-    // setup session Manager during init instead of async constructor
-    const sessionId = await this.currentStorage.get<string>("sessionId");
-    this.sessionManager = new SessionManager({
-      sessionTime: this.options.sessionTime,
-      sessionId,
-    });
+    if (this.options.sessionTime !== 0) {
+      // setup session Manager during init instead of async constructor
+      const sessionId = await this.currentStorage.get<string>("sessionId");
+      this.sessionManager = new SessionManager({
+        sessionTime: this.options.sessionTime,
+        sessionId,
+      });
+    }
 
     // try handle redirect flow if enabled and return(redirect) from oauth login
     if (
@@ -296,7 +298,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // on failed redirect, instance is reseted.
       await this.handleRedirectResult();
       // if not redirect flow try to rehydrate session if available
-    } else if (params.rehydrate && this.sessionManager.sessionId) {
+    } else if (params.rehydrate && this.sessionManager?.sessionId) {
       // swallowed, should not throw on rehydrate timed out session
       const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
         log.error("rehydrate session error", err);
@@ -707,7 +709,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async logout(): Promise<void> {
-    if (this.sessionManager.sessionId) {
+    if (this.sessionManager?.sessionId) {
       await this.sessionManager.invalidateSession();
     }
     // to accommodate async storage
@@ -1028,6 +1030,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async createSession() {
+    if (this.options.sessionTime === 0 || !this.sessionManager) {
+      log.info("sessionTime is 0, skipping session creation");
+      return;
+    }
+
     try {
       const sessionId = SessionManager.generateRandomSessionKey();
       this.sessionManager.sessionId = sessionId;
