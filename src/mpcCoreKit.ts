@@ -7,7 +7,6 @@ import { KEY_TYPE, SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
-import { NodeDetailManager } from "@toruslabs/fetch-node-details";
 import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { SessionManager } from "@toruslabs/session-manager";
