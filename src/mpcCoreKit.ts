@@ -282,6 +282,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))
     ) {
       // on failed redirect, instance is reseted.
+      // skip check feature gating on redirection as it was check before login
       await this.handleRedirectResult();
       // if not redirect flow try to rehydrate session if available
     } else if (params.rehydrate && this.sessionManager.sessionId) {
