@@ -402,7 +402,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       // wait for prefetch completed before setup tkey
-      const [loginResponse] = await Promise.all([loginPromise, prefetchTssPublicKeys]);
+      const [loginResponse] = await Promise.all([loginPromise, ...prefetchTssPubs]);
 
       const postBoxKey = this._getPostBoxKey(loginResponse);
 
