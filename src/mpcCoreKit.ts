@@ -387,19 +387,22 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       // get postbox key.
-      let loginResponse: TorusKey;
+      let loginPromise: Promise<TorusKey>;
       if (!params.subVerifier) {
         // single verifier login.
-        loginResponse = await this.torusSp.customAuthInstance.getTorusKey(verifier, verifierId, { verifier_id: verifierId }, idToken, {
+        loginPromise = this.torusSp.customAuthInstance.getTorusKey(verifier, verifierId, { verifier_id: verifierId }, idToken, {
           ...params.extraVerifierParams,
           ...params.additionalParams,
         });
       } else {
         // aggregate verifier login
-        loginResponse = await this.torusSp.customAuthInstance.getAggregateTorusKey(verifier, verifierId, [
+        loginPromise = this.torusSp.customAuthInstance.getAggregateTorusKey(verifier, verifierId, [
           { verifier: params.subVerifier, idToken, extraVerifierParams: params.extraVerifierParams },
         ]);
       }
+
+      // wait for prefetch completed before setup tkey
+      const [loginResponse] = await Promise.all([loginPromise, ...prefetchTssPubs]);
 
       const postBoxKey = this._getPostBoxKey(loginResponse);
 
@@ -410,10 +413,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         userInfo: { ...parseToken(idToken), verifier, verifierId },
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
-
-      // wait for prefetch completed before setup tkey
-      await Promise.all(prefetchTssPubs);
-
       await this.setupTkey(importTssKey);
     } catch (err: unknown) {
       log.error("login error", err);
@@ -1190,7 +1189,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private _getSignatures(sessionData: TorusKey["sessionData"]["sessionTokenData"]): string[] {
-    return sessionData.map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
+    // There is a check in torus.js which pushes undefined to session data in case
+    // that particular node call fails.
+    // and before returning we are not filtering out undefined vals in torus.js
+    // TODO: fix this in torus.js
+    return sessionData.filter((session) => !!session).map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
   }
 
   private isNodejsOrRN(params: CoreKitMode): boolean {
