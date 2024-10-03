@@ -1189,6 +1189,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private _getSignatures(sessionData: TorusKey["sessionData"]["sessionTokenData"]): string[] {
+    // There is a check in torus.js which pushes undefined to session data in case
+    // that particular node call fails.
+    // and before returning we are not filtering out undefined vals in torus.js
+    // TODO: fix this in torus.js
     return sessionData.filter((session) => !!session).map((session) => JSON.stringify({ data: session.token, sig: session.signature }));
   }
 
