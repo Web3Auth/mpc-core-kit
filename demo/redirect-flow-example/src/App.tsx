@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, SubVerifierDetailsParams, TssShareType, keyToMnemonic, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, factorKeyCurve, makeEthereumSigner } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
-import type { provider } from "web3-core";
-import { CHAIN_NAMESPACES, CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
+import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { BN } from "bn.js";
 import { KeyType, Point } from "@tkey/common-types";
@@ -71,13 +70,13 @@ export const mockLogin = async (email: string) => {
   const idToken = token;
   const parsedToken = parseToken(idToken);
   return { idToken, parsedToken };
-};
+}; 
 
 function App() {
   const [mockEmail, setMockEmail] = useState<string | undefined>(undefined);
 
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
-  const [provider, setProvider] = useState<SafeEventEmitterProvider | null>(null);
+  const [provider, setProvider] = useState<IProvider | null>(null);
   const [web3, setWeb3] = useState<Web3|undefined>(undefined)
   const [exportTssShareType, setExportTssShareType] = useState<TssShareType>(TssShareType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
@@ -104,6 +103,7 @@ function App() {
     const init = async () => {
       // Example config to handle redirect result manually
       await coreKitInstance.init({ handleRedirectResult: false, rehydrate });
+      
       if (window.location.hash.includes("#state")) {
         await coreKitInstance.handleRedirectResult();
       }
@@ -132,7 +132,7 @@ function App() {
 
   useEffect(() => {
     if (provider) {
-      const web3 = new Web3(provider as provider);
+      const web3 = new Web3(provider as IProvider);
       setWeb3(web3);
     }
   }, [provider])
