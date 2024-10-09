@@ -3,14 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@tkey/common-types": "^15.0.2",
+    "@tkey/common-types": "^15.1.0",
     "@toruslabs/tss-dkls-lib": "^4.0.0",
     "@toruslabs/tss-frost-lib": "^1.0.0",
     "@types/jest": "^27.5.2",
     "@types/node": "^16.18.48",
-    "@types/react": "^18.2.21",
-    "@types/react-dom": "^18.2.7",
-    "@web3auth/base": "^8.6.2",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "@web3auth/base": "^9.0.2",
     "@web3auth/ethereum-mpc-provider": "^9.0.2",
     "@web3auth/mpc-core-kit": "file:../..",
     "browserify-zlib": "^0.2.0",
@@ -20,7 +21,7 @@
     "jsrsasign": "^10.6.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "typescript": "^5.6.2",
+    "typescript": "^5.6.3",
     "web3": "^4.13.0"
   },
   "scripts": {
@@ -69,7 +70,6 @@
     "process": "^0.11.10",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",
-    "url": "^0.11.4",
-    "vm-browserify": "^1.1.2"
+    "url": "^0.11.4"
   }
 }

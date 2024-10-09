@@ -14,7 +14,6 @@ export default defineConfig({
       assert: 'assert',
       url: 'url',
       zlib: 'browserify-zlib',
-      vm: 'vm-browserify'
     },
   },
   define: {
