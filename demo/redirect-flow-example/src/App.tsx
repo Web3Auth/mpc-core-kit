@@ -110,6 +110,7 @@ function App() {
 
   // decide whether to rehydrate session
   const rehydrate = true;
+  const initialized = useRef(false);
   useEffect(() => {
     const init = async () => {
       // Example config to handle redirect result manually
@@ -140,8 +141,13 @@ function App() {
         uiConsole("security question not set");
       }
     };
-    init();
-  }, [rehydrate, securityQuestion]);
+    if (!initialized.current)
+    {
+      init();
+      initialized.current = true;
+    }
+
+  }, []);
 
   useEffect(() => {
     if (provider) {
