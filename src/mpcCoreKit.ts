@@ -12,7 +12,7 @@ import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { SessionManager } from "@toruslabs/session-manager";
 import { Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
-import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
+import { Client, generateEndpoints as generateTSSEndpoints, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type { WasmLib as DKLSWasmLib } from "@toruslabs/tss-dkls-lib";
 import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
 import type { WasmLib as FrostWasmLib } from "@toruslabs/tss-frost-lib";
@@ -61,7 +61,6 @@ import {
   generateEd25519Seed,
   generateFactorKey,
   generateSessionNonce,
-  generateTSSEndpoints,
   getHashedPrivateKey,
   getSessionId,
   log,

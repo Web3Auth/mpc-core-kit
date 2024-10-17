@@ -38,29 +38,6 @@ export const generateFactorKey = (): { private: BN; pub: TkeyPoint } => {
   return { private: keyPair.getPrivate(), pub };
 };
 
-export const generateTSSEndpoints = (tssNodeEndpoints: string[], parties: number, clientIndex: number, nodeIndexes: number[]) => {
-  const endpoints: string[] = [];
-  const tssWSEndpoints: string[] = [];
-  const partyIndexes: number[] = [];
-  const nodeIndexesReturned: number[] = [];
-
-  for (let i = 0; i < parties; i++) {
-    partyIndexes.push(i);
-    if (i === clientIndex) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      endpoints.push(null as any);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      tssWSEndpoints.push(null as any);
-    } else {
-      const targetNodeIndex = nodeIndexes[i] - 1;
-      endpoints.push(tssNodeEndpoints[targetNodeIndex]);
-      tssWSEndpoints.push(new URL(tssNodeEndpoints[targetNodeIndex]).origin);
-      nodeIndexesReturned.push(nodeIndexes[i]);
-    }
-  }
-  return { endpoints, tssWSEndpoints, partyIndexes, nodeIndexesReturned };
-};
-
 export async function storageAvailable(storage: IStorage | IAsyncStorage): Promise<boolean> {
   try {
     const x = "__storage_test__";
