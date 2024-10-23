@@ -236,7 +236,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.nodeDetailsRetrievalFailed();
     }
 
-    if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG !== undefined) {
+    if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG) {
       throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
     }
 
