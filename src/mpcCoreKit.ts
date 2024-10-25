@@ -236,7 +236,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.nodeDetailsRetrievalFailed();
     }
 
-    if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG !== undefined) {
+    if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG) {
       throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
     }
 
@@ -1273,7 +1273,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // Setup sockets.
     const sockets = await setupSockets(tssWSEndpoints, randomSessionNonce);
 
-    const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex as number);
+    const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex);
     const denormalisedShare = dklsCoeff.mul(tssShare).umod(secp256k1.curve.n);
     const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
     const derivedShare = denormalisedShare.add(accountNonce).umod(secp256k1.curve.n);
@@ -1345,7 +1345,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // Derive share coefficients for flat hierarchy.
     const ec = new Ed25519Curve();
-    const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord);
+    const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord, this.state.tssShareIndex);
 
     // Get pub key.
     const tssPubKey = await this.getPubKey();
