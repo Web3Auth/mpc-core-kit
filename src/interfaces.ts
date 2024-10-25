@@ -22,6 +22,7 @@ import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { IRemoteClientState } from "./remoteSignInterfaces";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
@@ -186,6 +187,7 @@ export interface Web3AuthState {
   tssPubKey?: Buffer;
   accountIndex: number;
   factorKey?: BN;
+  remoteClient?: IRemoteClientState;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];

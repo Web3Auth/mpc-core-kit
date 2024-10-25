@@ -1,13 +1,25 @@
-import { BNString, KeyType, ONE_KEY_DELETE_NONCE, Point, secp256k1, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
+import {
+  BNString,
+  EncryptedMessage,
+  FactorEnc,
+  KeyType,
+  ONE_KEY_DELETE_NONCE,
+  Point,
+  secp256k1,
+  SHARE_DELETED,
+  ShareStore,
+  StringifiedType,
+} from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
+import { DELIMITERS, factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, randomSelection, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { Ed25519Curve, Secp256k1Curve } from "@toruslabs/elliptic-wrapper";
 import { fetchLocalConfig } from "@toruslabs/fnd-base";
+import { post } from "@toruslabs/http-helpers";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { SessionManager } from "@toruslabs/session-manager";
 import { Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
@@ -60,6 +72,7 @@ import {
 } from "./interfaces";
 import { DefaultSessionSigGeneratorPlugin } from "./plugins/DefaultSessionSigGenerator";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
+import { IRemoteClientState, RefreshRemoteTssReturnType } from "./remoteSignInterfaces";
 import {
   deriveShareCoefficients,
   ed25519,
@@ -659,7 +672,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
 
     return this.atomicSync(async () => {
-      await this.copyOrCreateShare(shareType, factorPub);
+      if (this.state.remoteClient && !this.state.factorKey) {
+        if (shareType === this.state.tssShareIndex) {
+          await this.remoteCopyFactorPub(factorPub, shareType);
+        } else {
+          await this.remoteAddFactorPub(factorPub, shareType);
+        }
+      } else {
+        await this.copyOrCreateShare(shareType, factorPub);
+      }
       await this.backupMetadataShare(factorKey);
       await this.addFactorDescription({ factorKey, shareDescription, additionalMetadata, updateMetadata: false });
 
@@ -827,6 +848,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       if (opts?.keyTweak) {
         throw CoreKitError.default("key tweaking not supported for ecdsa-secp256k1");
       }
+      if (this.state.remoteClient && !this.state.factorKey) {
+        const sig = await this.remoteSignSecp256k1(data, hashed);
+        return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
+      }
       const sig = await this.sign_ECDSA_secp256k1(data, opts?.hashed, opts?.secp256k1Precompute);
       return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
     } else if (this._sigType === "ed25519" || this._sigType === "bip340") {
@@ -843,7 +868,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
   // mutation function
   async deleteFactor(factorPub: Point, factorKey?: BNString): Promise<void> {
-    if (!this.state.factorKey) {
+    if (!this.state.factorKey && !this.state.remoteClient) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
     }
     if (!this.tKey.metadata.factorPubs) {
@@ -861,8 +886,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         throw CoreKitError.factorInUseCannotBeDeleted("Cannot delete current active factor");
       }
 
-      const authSignatures = await this.getSessionSignatures();
-      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures });
+      if (this.state.remoteClient && !this.state.factorKey) {
+        await this.remoteDeleteFactorPub(factorPub);
+      } else {
+        const authSignatures = await this.getSessionSignatures();
+        await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures });
+      }
       const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
       const allDesc = this.tKey.metadata.getShareDescription();
       const keyDesc = allDesc[factorPubHex];
@@ -1023,6 +1052,231 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     } catch (error: unknown) {
       throw CoreKitError.default(`Error exporting ed25519 seed: ${error}`);
     }
+  }
+
+  async setupRemoteSigning(params: IRemoteClientState): Promise<Promise<void>> {
+    const { remoteClientUrl, remoteFactorPub, metadataShare, remoteClientToken, tssShareIndex } = params;
+
+    const remoteClient: IRemoteClientState = {
+      remoteClientUrl: remoteClientUrl.at(-1) === "/" ? remoteClientUrl.slice(0, -1) : remoteClientUrl,
+      remoteFactorPub,
+      metadataShare,
+      remoteClientToken,
+      tssShareIndex,
+    };
+
+    const sharestore = ShareStore.fromJSON(JSON.parse(metadataShare));
+    this.tkey.inputShareStoreSafe(sharestore);
+    await this.tKey.reconstructKey();
+    const tssPubKey = this.tKey.getTSSPub().toSEC1(this.tkey.tssCurve, false);
+    // setup Tkey
+    // const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
+    this.updateState({ tssShareIndex, tssPubKey, remoteClient });
+
+    // // Finalize setup.
+    // setup provider
+    await this.createSession();
+  }
+
+  /**
+   * Refreshes TSS shares. Allows to change number of shares. New user shares are
+   * only produced for the target indices.
+   * @param factorPubs - Factor pub keys after refresh.
+   * @param tssIndices - Target tss indices to generate new shares for.
+   * @param remoteFactorPub - Factor Pub for remote share.
+   * @param signatures - Signatures for authentication against RSS servers.
+   */
+  async remoteRefreshTssShares(params: { factorPubs: Point[]; tssIndices: number[]; signatures: string[]; remoteClient: IRemoteClientState }) {
+    const { factorPubs, tssIndices, signatures, remoteClient } = params;
+    const { tKey } = this;
+    const rssNodeDetails = await tKey._getRssNodeDetails();
+    const { serverEndpoints, serverPubKeys, serverThreshold } = rssNodeDetails;
+    let finalSelectedServers = randomSelection(
+      new Array(rssNodeDetails.serverEndpoints.length).fill(null).map((_, i) => i + 1),
+      Math.ceil(rssNodeDetails.serverEndpoints.length / 2)
+    );
+
+    const verifierNameVerifierId = tKey.serviceProvider.getVerifierNameVerifierId();
+
+    const tssCommits = tKey.metadata.tssPolyCommits[tKey.tssTag];
+    const tssNonce: number = tKey.metadata.tssNonces[tKey.tssTag] || 0;
+    const { pubKey: newTSSServerPub, nodeIndexes } = await tKey.serviceProvider.getTSSPubKey(tKey.tssTag, tssNonce + 1);
+    // move to pre-refresh
+    if (nodeIndexes?.length > 0) {
+      finalSelectedServers = nodeIndexes.slice(0, Math.min(serverEndpoints.length, nodeIndexes.length));
+    }
+
+    const factorEnc = tKey.getFactorEncs(Point.fromSEC1(secp256k1, remoteClient.remoteFactorPub));
+
+    const dataRequired = {
+      factorEnc,
+      factorPubs: factorPubs.map((pub) => pub.toJSON()),
+      targetIndexes: tssIndices,
+      verifierNameVerifierId,
+      tssTag: tKey.tssTag,
+      tssCommits: tssCommits.map((commit) => commit.toJSON()),
+      tssNonce,
+      newTSSServerPub: newTSSServerPub.toJSON(),
+      serverOpts: {
+        selectedServers: finalSelectedServers,
+        serverEndpoints,
+        serverPubKeys,
+        serverThreshold,
+        authSignatures: signatures,
+      },
+    };
+
+    const result = (
+      await post<{ data: RefreshRemoteTssReturnType }>(
+        `${remoteClient.remoteClientUrl}/api/mpc/refresh_tss`,
+        { dataRequired },
+        {
+          headers: {
+            Authorization: `Bearer ${remoteClient.remoteClientToken}`,
+          },
+        }
+      )
+    ).data;
+
+    tKey.metadata.updateTSSData({
+      tssTag: result.tssTag,
+      tssNonce: result.tssNonce,
+      tssPolyCommits: result.tssPolyCommits.map((commit) => Point.fromJSON(commit)),
+      factorPubs: result.factorPubs.map((pub) => Point.fromJSON(pub)),
+      factorEncs: result.factorEncs,
+    });
+  }
+
+  async remoteCopyFactorPub(newFactorPub: Point, tssIndex: number) {
+    const remoteFactorPub = Point.fromSEC1(secp256k1, this.state.remoteClient.remoteFactorPub);
+    const factorEnc = this.tkey.getFactorEncs(remoteFactorPub);
+    const tssCommits = this.tkey.getTSSCommits();
+    const dataRequired = {
+      factorEnc,
+      tssCommits,
+      factorPub: newFactorPub,
+    };
+
+    const result = (
+      await post<{ data?: EncryptedMessage }>(
+        `${this.state.remoteClient.remoteClientUrl}/api/mpc/copy_tss_share`,
+        { dataRequired },
+        {
+          headers: {
+            Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`,
+          },
+        }
+      )
+    ).data;
+
+    const { tssTag } = this.tkey;
+    const updatedFactorPubs = this.tkey.metadata.factorPubs[tssTag].concat([newFactorPub]);
+    const factorEncs: { [key: string]: FactorEnc } = JSON.parse(JSON.stringify(this.tkey.metadata.factorEncs[tssTag]));
+    const factorPubID = newFactorPub.x.toString(16, 64);
+    factorEncs[factorPubID] = {
+      tssIndex,
+      type: "direct",
+      userEnc: result,
+      serverEncs: [],
+    };
+    this.tkey.metadata.updateTSSData({
+      tssKeyType: this.keyType,
+      tssTag: this.tkey.tssTag,
+      factorPubs: updatedFactorPubs,
+      factorEncs,
+    });
+  }
+
+  async remoteAddFactorPub(newFactorPub: Point, newFactorTSSIndex: number) {
+    const { tKey } = this;
+    const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
+    const updatedFactorPubs = existingFactorPubs.concat([newFactorPub]);
+    const existingTSSIndexes = existingFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
+    const updatedTSSIndexes = existingTSSIndexes.concat([newFactorTSSIndex]);
+
+    await this.remoteRefreshTssShares({
+      factorPubs: updatedFactorPubs,
+      tssIndices: updatedTSSIndexes,
+      signatures: this.state.signatures,
+      remoteClient: this.state.remoteClient,
+    });
+  }
+
+  async remoteDeleteFactorPub(factorPubToDelete: Point) {
+    const { tKey } = this;
+    const existingFactorPubs = tKey.metadata.factorPubs[tKey.tssTag];
+    const factorIndex = existingFactorPubs.findIndex((p) => p.x.eq(factorPubToDelete.x));
+    if (factorIndex === -1) {
+      throw new Error(`factorPub ${factorPubToDelete} does not exist`);
+    }
+    const updatedFactorPubs = existingFactorPubs.slice();
+    updatedFactorPubs.splice(factorIndex, 1);
+    const updatedTSSIndexes = updatedFactorPubs.map((fb) => tKey.getFactorEncs(fb).tssIndex);
+
+    await this.remoteRefreshTssShares({
+      factorPubs: updatedFactorPubs,
+      tssIndices: updatedTSSIndexes,
+      signatures: this.state.signatures,
+      remoteClient: this.state.remoteClient,
+    });
+  }
+
+  public async remoteSignSecp256k1(msgData: Buffer, hashed: boolean = false): Promise<{ v: number; r: Buffer; s: Buffer }> {
+    if (!hashed) {
+      msgData = keccak256(msgData);
+    }
+
+    if (!this.state.remoteClient.remoteClientUrl) throw new Error("remoteClientUrl not present");
+
+    // PreSetup
+    const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
+      verifier: "test-verifier",
+      verifierId: "test@example.com",
+    });
+
+    const tssCommits = this.tKey.getTSSCommits();
+
+    const tssNonce = this.getTssNonce() || 0;
+
+    const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
+    const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
+
+    const parties = 4;
+    const clientIndex = parties - 1;
+
+    const { nodeIndexes } = await (this.tKey.serviceProvider as TSSTorusServiceProvider).getTSSPubKey(
+      this.tKey.tssTag,
+      this.tKey.metadata.tssNonces[this.tKey.tssTag]
+    );
+
+    if (parties - 1 > nodeIndexes.length) {
+      throw new Error(`Not enough nodes to perform TSS - parties :${parties}, nodeIndexes:${nodeIndexes.length}`);
+    }
+    const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
+
+    const factor = Point.fromSEC1(secp256k1, this.state.remoteClient.remoteFactorPub);
+    const factorEnc = this.tKey.getFactorEncs(factor);
+
+    const data = {
+      dataRequired: {
+        factorEnc,
+        sessionId,
+        tssNonce,
+        nodeIndexes: nodeIndexes.slice(0, parties - 1),
+        tssCommits: tssCommits.map((commit) => commit.toJSON()),
+        signatures: this.signatures,
+        serverEndpoints: { endpoints, tssWSEndpoints, partyIndexes },
+      },
+      msgHash: msgData.toString("hex"),
+    };
+
+    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/mpc/sign`, data, {
+      headers: {
+        Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`,
+      },
+    });
+    const { r, s, v } = result.data as { v: string; r: string; s: string };
+    return { v: parseInt(v), r: Buffer.from(r, "hex"), s: Buffer.from(s, "hex") };
   }
 
   public updateState(newState: Partial<Web3AuthState>): void {
