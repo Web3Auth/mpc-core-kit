@@ -53,9 +53,10 @@
     "@toruslabs/elliptic-wrapper": "^0.1.0",
     "@toruslabs/fetch-node-details": "^14.0.1",
     "@toruslabs/fnd-base": "^14.0.0",
+    "@toruslabs/http-helpers": "^7.0.0",
     "@toruslabs/metadata-helpers": "^6.0.0",
-    "@toruslabs/session-manager": "^3.1.0",
     "@toruslabs/openlogin-utils": "^8.2.1",
+    "@toruslabs/session-manager": "^3.1.0",
     "@toruslabs/torus.js": "^15.1.0",
     "@toruslabs/tss-client": "^3.1.0",
     "@toruslabs/tss-frost-client": "0.3.1",
@@ -63,6 +64,7 @@
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
     "elliptic": "^6.5.7",
+    "hi-base32": "^0.5.1",
     "loglevel": "^1.9.2"
   },
   "devDependencies": {

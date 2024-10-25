@@ -15,6 +15,7 @@ import type { tssLib as TssFrostLib } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { IRemoteClientState } from "./remoteSignInterfaces";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
@@ -161,6 +162,7 @@ export interface Web3AuthState {
   tssPubKey?: Buffer;
   accountIndex: number;
   factorKey?: BN;
+  remoteClient?: IRemoteClientState;
 }
 
 export interface ICoreKit {
