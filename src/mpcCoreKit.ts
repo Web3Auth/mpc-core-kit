@@ -619,7 +619,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.atomicSync(async () => {
       await this.copyOrCreateShare(shareType, factorPub);
       await this.backupMetadataShare(factorKey);
-      await this.addFactorDescription(factorKey, shareDescription, additionalMetadata, false);
+      await this.addFactorDescription({ factorKey, shareDescription, additionalMetadata, updateMetadata: false });
 
       return scalarBNToBufferSEC1(factorKey).toString("hex");
     }).catch((reason: Error) => {
@@ -950,9 +950,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // Store factor description.
       await this.backupMetadataShare(factorKey);
       if (this.options.disableHashedFactorKey) {
-        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.Other, undefined, false);
+        await this.addFactorDescription({
+          factorKey,
+          shareDescription: FactorKeyTypeShareDescription.Other,
+          updateMetadata: false,
+        });
       } else {
-        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare, undefined, false);
+        await this.addFactorDescription({
+          factorKey,
+          shareDescription: FactorKeyTypeShareDescription.HashedShare,
+          updateMetadata: false,
+        });
       }
     });
   }
@@ -1165,15 +1173,23 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
   }
 
-  private async addFactorDescription(
-    factorKey: BN,
-    shareDescription: FactorKeyTypeShareDescription,
-    additionalMetadata: Record<string, string> = {},
-    updateMetadata = true
-  ) {
+  private async addFactorDescription(args: {
+    factorKey: BN;
+    shareDescription: FactorKeyTypeShareDescription;
+    additionalMetadata?: Record<string, string>;
+    updateMetadata?: boolean;
+  }) {
+    const { factorKey, shareDescription, updateMetadata } = args;
+
+    let { additionalMetadata } = args;
+    if (!additionalMetadata) {
+      additionalMetadata = {};
+    }
+
     const { tssIndex } = await this.tKey.getTSSShare(factorKey);
-    const tkeyPoint = getPubKeyPoint(factorKey, factorKeyCurve);
-    const factorPub = tkeyPoint.toSEC1(this.tkey.tssCurve, true).toString("hex");
+    const factorPoint = getPubKeyPoint(factorKey, factorKeyCurve);
+    const factorPub = factorPoint.toSEC1(this.tkey.tssCurve, true).toString("hex");
+
     const params = {
       module: shareDescription,
       dateAdded: Date.now(),
