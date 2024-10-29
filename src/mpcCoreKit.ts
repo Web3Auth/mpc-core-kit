@@ -99,7 +99,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _keyType: KeyType;
 
-  private atomicInProgress: boolean = false;
+  private atomicCallStackCounter: number = 0;
 
   constructor(options: Web3AuthOptions) {
     if (!options.web3AuthClientId) {
@@ -853,21 +853,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
-    const isFirstAtomicCall = !this.atomicInProgress;
-    this.atomicInProgress = true;
+    this.atomicCallStackCounter += 1;
 
     this.tkey.manualSync = true;
     try {
       const r = await f();
-      if (isFirstAtomicCall && this.atomicInProgress) {
+      if (this.atomicCallStackCounter === 1) {
         if (!this.options.manualSync) {
           await this.commitChanges();
         }
       }
       return r;
     } finally {
-      if (isFirstAtomicCall) {
-        this.atomicInProgress = false;
+      this.atomicCallStackCounter -= 1;
+      if (this.atomicCallStackCounter === 0) {
         this.tkey.manualSync = this.options.manualSync;
       }
     }
