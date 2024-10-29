@@ -619,7 +619,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.atomicSync(async () => {
       await this.copyOrCreateShare(shareType, factorPub);
       await this.backupMetadataShare(factorKey);
-      await this.addFactorDescription(factorKey, shareDescription, additionalMetadata);
+      await this.addFactorDescription(factorKey, shareDescription, additionalMetadata, false);
 
       return scalarBNToBufferSEC1(factorKey).toString("hex");
     }).catch((reason: Error) => {
@@ -951,9 +951,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // Store factor description.
       await this.backupMetadataShare(factorKey);
       if (this.options.disableHashedFactorKey) {
-        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.Other);
+        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.Other, undefined, false);
       } else {
-        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare);
+        await this.addFactorDescription(factorKey, FactorKeyTypeShareDescription.HashedShare, undefined, false);
       }
     });
   }
