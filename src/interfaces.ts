@@ -22,7 +22,7 @@ import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
-import { IRemoteClientState } from "./remoteSignInterfaces";
+import { IRemoteClientState } from "./remoteFactorServices/remoteSignInterfaces";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
@@ -118,7 +118,7 @@ export interface EnableMFAParams {
   /**
    * Additional metadata information you want to be stored alongside this factor for easy identification.
    */
-  additionalMetadata?: Record<string, string>;
+  additionalMetadata?: Record<string, string | number>;
 }
 
 export interface CreateFactorParams extends EnableMFAParams {
@@ -515,6 +515,7 @@ export interface SessionData {
   tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
+  remoteClientState?: IRemoteClientState;
 }
 
 export interface TkeyLocalStoreData {
