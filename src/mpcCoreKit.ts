@@ -55,7 +55,7 @@ import {
   Web3AuthOptionsWithDefaults,
   Web3AuthState,
 } from "./interfaces";
-import { IRemoteClientState, RefreshRemoteTssReturnType } from "./remoteSignInterfaces";
+import { IRemoteClientState, RefreshRemoteTssReturnType } from "./remoteFactorServices/remoteSignInterfaces";
 import {
   deriveShareCoefficients,
   ed25519,
@@ -612,7 +612,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     return this.atomicSync(async () => {
-      if (this.state.remoteClient && !this.state.factorKey) {
+      if (this.state.remoteClient) {
         if (shareType === this.state.tssShareIndex) {
           await this.remoteCopyFactorPub(factorPub, shareType);
         } else {
@@ -662,7 +662,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {
     this.wasmLib = await this.loadTssWasm();
     if (this.keyType === KeyType.secp256k1) {
-      if (this.state.remoteClient && !this.state.factorKey) {
+      if (this.state.remoteClient) {
         const sig = await this.remoteSignSecp256k1(data, hashed);
         return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
       }
@@ -694,7 +694,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         throw CoreKitError.factorInUseCannotBeDeleted("Cannot delete current active factor");
       }
 
-      if (this.state.remoteClient && !this.state.factorKey) {
+      if (this.state.remoteClient) {
         await this.remoteDeleteFactorPub(factorPub);
       } else {
         await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
@@ -863,8 +863,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  async setupRemoteSigning(params: IRemoteClientState): Promise<Promise<void>> {
-    const { remoteClientUrl, remoteFactorPub, metadataShare, remoteClientToken, tssShareIndex } = params;
+  async setupRemoteSigning(params: Omit<IRemoteClientState, "tssShareIndex">): Promise<void> {
+    const { remoteClientUrl, remoteFactorPub, metadataShare, remoteClientToken } = params;
+    const details = this.getKeyDetails().shareDescriptions[remoteFactorPub];
+    if (!details) throw CoreKitError.default("factor description not found");
+
+    const parsedDescription = (details || [])[0] ? JSON.parse(details[0]) : {};
+    const { tssShareIndex } = parsedDescription;
+
+    if (!tssShareIndex) throw CoreKitError.default("tss share index not found");
 
     const remoteClient: IRemoteClientState = {
       remoteClientUrl: remoteClientUrl.at(-1) === "/" ? remoteClientUrl.slice(0, -1) : remoteClientUrl,
@@ -875,16 +882,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     };
 
     const sharestore = ShareStore.fromJSON(JSON.parse(metadataShare));
-    this.tkey.inputShareStoreSafe(sharestore);
+    await this.tkey.inputShareStoreSafe(sharestore);
     await this.tKey.reconstructKey();
     const tssPubKey = this.tKey.getTSSPub().toSEC1(this.tkey.tssCurve, false);
     // setup Tkey
     // const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
     this.updateState({ tssShareIndex, tssPubKey, remoteClient });
-
     // // Finalize setup.
     // setup provider
-    await this.createSession();
+    await this.createSessionRemoteClient();
   }
 
   /**
@@ -937,7 +943,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const result = (
       await post<{ data: RefreshRemoteTssReturnType }>(
-        `${remoteClient.remoteClientUrl}/api/mpc/refresh_tss`,
+        `${remoteClient.remoteClientUrl}/api/v3/mpc/refresh_tss`,
         { dataRequired },
         {
           headers: {
@@ -968,7 +974,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const result = (
       await post<{ data?: EncryptedMessage }>(
-        `${this.state.remoteClient.remoteClientUrl}/api/mpc/copy_tss_share`,
+        `${this.state.remoteClient.remoteClientUrl}/api/v3/mpc/copy_tss_share`,
         { dataRequired },
         {
           headers: {
@@ -1079,7 +1085,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       msgHash: msgData.toString("hex"),
     };
 
-    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/mpc/sign`, data, {
+    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/v3/mpc/sign`, data, {
       headers: {
         Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`,
       },
@@ -1105,10 +1111,32 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       return r;
     } finally {
-      this.atomicCallStackCounter -= 1;
-      if (this.atomicCallStackCounter === 0) {
-        this.tkey.manualSync = this.options.manualSync;
+      this.tkey.manualSync = this.options.manualSync;
+    }
+  }
+
+  private async createSessionRemoteClient() {
+    try {
+      const sessionId = SessionManager.generateRandomSessionKey();
+      this.sessionManager.sessionId = sessionId;
+      const { postBoxKey, userInfo, tssShareIndex, tssPubKey } = this.state;
+      if (!postBoxKey || !tssPubKey || !userInfo) {
+        throw CoreKitError.userNotLoggedIn();
       }
+      const payload: SessionData = {
+        postBoxKey,
+        factorKey: "",
+        tssShareIndex: tssShareIndex as number,
+        tssPubKey: Buffer.from(tssPubKey).toString("hex"),
+        signatures: this.signatures,
+        userInfo,
+        remoteClientState: this.state.remoteClient,
+      };
+      await this.sessionManager.createSession(payload);
+      // to accommodate async storage
+      await this.currentStorage.set("sessionId", sessionId);
+    } catch (err) {
+      log.error("error creating session", err);
     }
   }
 
@@ -1420,7 +1448,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async addFactorDescription(args: {
     factorKey: BN;
     shareDescription: FactorKeyTypeShareDescription;
-    additionalMetadata?: Record<string, string>;
+    additionalMetadata?: Record<string, string | number>;
     updateMetadata?: boolean;
   }) {
     const { factorKey, shareDescription, updateMetadata } = args;

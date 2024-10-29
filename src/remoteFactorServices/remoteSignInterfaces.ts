@@ -1,6 +1,20 @@
 import { FactorEnc, Point } from "@tkey/common-types";
 import { PointHex } from "@toruslabs/tss-client";
 
+import { FactorKeyTypeShareDescription, TssShareType } from "../constants";
+
+export enum RemoteFactorType {
+  SMS = "sms",
+  Authenticator = "authenticator",
+}
+
+export interface RemoteFactorDescription {
+  module: FactorKeyTypeShareDescription;
+  tssShareIndex: TssShareType;
+  authenticator: RemoteFactorType;
+  description: string;
+}
+
 export interface IRemoteClientState {
   remoteFactorPub: string;
   remoteClientUrl: string;
@@ -31,6 +45,7 @@ export interface refreshRemoteTssType {
     authSignatures: string[];
   };
 }
+
 export interface RefreshRemoteTssReturnType {
   tssTag: string;
   tssNonce: number;
