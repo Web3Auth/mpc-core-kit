@@ -1,6 +1,5 @@
 import { BNString, KeyType, Point, secp256k1, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
-import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { KEY_TYPE, SIGNER_MAP } from "@toruslabs/constants";
@@ -115,7 +114,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (options.enableLogging) {
       log.enableAll();
       this.enableLogging = true;
-    } else log.setLevel("error");
+    } else {
+      log.setLevel("error");
+      options.enableLogging = false;
+    }
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     if (!options.sessionTime) options.sessionTime = 86400;
@@ -129,6 +131,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
+
+    this.sessionManager = new SessionManager({
+      sessionTime: this.options.sessionTime,
+    });
   }
 
   get tKey(): TKeyTSS {
@@ -190,6 +196,57 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.keyType === KeyType.ed25519 && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
   }
 
+  static async fromJSON(value: StringifiedType, options: Web3AuthOptions): Promise<Web3AuthMPCCoreKit> {
+    const coreKit = new Web3AuthMPCCoreKit(options);
+    const { state, serviceProvider, storageLayer, keyType, atomicCallStackCounter, ready, sessionId, tkey } = value;
+    coreKit.torusSp = TSSTorusServiceProvider.fromJSON(serviceProvider);
+    coreKit.storageLayer = TorusStorageLayer.fromJSON(storageLayer);
+
+    coreKit.tkey = await TKeyTSS.fromJSON(tkey, {
+      serviceProvider: coreKit.torusSp,
+      storageLayer: coreKit.storageLayer,
+      enableLogging: options.enableLogging,
+      tssKeyType: options.tssLib.keyType as KeyType,
+    });
+    await coreKit.tkey.reconstructKey();
+
+    if (state.factorKey) state.factorKey = new BN(state.factorKey, "hex");
+    if (state.tssPubKey) state.tssPubKey = Buffer.from(state.tssPubKey, "hex");
+    coreKit.state = state;
+    coreKit.sessionManager.sessionId = sessionId;
+    coreKit.atomicCallStackCounter = atomicCallStackCounter;
+    coreKit.ready = ready;
+
+    if (coreKit._keyType !== keyType) {
+      console.log("keyType mismatch", coreKit._keyType, keyType);
+      throw CoreKitError.invalidConfig();
+    }
+
+    // will be derived from option during constructor
+    // sessionManager
+    // enableLogging
+    // private _tssLib: TssLibType;
+    // private wasmLib: DKLSWasmLib | FrostWasmLib;
+    // private _keyType: KeyType;
+    return coreKit;
+  }
+
+  public toJSON(): StringifiedType {
+    const factorKey = this.state.factorKey ? this.state.factorKey.toString("hex") : undefined;
+    const tssPubKey = this.state.tssPubKey ? this.state.tssPubKey.toString("hex") : undefined;
+    return {
+      state: { ...this.state, factorKey, tssPubKey },
+      options: this.options,
+      serviceProvider: this.torusSp.toJSON(),
+      storageLayer: this.storageLayer.toJSON(),
+      tkey: this.tKey.toJSON(),
+      keyType: this.keyType,
+      sessionId: this.sessionManager.sessionId,
+      atomicCallStackCounter: this.atomicCallStackCounter,
+      ready: this.ready,
+    };
+  }
+
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
   // TssShareType.DEVICE and TssShareType.RECOVERY
   // if the factors key provided is the same type recovery will not works
@@ -249,16 +306,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       enableLogging: this.enableLogging,
     });
 
-    const shareSerializationModule = new ShareSerializationModule();
-
     this.tkey = new TKeyTSS({
       enableLogging: this.enableLogging,
       serviceProvider: this.torusSp,
       storageLayer: this.storageLayer,
       manualSync: this.options.manualSync,
-      modules: {
-        shareSerialization: shareSerializationModule,
-      },
       tssKeyType: this.keyType,
     });
 
@@ -272,10 +324,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     // setup session Manager during init instead of async constructor
     const sessionId = await this.currentStorage.get<string>("sessionId");
-    this.sessionManager = new SessionManager({
-      sessionTime: this.options.sessionTime,
-      sessionId,
-    });
+    this.sessionManager.sessionId = sessionId;
 
     // try handle redirect flow if enabled and return(redirect) from oauth login
     if (
