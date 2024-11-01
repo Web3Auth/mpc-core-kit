@@ -1,8 +1,4 @@
-import { TKeyTSS } from "@tkey/tss";
-import BN from "bn.js";
-
-import { FIELD_ELEMENT_HEX_LEN } from "../constants";
-import { IAsyncStorage, IStorage, TkeyLocalStoreData } from "../interfaces";
+import { IAsyncStorage, IStorage } from "../interfaces";
 import CoreKitError from "./errors";
 
 export class MemoryStorage implements IStorage {
@@ -68,44 +64,5 @@ export class AsyncStorage {
     const store = JSON.parse((await this.storage.getItem(this._storeKey)) || "{}");
     delete store[key];
     await this.storage.setItem(this._storeKey, JSON.stringify(store));
-  }
-}
-
-export class DeviceStorage {
-  private tKey: TKeyTSS;
-
-  private currentStorage: AsyncStorage;
-
-  constructor(tkeyInstance: TKeyTSS, currentStorage: AsyncStorage) {
-    this.tKey = tkeyInstance;
-    this.currentStorage = currentStorage;
-  }
-
-  // device factor
-  async setDeviceFactor(factorKey: BN, replace = false): Promise<void> {
-    if (!replace) {
-      const existingFactor = await this.getDeviceFactor();
-      if (existingFactor) {
-        throw CoreKitError.default("Device factor already exists");
-      }
-    }
-
-    const metadata = this.tKey.getMetadata();
-    const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
-    await this.currentStorage.set(
-      tkeyPubX,
-      JSON.stringify({
-        factorKey: factorKey.toString("hex").padStart(64, "0"),
-      } as TkeyLocalStoreData)
-    );
-  }
-
-  async getDeviceFactor(): Promise<string | undefined> {
-    const metadata = this.tKey.getMetadata();
-
-    const tkeyPubX = metadata.pubKey.x.toString(16, FIELD_ELEMENT_HEX_LEN);
-    const tKeyLocalStoreString = await this.currentStorage.get<string>(tkeyPubX);
-    const tKeyLocalStore = JSON.parse(tKeyLocalStoreString || "{}") as TkeyLocalStoreData;
-    return tKeyLocalStore.factorKey;
   }
 }
