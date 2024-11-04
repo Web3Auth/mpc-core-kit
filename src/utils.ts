@@ -2,8 +2,8 @@ import { KeyType, Point, Point as TkeyPoint, secp256k1 } from "@tkey/common-type
 import { generatePrivateBN } from "@tkey/core";
 import { factorKeyCurve } from "@tkey/tss";
 import { EllipticCurve } from "@toruslabs/elliptic-wrapper";
-import { safeatob } from "@toruslabs/openlogin-utils";
 import { keccak256 } from "@toruslabs/torus.js";
+import { safeatob } from "@web3auth/auth";
 import BN from "bn.js";
 import { eddsa as EDDSA } from "elliptic";
 import loglevel from "loglevel";
