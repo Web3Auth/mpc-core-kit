@@ -120,24 +120,26 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     // we accept sessionTime to be 0 which will disable the session manager creation
     // if sessionTime is not provided, it is defaulted to 86400
-    if (options.sessionTime === undefined) options.sessionTime = 86400;
+    if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.serverTimeOffset) options.serverTimeOffset = 0;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
+    if (options.enableSessionManager === undefined) options.enableSessionManager = true;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
 
-    if (options.sessionTime) {
+    if (options.enableSessionManager) {
       this.sessionManager = new SessionManager<SessionData>({
         sessionTime: options.sessionTime,
-        serverTimeOffset: options.serverTimeOffset,
       });
     }
+
+    TorusUtils.setSessionTime(this.options.sessionTime);
   }
 
   get tKey(): TKeyTSS {
@@ -279,6 +281,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.ready = true;
 
+    TorusUtils.setSessionTime(this.options.sessionTime);
+
     // try handle redirect flow if enabled and return(redirect) from oauth login
     if (
       params.handleRedirectResult &&
@@ -289,27 +293,27 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // skip check feature gating on redirection as it was check before login
       await this.handleRedirectResult();
       // if not redirect flow try to rehydrate session if available
-    } else if (params.rehydrate && this.options.sessionTime !== 0) {
+    } else if (params.rehydrate && this.sessionManager) {
       const sessionId = await this.currentStorage.get<string>("sessionId");
-      this.sessionManager.sessionId = sessionId;
+      if (sessionId) {
+        this.sessionManager.sessionId = sessionId;
 
-      // swallowed, should not throw on rehydrate timed out session
-      const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
-        log.error("rehydrate session error", err);
-      });
+        // swallowed, should not throw on rehydrate timed out session
+        const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
+          log.error("rehydrate session error", err);
+        });
 
-      // try rehydrate session
-      if (sessionResult) {
-        await this.rehydrateSession(sessionResult);
-      } else {
-        // feature gating on no session rehydration
-        await this.featureRequest();
-        TorusUtils.setSessionTime(this.options.sessionTime);
+        // try rehydrate session
+        if (sessionResult) {
+          await this.rehydrateSession(sessionResult);
+        } else {
+          // feature gating on no session rehydration
+          await this.featureRequest();
+        }
       }
     } else {
       // feature gating if not redirect flow or session rehydration
       await this.featureRequest();
-      TorusUtils.setSessionTime(this.options.sessionTime);
     }
   }
 
@@ -1044,7 +1048,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async createSession() {
-    if (this.options.sessionTime === 0 || !this.sessionManager) {
+    if (!this.sessionManager) {
       log.info("sessionTime is 0, skipping session creation");
       return;
     }
