@@ -1,5 +1,5 @@
 import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
-import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
+import { IRemoteClientState, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { WEB3AUTH_SIG_TYPE } from "@toruslabs/constants";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -22,7 +22,6 @@ import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
-import { IRemoteClientState } from "./remoteFactorServices/remoteSignInterfaces";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
