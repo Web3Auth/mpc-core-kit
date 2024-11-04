@@ -852,6 +852,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
+  public updateState(newState: Partial<Web3AuthState>): void {
+    this.state = { ...this.state, ...newState };
+  }
+
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
     this.atomicCallStackCounter += 1;
 
@@ -1197,10 +1201,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       tssShareIndex: tssIndex,
     };
     await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
-  }
-
-  private updateState(newState: Partial<Web3AuthState>): void {
-    this.state = { ...this.state, ...newState };
   }
 
   private resetState(): void {
