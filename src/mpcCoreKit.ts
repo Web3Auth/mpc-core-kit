@@ -118,7 +118,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } else log.setLevel("error");
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
-    if (!options.sessionTime) options.sessionTime = 86400;
+    // we accept sessionTime to be 0 which will disable the session manager creation
+    // if sessionTime is not provided, it is defaulted to 86400
+    if (options.sessionTime === undefined) options.sessionTime = 86400;
     if (!options.serverTimeOffset) options.serverTimeOffset = 0;
     if (!options.uxMode) options.uxMode = UX_MODE.REDIRECT;
     if (!options.redirectPathName) options.redirectPathName = "redirect";
@@ -129,6 +131,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
+
+    if (options.sessionTime) {
+      this.sessionManager = new SessionManager<SessionData>({
+        sessionTime: options.sessionTime,
+        serverTimeOffset: options.serverTimeOffset,
+      });
+    }
   }
 
   get tKey(): TKeyTSS {
@@ -270,15 +279,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.ready = true;
 
-    if (this.options.sessionTime !== 0) {
-      // setup session Manager during init instead of async constructor
-      const sessionId = await this.currentStorage.get<string>("sessionId");
-      this.sessionManager = new SessionManager({
-        sessionTime: this.options.sessionTime,
-        sessionId,
-      });
-    }
-
     // try handle redirect flow if enabled and return(redirect) from oauth login
     if (
       params.handleRedirectResult &&
@@ -289,7 +289,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // skip check feature gating on redirection as it was check before login
       await this.handleRedirectResult();
       // if not redirect flow try to rehydrate session if available
-    } else if (params.rehydrate && this.sessionManager?.sessionId) {
+    } else if (params.rehydrate && this.options.sessionTime !== 0) {
+      const sessionId = await this.currentStorage.get<string>("sessionId");
+      this.sessionManager.sessionId = sessionId;
+
       // swallowed, should not throw on rehydrate timed out session
       const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
         log.error("rehydrate session error", err);
