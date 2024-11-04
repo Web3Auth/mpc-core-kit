@@ -221,7 +221,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     coreKit.ready = ready;
 
     if (coreKit._keyType !== keyType) {
-      console.log("keyType mismatch", coreKit._keyType, keyType);
       throw CoreKitError.invalidConfig();
     }
 
