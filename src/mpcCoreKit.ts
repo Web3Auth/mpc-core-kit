@@ -281,8 +281,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this.ready = true;
 
-    TorusUtils.setSessionTime(this.options.sessionTime);
-
     // try handle redirect flow if enabled and return(redirect) from oauth login
     if (
       params.handleRedirectResult &&
@@ -1051,8 +1049,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async createSession() {
     if (!this.sessionManager) {
-      log.warn("sessionManager is not available");
-      return;
+      throw new Error("sessionManager is not available");
     }
 
     try {
