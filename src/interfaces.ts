@@ -337,6 +337,13 @@ export interface Web3AuthOptions {
   storage: IAsyncStorage | IStorage;
 
   /**
+   * @defaultValue false
+   * disable session manager creation
+   * signatures from web3auth newtorks will still expired after sessionTime if session manager is disabled
+   */
+  disableSessionManager?: boolean;
+
+  /**
    * @defaultValue 86400
    */
   sessionTime?: number;
