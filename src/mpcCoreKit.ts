@@ -108,17 +108,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
-    // if (await storageAvailable(options.storage)) {
-    //   throw CoreKitError.storageTypeUnsupported(`Unsupported storage type ${options.storageKey} for ${options.uxMode} mode.`);
-    // }
-
     if (options.enableLogging) {
       log.enableAll();
       this.enableLogging = true;
     } else log.setLevel("error");
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
-    // we accept sessionTime to be 0 which will disable the session manager creation
     // if sessionTime is not provided, it is defaulted to 86400
     if (!options.sessionTime) options.sessionTime = 86400;
     if (!options.serverTimeOffset) options.serverTimeOffset = 0;
