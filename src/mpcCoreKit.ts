@@ -533,19 +533,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
   }
 
-  public async inputFactorKey(factorKey: BN): Promise<void> {
+  public async inputFactorKey(factorKey: BNString): Promise<void> {
+    const factorKeyBN = new BN(factorKey, "hex");
     this.checkReady();
     try {
       // input tkey device share when required share > 0 ( or not reconstructed )
       // assumption tkey shares will not changed
       if (!this.tKey.secp256k1Key) {
-        const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
+        const factorKeyMetadata = await this.getFactorKeyMetadata(factorKeyBN);
         await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
       }
 
       // Finalize initialization.
       await this.tKey.reconstructKey();
-      await this.finalizeTkey(factorKey);
+      await this.finalizeTkey(factorKeyBN);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -650,6 +651,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     const { shareType } = createFactorParams;
 
     let { factorKey, shareDescription, additionalMetadata } = createFactorParams;
+    factorKey = factorKey ? new BN(factorKey, "hex") : undefined;
 
     if (!VALID_SHARE_INDICES.includes(shareType)) {
       throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${shareType}). Valid share types are ${VALID_SHARE_INDICES}.`);
@@ -1370,7 +1372,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       this.checkReady();
 
       const factorKey = new BN(result.factorKey, "hex");
-      if (!factorKey) {
+      if (!factorKey && !result.remoteClientState?.remoteClientToken) {
         throw CoreKitError.providedFactorKeyInvalid();
       }
       const postBoxKey = result.postBoxKey || result.oAuthKey;
@@ -1380,19 +1382,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       this.torusSp.postboxKey = new BN(postBoxKey, "hex");
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
-      const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
+
+      const metadataShareStore = result.remoteClientState?.metadataShare
+        ? ShareStore.fromJSON(JSON.parse(result.remoteClientState?.metadataShare))
+        : await this.getFactorKeyMetadata(factorKey);
+
       await this.tKey.initialize({ neverInitializeNewKey: true });
-      await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
+      await this.tKey.inputShareStoreSafe(metadataShareStore, true);
       await this.tKey.reconstructKey();
 
       this.updateState({
-        factorKey: new BN(result.factorKey, "hex"),
+        factorKey: factorKey ? new BN(result.factorKey, "hex") : undefined,
         postBoxKey,
         postboxKeyNodeIndexes: result.postboxKeyNodeIndexes || [],
         tssShareIndex: result.tssShareIndex,
         tssPubKey: this.tkey.getTSSPub().toSEC1(this.tKey.tssCurve, false),
         signatures: result.signatures,
         userInfo: result.userInfo,
+        remoteClient: result.remoteClientState,
       });
     } catch (err) {
       log.warn("failed to authorize session", err);
