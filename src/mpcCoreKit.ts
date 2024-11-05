@@ -128,13 +128,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.baseUrl) options.baseUrl = isNodejsOrRN ? "https://localhost" : `${window?.location.origin}/serviceworker`;
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
-    if (options.enableSessionManager === undefined) options.enableSessionManager = true;
+    if (options.disableSessionManager === undefined) options.disableSessionManager = false;
 
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
 
-    if (options.enableSessionManager) {
+    if (!options.disableSessionManager) {
       this.sessionManager = new SessionManager<SessionData>({
         sessionTime: options.sessionTime,
       });
@@ -301,8 +301,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     ) {
       // on failed redirect, instance is reseted.
       await this.handleRedirectResult();
-      // if not redirect flow try to rehydrate session if available
+      // return after redirect, the rest of the code will not be executed
+      return;
     } else if (params.rehydrate && this.sessionManager) {
+      // if not redirect flow try to rehydrate session if available
       const sessionId = await this.currentStorage.get<string>("sessionId");
       if (sessionId) {
         this.sessionManager.sessionId = sessionId;
@@ -315,15 +317,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         // try rehydrate session
         if (sessionResult) {
           await this.rehydrateSession(sessionResult);
-        } else {
-          // feature gating on no session rehydration
-          await this.featureRequest();
         }
       }
-    } else {
-      // feature gating if not redirect flow or session rehydration
-      await this.featureRequest();
     }
+    // feature gating if not redirect flow or session rehydration
+    await this.featureRequest();
   }
 
   public async loginWithOAuth(params: OAuthLoginParams): Promise<void> {
@@ -1032,13 +1030,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         userInfo: result.userInfo,
       });
     } catch (err) {
-      log.error("error trying to authorize session", err);
+      log.warn("failed to authorize session", err);
     }
   }
 
   private async createSession() {
     if (!this.sessionManager) {
-      log.info("sessionTime is 0, skipping session creation");
+      log.warn("sessionManager is not available");
       return;
     }
 
