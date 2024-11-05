@@ -301,7 +301,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     ) {
       // on failed redirect, instance is reseted.
       await this.handleRedirectResult();
-      // return after redirect, the rest of the code will not be executed
+
+      // return early on successful redirect, the rest of the code will not be executed
       return;
     } else if (params.rehydrate && this.sessionManager) {
       // if not redirect flow try to rehydrate session if available
@@ -317,6 +318,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         // try rehydrate session
         if (sessionResult) {
           await this.rehydrateSession(sessionResult);
+
+          // return early on success rehydration
+          return;
         }
       }
     }
