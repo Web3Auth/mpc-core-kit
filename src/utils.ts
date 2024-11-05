@@ -138,30 +138,34 @@ export function lagrangeCoefficients(curve: EllipticCurve, xCoords: BN[] | numbe
   return xCoordsBN.map((_value, i) => lagrangeCoefficient(curve, xCoordsBN, i, targetXBN));
 }
 
-const SERVER_INDEX_L1 = 1;
-const CLIENT_INDEX_L1 = 2;
+const SERVER_XCOORD_L1 = 1;
+const CLIENT_XCOORD_L1 = 2;
 
 /**
  * Derive share coefficients for client and servers.
  *
  * @param curve - The curve to be used.
- * @param serverXCoords - The x-coordinates of the selected servers.
- * @returns - The share coefficients for the client and the servers, and the
- * remapped x-coordinate of the client.
+ * @param serverXCoords - The source and target x-coordinates of the selected
+ * servers.
+ * @param targetClientXCoord - The target x-coordinate of the client.
+ * @param sourceClientXCoord - The source x-coordinate of the client in the L1
+ * hierarchy.
+ * @returns - The share coefficients for the client and the servers.
  */
 export function deriveShareCoefficients(
   ec: EllipticCurve,
   serverXCoords: number[],
-  clientXCoord: number
+  targetClientXCoord: number,
+  sourceClientXCoord: number = CLIENT_XCOORD_L1
 ): { serverCoefficients: BN[]; clientCoefficient: BN } {
-  const l1Coefficients = lagrangeCoefficients(ec, [SERVER_INDEX_L1, CLIENT_INDEX_L1], 0);
+  const l1Coefficients = lagrangeCoefficients(ec, [SERVER_XCOORD_L1, sourceClientXCoord], 0);
   const l2Coefficients = lagrangeCoefficients(ec, serverXCoords, 0);
 
-  if (serverXCoords.includes(clientXCoord)) {
-    throw new Error(`Invalid server x-coordinates: overlapping with client x-coordinate: ${serverXCoords} ${clientXCoord}`);
+  if (serverXCoords.includes(targetClientXCoord)) {
+    throw new Error(`Invalid server x-coordinates: overlapping with client x-coordinate: ${serverXCoords} ${targetClientXCoord}`);
   }
 
-  const targetCoefficients = lagrangeCoefficients(ec, [clientXCoord, ...serverXCoords], 0);
+  const targetCoefficients = lagrangeCoefficients(ec, [targetClientXCoord, ...serverXCoords], 0);
 
   // Derive server coefficients.
   const serverCoefficients = l2Coefficients.map((coeff, i) => fraction(ec, l1Coefficients[0].mul(coeff), targetCoefficients[i + 1]));

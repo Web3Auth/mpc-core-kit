@@ -1,8 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
-import { Web3AuthMPCCoreKit, WEB3AUTH_NETWORK, SubVerifierDetailsParams, TssShareType, keyToMnemonic, COREKIT_STATUS, TssSecurityQuestion, generateFactorKey, mnemonicToKey, parseToken, factorKeyCurve, makeEthereumSigner } from "@web3auth/mpc-core-kit";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Web3AuthMPCCoreKit,
+  WEB3AUTH_NETWORK,
+  SubVerifierDetailsParams,
+  TssShareType,
+  keyToMnemonic,
+  COREKIT_STATUS,
+  TssSecurityQuestion,
+  generateFactorKey,
+  mnemonicToKey,
+  parseToken,
+  factorKeyCurve,
+  makeEthereumSigner,
+} from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
-import type { provider } from "web3-core";
-import { CHAIN_NAMESPACES, CustomChainConfig, SafeEventEmitterProvider } from "@web3auth/base";
+import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { BN } from "bn.js";
 import { KeyType, Point } from "@tkey/common-types";
@@ -32,20 +44,18 @@ const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   ticker: "ETH",
   tickerName: "Ethereum",
   decimals: 18,
-}
+};
 
-const coreKitInstance = new Web3AuthMPCCoreKit(
-  {
-    web3AuthClientId: 'BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ',
-    web3AuthNetwork: selectedNetwork,
-    uxMode: 'redirect',
-    manualSync: true,
-    storage: window.localStorage,
-    // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
-    tssLib,
-    useDKG: false
-  }
-);
+const coreKitInstance = new Web3AuthMPCCoreKit({
+  web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
+  web3AuthNetwork: selectedNetwork,
+  uxMode: "redirect",
+  manualSync: true,
+  storage: window.localStorage,
+  // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
+  tssLib,
+  useDKG: false,
+});
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
 const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
@@ -77,8 +87,8 @@ function App() {
   const [mockEmail, setMockEmail] = useState<string | undefined>(undefined);
 
   const [backupFactorKey, setBackupFactorKey] = useState<string | undefined>(undefined);
-  const [provider, setProvider] = useState<SafeEventEmitterProvider | null>(null);
-  const [web3, setWeb3] = useState<Web3|undefined>(undefined)
+  const [provider, setProvider] = useState<IProvider | null>(null);
+  const [web3, setWeb3] = useState<Web3 | undefined>(undefined);
   const [exportTssShareType, setExportTssShareType] = useState<TssShareType>(TssShareType.DEVICE);
   const [factorPubToDelete, setFactorPubToDelete] = useState<string>("");
   const [coreKitStatus, setCoreKitStatus] = useState<COREKIT_STATUS>(COREKIT_STATUS.NOT_INITIALIZED);
@@ -93,30 +103,34 @@ function App() {
       console.warn(`Ethereum requires keytype ${KeyType.secp256k1}, skipping provider setup`);
       return;
     }
-    let localProvider = new EthereumSigningProvider({ config: { chainConfig: chainConfig || DEFAULT_CHAIN_CONFIG} });
+    let localProvider = new EthereumSigningProvider({ config: { chainConfig: chainConfig || DEFAULT_CHAIN_CONFIG } });
     localProvider.setupProvider(makeEthereumSigner(coreKitInstance));
     setProvider(localProvider);
   }
 
   // decide whether to rehydrate session
   const rehydrate = true;
+  const initialized = useRef(false);
   useEffect(() => {
     const init = async () => {
       // Example config to handle redirect result manually
-      await coreKitInstance.init({ handleRedirectResult: false, rehydrate });
-      if (window.location.hash.includes("#state")) {
-        await coreKitInstance.handleRedirectResult();
+      if (coreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
+        await coreKitInstance.init({ handleRedirectResult: false, rehydrate });
+        if (window.location.hash.includes("#state")) {
+          await coreKitInstance.handleRedirectResult();
+        }
       }
-
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await setupProvider();
       }
 
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
-        uiConsole("required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]");
+        uiConsole(
+          "required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]"
+        );
       }
 
-      console.log("coreKitInstance.status", coreKitInstance.status)
+      console.log("coreKitInstance.status", coreKitInstance.status);
       setCoreKitStatus(coreKitInstance.status);
 
       try {
@@ -127,34 +141,38 @@ function App() {
         uiConsole("security question not set");
       }
     };
-    init();
-  }, [rehydrate, securityQuestion]);
+    if (!initialized.current)
+    {
+      init();
+      initialized.current = true;
+    }
+
+  }, []);
 
   useEffect(() => {
     if (provider) {
-      const web3 = new Web3(provider as provider);
+      const web3 = new Web3(provider as IProvider);
       setWeb3(web3);
     }
-  }, [provider])
-
+  }, [provider]);
 
   const keyDetails = async () => {
     if (!coreKitInstance) {
-      throw new Error('coreKitInstance not found');
+      throw new Error("coreKitInstance not found");
     }
     uiConsole(coreKitInstance.getKeyDetails());
   };
 
   const listFactors = async () => {
     if (!coreKitInstance) {
-      throw new Error('coreKitInstance not found');
+      throw new Error("coreKitInstance not found");
     }
     const factorPubs = coreKitInstance.tKey.metadata.factorPubs;
     if (!factorPubs) {
-      throw new Error('factorPubs not found');
+      throw new Error("factorPubs not found");
     }
     const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map((pub: Point) => {
-      return pub.toSEC1(factorKeyCurve, true).toString('hex');
+      return pub.toSEC1(factorKeyCurve, true).toString("hex");
     });
     uiConsole(pubsHex);
   };
@@ -162,14 +180,14 @@ function App() {
   const loginWithMock = async () => {
     try {
       if (!mockEmail) {
-        throw new Error('mockEmail not found');
+        throw new Error("mockEmail not found");
       }
       const { idToken, parsedToken } = await mockLogin(mockEmail);
       await coreKitInstance.loginWithJWT({
-        verifier: 'torus-test-health',
+        verifier: "torus-test-health",
         verifierId: parsedToken.email,
         idToken,
-        prefetchTssPublicKeys: 1
+        prefetchTssPublicKeys: 1,
       });
 
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
@@ -179,39 +197,43 @@ function App() {
     } catch (error: unknown) {
       console.error(error);
     }
-  }
+  };
 
   const timedFlow = async () => {
     try {
       if (!mockEmail) {
-        throw new Error('mockEmail not found');
+        throw new Error("mockEmail not found");
       }
       const { idToken, parsedToken } = await mockLogin(mockEmail);
-      await flow({ selectedNetwork, manualSync: true, setupProviderOnInit: false,  verifier: 'torus-test-health', verifierId: parsedToken.email, idToken });
-    }
-    catch (error: unknown) {
+      await flow({
+        selectedNetwork,
+        manualSync: true,
+        setupProviderOnInit: false,
+        verifier: "torus-test-health",
+        verifierId: parsedToken.email,
+        idToken,
+      });
+    } catch (error: unknown) {
       console.error(error);
     }
-  }
+  };
 
   const login = async () => {
     try {
       // Triggering Login using Service Provider ==> opens the popup
       if (!coreKitInstance) {
-        throw new Error('initiated to login');
+        throw new Error("initiated to login");
       }
       const verifierConfig = {
         subVerifierDetails: {
-          typeOfLogin: 'google',
-          verifier: 'w3a-google-demo',
-          clientId:
-            '519228911939-cri01h55lsjbsia1k7ll6qpalrus75ps.apps.googleusercontent.com',
-        }
+          typeOfLogin: "google",
+          verifier: "w3a-google-demo",
+          clientId: "519228911939-cri01h55lsjbsia1k7ll6qpalrus75ps.apps.googleusercontent.com",
+        },
       } as SubVerifierDetailsParams;
 
       await coreKitInstance.loginWithOAuth(verifierConfig);
       setCoreKitStatus(coreKitInstance.status);
-
     } catch (error: unknown) {
       console.error(error);
     }
@@ -221,7 +243,7 @@ function App() {
     const factorKey = await coreKitInstance!.getDeviceFactor();
     setBackupFactorKey(factorKey);
     uiConsole("Device share: ", factorKey);
-  }
+  };
 
   const inputBackupFactorKey = async () => {
     if (!coreKitInstance) {
@@ -230,11 +252,13 @@ function App() {
     if (!backupFactorKey) {
       throw new Error("backupFactorKey not found");
     }
-    const factorKey = new BN(backupFactorKey, "hex")
+    const factorKey = new BN(backupFactorKey, "hex");
     await coreKitInstance.inputFactorKey(factorKey);
 
     if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
-      uiConsole("required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]");
+      uiConsole(
+        "required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]"
+      );
     }
 
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
@@ -242,7 +266,7 @@ function App() {
     }
 
     setCoreKitStatus(coreKitInstance.status);
-  }
+  };
 
   const recoverSecurityQuestionFactor = async () => {
     if (!coreKitInstance) {
@@ -255,7 +279,7 @@ function App() {
     let factorKey = await securityQuestion.recoverFactor(coreKitInstance, answer);
     setBackupFactorKey(factorKey);
     uiConsole("Security Question share: ", factorKey);
-  }
+  };
 
   const logout = async () => {
     if (!coreKitInstance) {
@@ -280,25 +304,25 @@ function App() {
     const factorKey = generateFactorKey();
     await coreKitInstance.createFactor({
       shareType: exportTssShareType,
-      factorKey: factorKey.private
+      factorKey: factorKey.private,
     });
-    let mnemonic = keyToMnemonic(factorKey.private.toString('hex'));
+    let mnemonic = keyToMnemonic(factorKey.private.toString("hex"));
     let key = mnemonicToKey(mnemonic);
 
     uiConsole("Export factor key: ", factorKey);
     console.log("menmonic : ", mnemonic);
     console.log("key: ", key);
-  }
+  };
 
   const deleteFactor = async (): Promise<void> => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    const pubBuffer = Buffer.from(factorPubToDelete, 'hex');
+    const pubBuffer = Buffer.from(factorPubToDelete, "hex");
     const pub = Point.fromSEC1(factorKeyCurve, pubBuffer.toString("hex"));
     await coreKitInstance.deleteFactor(pub);
     uiConsole("factor deleted");
-  }
+  };
 
   const getChainID = async () => {
     if (!web3) {
@@ -310,12 +334,11 @@ function App() {
     return chainId;
   };
 
-  const setTSSWalletIndex = async (index=0) => {
+  const setTSSWalletIndex = async (index = 0) => {
     await coreKitInstance.setTssWalletIndex(index);
-    // log new account details 
+    // log new account details
     await getAccounts();
-  }
-
+  };
 
   const getAccounts = async () => {
     if (!web3) {
@@ -341,7 +364,7 @@ function App() {
   };
 
   const signMessage = async (): Promise<any> => {
-    if (coreKitInstance.keyType === 'secp256k1') {
+    if (coreKitInstance.keyType === "secp256k1") {
       if (!web3) {
         uiConsole("web3 not initialized yet");
         return;
@@ -369,7 +392,7 @@ function App() {
       });
 
       uiConsole(signedMessage);
-    } else if (coreKitInstance.keyType === 'ed25519') {
+    } else if (coreKitInstance.keyType === "ed25519") {
       const msg = Buffer.from("hello signer!");
       const sig = await coreKitInstance.sign(msg);
       uiConsole(sig.toString("hex"));
@@ -426,8 +449,8 @@ function App() {
       uiConsole("provider not initialized yet");
       return;
     }
-    
-    console.log(provider)
+
+    console.log(provider);
     let newChainConfig = {
       chainId: "0xCC",
       chainName: "BNB",
@@ -438,15 +461,15 @@ function App() {
       },
       rpcUrls: ["https://opbnb-mainnet-rpc.bnbchain.org"],
       blockExplorerUrls: ["https://opbnbscan.com"],
-    }
+    };
     await provider.sendAsync({
-      method: 'wallet_addEthereumChain',
-      params: [newChainConfig]
+      method: "wallet_addEthereumChain",
+      params: [newChainConfig],
     });
     await provider.sendAsync({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: newChainConfig.chainId }],
-    })
+    });
     uiConsole("Changed to BNB Network");
   };
 
@@ -465,9 +488,9 @@ function App() {
       privKey: new BN(coreKitInstance.state.postBoxKey!, "hex"),
       input: { message: "KEY_NOT_FOUND" },
     });
-    uiConsole('reset');
+    uiConsole("reset");
     setProvider(null);
-  }
+  };
 
   const sendTransaction = async () => {
     if (!web3) {
@@ -499,7 +522,7 @@ function App() {
     if (result) {
       setQuestion(question);
     }
-  }
+  };
 
   const changeSecurityQuestion = async (newQuestion: string, newAnswer: string, answer: string) => {
     if (!coreKitInstance) {
@@ -510,7 +533,7 @@ function App() {
     if (result) {
       setQuestion(question);
     }
-  }
+  };
 
   const deleteSecurityQuestion = async () => {
     if (!coreKitInstance) {
@@ -518,8 +541,7 @@ function App() {
     }
     await securityQuestion.deleteSecurityQuestion(coreKitInstance);
     setQuestion(undefined);
-
-  }
+  };
 
   const enableMFA = async () => {
     if (!coreKitInstance) {
@@ -529,14 +551,14 @@ function App() {
     const factorKeyMnemonic = await keyToMnemonic(factorKey);
 
     uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
-  }
+  };
 
   const commit = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
     await coreKitInstance.commitChanges();
-  }
+  };
 
   const loggedInView = (
     <>
@@ -563,7 +585,6 @@ function App() {
         </button>
       </div>
       <div className="flex-container">
-
         <button onClick={criticalResetAccount} className="card">
           [CRITICAL] Reset Account
         </button>
@@ -575,19 +596,17 @@ function App() {
         <button onClick={logout} className="card">
           Log Out
         </button>
-
       </div>
       <h2 className="subtitle">Recovery/ Key Manipulation</h2>
       <div>
-        <h4 >Enabling MFA</h4>
+        <h4>Enabling MFA</h4>
         <div className="flex-container">
           <button onClick={enableMFA} className="card">
             Enable MFA
           </button>
         </div>
-        <h4 >Manual Factors Manipulation</h4>
+        <h4>Manual Factors Manipulation</h4>
         <div className="flex-container">
-
           <label>Share Type:</label>
           <select value={exportTssShareType} onChange={(e) => setExportTssShareType(parseInt(e.target.value))}>
             <option value={TssShareType.DEVICE}>Device Share</option>
@@ -611,7 +630,6 @@ function App() {
           </button>
         </div>
 
-
         <h4>Security Question</h4>
 
         <div>{question}</div>
@@ -633,7 +651,6 @@ function App() {
             <button onClick={() => changeSecurityQuestion(newQuestion!, newAnswer!, answer!)} className="card">
               Change Security Question
             </button>
-
           </div>
         </div>
         <div className="flex-container">
@@ -646,7 +663,6 @@ function App() {
       </div>
       <h2 className="subtitle">Blockchain Calls</h2>
       <div className="flex-container">
-
         <button onClick={getChainID} className="card">
           Get Chain ID
         </button>
@@ -702,8 +718,7 @@ function App() {
       <button onClick={() => login()} className="card">
         Login
       </button>
-      <div className={coreKitStatus === COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv"} >
-
+      <div className={coreKitStatus === COREKIT_STATUS.REQUIRED_SHARE ? "" : "disabledDiv"}>
         <button onClick={() => getDeviceShare()} className="card">
           Get Device Share
         </button>
@@ -716,9 +731,7 @@ function App() {
           [CRITICAL] Reset Account
         </button>
 
-
         <div className={!question ? "disabledDiv" : ""}>
-
           <label>Recover Using Security Answer:</label>
           <label>{question}</label>
           <input value={answer} onChange={(e) => setAnswer(e.target.value)}></input>
@@ -726,12 +739,10 @@ function App() {
             Recover Using Security Answer
           </button>
         </div>
-
       </div>
       <button onClick={() => timedFlow()} className="card">
-        Timed Flow 
+        Timed Flow
       </button>
-
     </>
   );
 
@@ -740,7 +751,7 @@ function App() {
       <h1 className="title">
         <a target="_blank" href="https://web3auth.io/docs/guides/mpc" rel="noreferrer">
           Web3Auth MPC Core Kit
-        </a> {" "}
+        </a>{" "}
         Redirect Flow Example
       </h1>
 
@@ -750,7 +761,11 @@ function App() {
       </div>
 
       <footer className="footer">
-        <a href="https://github.com/Web3Auth/web3auth-core-kit-examples/tree/main/tkey/tkey-mpc-beta-react-popup-example" target="_blank" rel="noopener noreferrer">
+        <a
+          href="https://github.com/Web3Auth/web3auth-core-kit-examples/tree/main/tkey/tkey-mpc-beta-react-popup-example"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Source code
         </a>
       </footer>
