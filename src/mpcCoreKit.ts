@@ -654,6 +654,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     client: Client;
     serverCoeffs: Record<string, string>;
   }> {
+    this.wasmLib = await this.loadTssWasm();
     // PreSetup
     const { tssShareIndex } = this.state;
     const tssPubKey = this.getPubKeyPoint();
