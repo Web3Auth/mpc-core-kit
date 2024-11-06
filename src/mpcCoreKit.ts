@@ -1342,25 +1342,38 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async sign_ECDSA_secp256k1(data: Buffer, hashed: boolean = false, precomputedTssClient?: Secp256k1PrecomputedClient) {
+    const executeSign = async (client: Client, serverCoeffs: Record<string, string>, hashedData: Buffer, signatures: string[]) => {
+      const { r, s, recoveryParam } = await client.sign(hashedData.toString("base64"), true, "", "keccak256", {
+        signatures,
+      });
+      // skip await cleanup
+      client.cleanup({ signatures, server_coeffs: serverCoeffs });
+      return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
+    };
     if (!hashed) {
       data = keccak256(data);
     }
 
-    const { client, serverCoeffs } =
-      precomputedTssClient?.client && precomputedTssClient?.serverCoeffs ? precomputedTssClient : await this.precompute_secp256k1();
+    const isAlreadyPrecomputed = precomputedTssClient?.client && precomputedTssClient?.serverCoeffs;
+    const { client, serverCoeffs } = isAlreadyPrecomputed ? precomputedTssClient : await this.precompute_secp256k1();
 
     const { signatures } = this;
     if (!signatures) {
       throw CoreKitError.signaturesNotPresent();
     }
 
-    const { r, s, recoveryParam } = await client.sign(data.toString("base64"), true, "", "keccak256", {
-      signatures,
-    });
+    try {
+      return await executeSign(client, serverCoeffs, data, signatures);
+    } catch (error) {
+      if (!isAlreadyPrecomputed) {
+        throw error;
+      }
+      // Retry with new client if precomputed client failed, this is to handle the case when precomputed session might have expired
+      const { client: newClient, serverCoeffs: newServerCoeffs } = await this.precompute_secp256k1();
+      const result = await executeSign(newClient, newServerCoeffs, data, signatures);
 
-    // skip await cleanup
-    client.cleanup({ signatures, server_coeffs: serverCoeffs });
-    return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
+      return result;
+    }
   }
 
   private async sign_ed25519(data: Buffer, hashed: boolean = false): Promise<Buffer> {
