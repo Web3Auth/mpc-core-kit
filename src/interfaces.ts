@@ -9,6 +9,7 @@ import type {
   TorusVerifierResponse,
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
+import { Client } from "@toruslabs/tss-client";
 // TODO: move the types to a base class for both dkls and frost in future
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
 import type { tssLib as TssFrostLib } from "@toruslabs/tss-frost-lib";
@@ -469,4 +470,9 @@ export interface EthSig {
 export interface EthereumSigner {
   sign: (msgHash: Buffer) => Promise<EthSig>;
   getPublic: () => Promise<Buffer>;
+}
+
+export interface Secp256k1PrecomputedClient {
+  client: Client;
+  serverCoeffs: Record<string, string>;
 }

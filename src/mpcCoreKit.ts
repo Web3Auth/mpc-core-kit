@@ -43,6 +43,7 @@ import {
   JWTLoginParams,
   MPCKeyDetails,
   OAuthLoginParams,
+  Secp256k1PrecomputedClient,
   SessionData,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
@@ -649,10 +650,97 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return ed25519().keyFromPublic(p).getPublic();
   }
 
-  public async sign(data: Buffer, hashed: boolean = false): Promise<Buffer> {
+  public async precompute_secp256k1(): Promise<{
+    client: Client;
+    serverCoeffs: Record<string, string>;
+  }> {
+    // PreSetup
+    const { tssShareIndex } = this.state;
+    const tssPubKey = this.getPubKeyPoint();
+
+    const { torusNodeTSSEndpoints } = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
+
+    if (!this.state.factorKey) {
+      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when signing.");
+    }
+    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
+      accountIndex: 0,
+    });
+    const tssNonce = this.getTssNonce();
+
+    if (!tssPubKey || !torusNodeTSSEndpoints) {
+      throw CoreKitError.tssPublicKeyOrEndpointsMissing();
+    }
+
+    // session is needed for authentication to the web3auth infrastructure holding the factor 1
+    const randomSessionNonce = generateSessionNonce();
+    const currentSession = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, randomSessionNonce);
+
+    const parties = 4;
+    const clientIndex = parties - 1;
+    // 1. setup
+    // generate endpoints for servers
+    const { nodeIndexes } = await this.torusSp.getTSSPubKey(this.tKey.tssTag, this.tKey.metadata.tssNonces[this.tKey.tssTag]);
+    const {
+      endpoints,
+      tssWSEndpoints,
+      partyIndexes,
+      nodeIndexesReturned: participatingServerDKGIndexes,
+    } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
+
+    // Setup sockets.
+    const sockets = await setupSockets(tssWSEndpoints, randomSessionNonce);
+
+    const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex);
+    const denormalisedShare = dklsCoeff.mul(tssShare).umod(secp256k1.curve.n);
+    const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
+    const derivedShare = denormalisedShare.add(accountNonce).umod(secp256k1.curve.n);
+    const share = scalarBNToBufferSEC1(derivedShare).toString("base64");
+
+    if (!currentSession) {
+      throw CoreKitError.activeSessionNotFound();
+    }
+
+    const { signatures } = this;
+    if (!signatures) {
+      throw CoreKitError.signaturesNotPresent();
+    }
+
+    // Client lib expects pub key in XY-format, base64-encoded.
+    const tssPubKeyBase64 = Buffer.from(tssPubKey.toSEC1(secp256k1).subarray(1)).toString("base64");
+
+    const client = new Client(
+      currentSession,
+      clientIndex,
+      partyIndexes,
+      endpoints,
+      sockets,
+      share,
+      tssPubKeyBase64,
+      true,
+      this.wasmLib as DKLSWasmLib
+    );
+
+    const serverCoeffs: Record<number, string> = {};
+    for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
+      const serverIndex = participatingServerDKGIndexes[i];
+      serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
+    }
+    client.precompute({ signatures, server_coeffs: serverCoeffs, nonce: scalarBNToBufferSEC1(this.getAccountNonce()).toString("base64") });
+    await client.ready().catch((err) => {
+      client.cleanup({ signatures, server_coeffs: serverCoeffs });
+      throw err;
+    });
+    return {
+      client,
+      serverCoeffs,
+    };
+  }
+
+  public async sign(data: Buffer, hashed: boolean = false, secp256k1Precompute?: Secp256k1PrecomputedClient): Promise<Buffer> {
     this.wasmLib = await this.loadTssWasm();
     if (this.keyType === KeyType.secp256k1) {
-      const sig = await this.sign_ECDSA_secp256k1(data, hashed);
+      const sig = await this.sign_ECDSA_secp256k1(data, hashed, secp256k1Precompute);
       return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
     } else if (this.keyType === KeyType.ed25519) {
       return this.sign_ed25519(data, hashed);
@@ -1252,88 +1340,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.tkey.computeAccountNonce(this.state.accountIndex);
   }
 
-  private async sign_ECDSA_secp256k1(data: Buffer, hashed: boolean = false) {
+  private async sign_ECDSA_secp256k1(data: Buffer, hashed: boolean = false, precomputedTssClient?: Secp256k1PrecomputedClient) {
     if (!hashed) {
       data = keccak256(data);
     }
 
-    // PreSetup
-    const { tssShareIndex } = this.state;
-    const tssPubKey = await this.getPubKeyPoint();
-
-    const { torusNodeTSSEndpoints } = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
-
-    if (!this.state.factorKey) {
-      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when signing.");
-    }
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
-      accountIndex: 0,
-    });
-    const tssNonce = this.getTssNonce();
-
-    if (!tssPubKey || !torusNodeTSSEndpoints) {
-      throw CoreKitError.tssPublicKeyOrEndpointsMissing();
-    }
-
-    // session is needed for authentication to the web3auth infrastructure holding the factor 1
-    const randomSessionNonce = generateSessionNonce();
-    const currentSession = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, randomSessionNonce);
-
-    const parties = 4;
-    const clientIndex = parties - 1;
-    // 1. setup
-    // generate endpoints for servers
-    const { nodeIndexes } = await this.torusSp.getTSSPubKey(this.tKey.tssTag, this.tKey.metadata.tssNonces[this.tKey.tssTag]);
-    const {
-      endpoints,
-      tssWSEndpoints,
-      partyIndexes,
-      nodeIndexesReturned: participatingServerDKGIndexes,
-    } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
-
-    // Setup sockets.
-    const sockets = await setupSockets(tssWSEndpoints, randomSessionNonce);
-
-    const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex);
-    const denormalisedShare = dklsCoeff.mul(tssShare).umod(secp256k1.curve.n);
-    const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
-    const derivedShare = denormalisedShare.add(accountNonce).umod(secp256k1.curve.n);
-    const share = scalarBNToBufferSEC1(derivedShare).toString("base64");
-
-    if (!currentSession) {
-      throw CoreKitError.activeSessionNotFound();
-    }
+    const { client, serverCoeffs } =
+      precomputedTssClient?.client && precomputedTssClient?.serverCoeffs ? precomputedTssClient : await this.precompute_secp256k1();
 
     const { signatures } = this;
     if (!signatures) {
       throw CoreKitError.signaturesNotPresent();
     }
-
-    // Client lib expects pub key in XY-format, base64-encoded.
-    const tssPubKeyBase64 = Buffer.from(tssPubKey.toSEC1(secp256k1).subarray(1)).toString("base64");
-
-    const client = new Client(
-      currentSession,
-      clientIndex,
-      partyIndexes,
-      endpoints,
-      sockets,
-      share,
-      tssPubKeyBase64,
-      true,
-      this.wasmLib as DKLSWasmLib
-    );
-
-    const serverCoeffs: Record<number, string> = {};
-    for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
-      const serverIndex = participatingServerDKGIndexes[i];
-      serverCoeffs[serverIndex] = getDKLSCoeff(false, participatingServerDKGIndexes, tssShareIndex as number, serverIndex).toString("hex");
-    }
-    client.precompute({ signatures, server_coeffs: serverCoeffs, nonce: scalarBNToBufferSEC1(this.getAccountNonce()).toString("base64") });
-    await client.ready().catch((err) => {
-      client.cleanup({ signatures, server_coeffs: serverCoeffs });
-      throw err;
-    });
 
     const { r, s, recoveryParam } = await client.sign(data.toString("base64"), true, "", "keccak256", {
       signatures,

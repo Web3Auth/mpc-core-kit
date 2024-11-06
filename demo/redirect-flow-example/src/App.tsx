@@ -370,26 +370,10 @@ function App() {
         return;
       }
       const fromAddress = (await web3.eth.getAccounts())[0];
-      const originalMessage = [
-        {
-          type: "string",
-          name: "fullName",
-          value: "Satoshi Nakamoto",
-        },
-        {
-          type: "uint32",
-          name: "userId",
-          value: "1212",
-        },
-      ];
-      const params = [originalMessage, fromAddress];
-      const method = "eth_signTypedData";
-      const signedMessage = await (web3.currentProvider as any)?.sendAsync({
-        id: 1,
-        method,
-        params,
-        fromAddress,
-      });
+     
+      const message = "hello";
+      const signedMessage = await web3.eth.personal.sign(message, fromAddress, "");
+      
 
       uiConsole(signedMessage);
     } else if (coreKitInstance.keyType === "ed25519") {
@@ -398,7 +382,36 @@ function App() {
       uiConsole(sig.toString("hex"));
     }
   };
+  const signMessageWithPrecomputedTss = async (): Promise<any> => {
+    if (coreKitInstance.keyType === "secp256k1") {
+      const precomputedTssClient = await coreKitInstance.precompute_secp256k1();
+      const msg = Buffer.from("hello signer!");
+      const sig = await coreKitInstance.sign(msg, false, precomputedTssClient);
+      uiConsole(sig.toString("hex"));
+    } else if (coreKitInstance.keyType === "ed25519") {
+      const msg = Buffer.from("hello signer!");
+      const sig = await coreKitInstance.sign(msg);
+      uiConsole(sig.toString("hex"));
+    }
+  };
 
+  const signMultipleMessagesWithPrecomputedTss = async (): Promise<any> => {
+    if (coreKitInstance.keyType === "secp256k1") {
+      const precomputedTssClient = await coreKitInstance.precompute_secp256k1();
+      const precomputedTssClient2 = await coreKitInstance.precompute_secp256k1();
+
+      const msg = Buffer.from("hello signer!");
+      const sig = await coreKitInstance.sign(msg, false, precomputedTssClient);
+      const msg2 = Buffer.from("hello signer2!");
+
+      const sig2 = await coreKitInstance.sign(msg2, false, precomputedTssClient2);
+      uiConsole("Sig1: ", sig.toString("hex"), "Sig2: ", sig2.toString("hex"));
+    } else if (coreKitInstance.keyType === "ed25519") {
+      const msg = Buffer.from("hello signer!");
+      const sig = await coreKitInstance.sign(msg);
+      uiConsole(sig.toString("hex"));
+    }
+  };
   const switchChainSepolia = async () => {
     if (!provider) {
       uiConsole("provider not initialized yet");
@@ -687,6 +700,14 @@ function App() {
 
         <button onClick={signMessage} className="card">
           Sign Message
+        </button>
+
+        <button onClick={signMessageWithPrecomputedTss} className="card">
+          Sign Msgwith precomputed TSS
+        </button>
+
+        <button onClick={signMultipleMessagesWithPrecomputedTss} className="card">
+          Sign Multiple MSGs with precomputed TSS
         </button>
 
         <button onClick={sendTransaction} className="card">
