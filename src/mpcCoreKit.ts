@@ -1094,10 +1094,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (!this.state.remoteClient.remoteClientUrl) throw new Error("remoteClientUrl not present");
 
     // PreSetup
-    const { torusNodeTSSEndpoints } = await this.nodeDetailManager.getNodeDetails({
-      verifier: "test-verifier",
-      verifierId: "test@example.com",
-    });
+    const { torusNodeTSSEndpoints } = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
     const tssCommits = this.tKey.getTSSCommits();
 
