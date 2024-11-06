@@ -397,8 +397,7 @@ function App() {
 
   const signMultipleMessagesWithPrecomputedTss = async (): Promise<any> => {
     if (coreKitInstance.keyType === "secp256k1") {
-      const precomputedTssClient = await coreKitInstance.precompute_secp256k1();
-      const precomputedTssClient2 = await coreKitInstance.precompute_secp256k1();
+      const [precomputedTssClient, precomputedTssClient2] = await Promise.all([coreKitInstance.precompute_secp256k1(), coreKitInstance.precompute_secp256k1()]);
 
       const msg = Buffer.from("hello signer!");
       const sig = await coreKitInstance.sign(msg, false, precomputedTssClient);
