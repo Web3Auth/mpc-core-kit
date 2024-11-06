@@ -1189,7 +1189,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const { tssIndex } = await this.tKey.getTSSShare(factorKey);
     const factorPoint = getPubKeyPoint(factorKey, factorKeyCurve);
-    const factorPub = factorPoint.toSEC1(this.tkey.tssCurve, true).toString("hex");
+    const factorPub = factorPoint.toSEC1(factorKeyCurve, true).toString("hex");
 
     const params = {
       module: shareDescription,
