@@ -967,7 +967,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       return r;
     } finally {
-      this.tkey.manualSync = this.options.manualSync;
+      this.atomicCallStackCounter -= 1;
+      if (this.atomicCallStackCounter === 0) {
+        this.tkey.manualSync = this.options.manualSync;
+      }
     }
   }
 
