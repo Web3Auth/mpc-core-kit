@@ -1,4 +1,4 @@
-import { BNString, KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { BNString, FactorEnc, KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
 import { IRemoteClientState, TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -9,6 +9,7 @@ import type {
   TorusVerifierResponse,
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
+import { PointHex } from "@toruslabs/tss-client";
 // TODO: move the types to a base class for both dkls and frost in future
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
 import type { tssLib as TssFrostLib } from "@toruslabs/tss-frost-lib";
@@ -472,3 +473,41 @@ export interface EthereumSigner {
   sign: (msgHash: Buffer) => Promise<EthSig>;
   getPublic: () => Promise<Buffer>;
 }
+
+type SupportedCurve = "secp256k1" | "ed25519";
+// remote signer interface
+export type RemoteDklsSignParams = {
+  factorEnc?: FactorEnc;
+  sessionId: string;
+  tssNonce: number;
+  accountNonce: string;
+  tssPubKeyHex: string;
+
+  nodeIndexes: number[];
+  tssCommits: PointHex[];
+
+  signatures: string[];
+
+  serverEndpoints: {
+    endpoints: string[];
+    tssWSEndpoints: string[];
+    partyIndexes: number[];
+  };
+
+  curve: SupportedCurve;
+};
+
+export type RemoteFrostSignParams = {
+  sessionId: string;
+  signatures: string[];
+  tssCommits: PointHex[];
+  factorEnc: FactorEnc;
+  serverXCoords: number[];
+  clientXCoord: number;
+  serverCoefficients: string[];
+  clientCoefficient: string;
+  tssPubKeyHex: string;
+  serverURLs: string[];
+
+  curve: SupportedCurve;
+};
