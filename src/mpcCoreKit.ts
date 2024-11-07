@@ -950,6 +950,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         }
       }
       return r;
+    } catch (error) {
+      throw error as Error;
     } finally {
       this.atomicCallStackCounter -= 1;
       if (this.atomicCallStackCounter === 0) {
