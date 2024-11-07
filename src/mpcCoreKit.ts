@@ -13,7 +13,16 @@ import {
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import { DELIMITERS, factorKeyCurve, getPubKeyPoint, IRemoteClientState, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
+import {
+  DELIMITERS,
+  factorKeyCurve,
+  getPubKeyPoint,
+  IRemoteClientState,
+  lagrangeInterpolation,
+  pointToHex,
+  TKeyTSS,
+  TSSTorusServiceProvider,
+} from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
@@ -58,6 +67,8 @@ import {
   JWTLoginParams,
   MPCKeyDetails,
   OAuthLoginParams,
+  RemoteDklsSignParams,
+  RemoteFrostSignParams,
   Secp256k1PrecomputedClient,
   SessionData,
   SigType,
@@ -651,7 +662,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     const { shareType } = createFactorParams;
 
     let { factorKey, shareDescription, additionalMetadata } = createFactorParams;
-    factorKey = factorKey ? new BN(factorKey, "hex") : undefined;
+    if (typeof factorKey === "string") {
+      factorKey = new BN(factorKey, "hex");
+    }
 
     if (!VALID_SHARE_INDICES.includes(shareType)) {
       throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${shareType}). Valid share types are ${VALID_SHARE_INDICES}.`);
@@ -862,6 +875,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         throw CoreKitError.default("key tweaking not supported for ed25519");
       }
 
+      if (this.state.remoteClient) {
+        return this.remoteSignFrostEd25519(data, hashed);
+      }
       return this.sign_frost(data, opts?.keyTweak);
     }
     throw CoreKitError.default(`sign not supported for key type ${this.keyType}`);
@@ -1116,29 +1132,103 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
     const { endpoints, tssWSEndpoints, partyIndexes } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
 
+    const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
     const factor = Point.fromSEC1(secp256k1, this.state.remoteClient.remoteFactorPub);
     const factorEnc = this.tKey.getFactorEncs(factor);
 
-    const data = {
-      dataRequired: {
+    const data: { remoteSignParams: RemoteDklsSignParams; msgHash: string } = {
+      remoteSignParams: {
         factorEnc,
         sessionId,
         tssNonce,
+        accountNonce: accountNonce.toString("hex"),
         nodeIndexes: nodeIndexes.slice(0, parties - 1),
-        tssCommits: tssCommits.map((commit) => commit.toJSON()),
+        tssCommits: tssCommits.map((commit) => pointToHex(commit)),
         signatures: this.signatures,
         serverEndpoints: { endpoints, tssWSEndpoints, partyIndexes },
+        tssPubKeyHex: this.state.tssPubKey.toString("hex"),
+        curve: this.tkey.tssKeyType,
       },
       msgHash: msgData.toString("hex"),
     };
 
-    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/v3/mpc/sign`, data, {
+    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/v3/mpc/sign/dkls`, data, {
       headers: {
         Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`,
       },
     });
     const { r, s, v } = result.data as { v: string; r: string; s: string };
     return { v: parseInt(v), r: Buffer.from(r, "hex"), s: Buffer.from(s, "hex") };
+  }
+
+  public async remoteSignFrostEd25519(data: Buffer, hashed: boolean = false): Promise<Buffer> {
+    if (hashed) {
+      throw CoreKitError.default("hashed data not supported for ed25519");
+    }
+
+    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
+    if (!nodeDetails.torusNodeTSSEndpoints) {
+      throw CoreKitError.default("could not fetch tss node endpoints");
+    }
+
+    // Endpoints must end with backslash, but URLs returned by
+    // `fetch-node-details` don't have it.
+    const ED25519_ENDPOINTS = nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
+
+    // Select endpoints and derive party indices.
+    const serverThreshold = Math.floor(ED25519_ENDPOINTS.length / 2) + 1;
+    const endpoints = sampleEndpoints(ED25519_ENDPOINTS, serverThreshold);
+    const serverXCoords = endpoints.map((x) => x.index);
+    const clientXCoord = Math.max(...endpoints.map((ep) => ep.index)) + 1;
+
+    // Derive share coefficients for flat hierarchy.
+    const ec = new Ed25519Curve();
+    const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord, this.state.tssShareIndex);
+
+    // Get pub key.
+    const tssPubKey = await this.getPubKey();
+    const tssPubKeyPoint = ec.keyFromPublic(tssPubKey).getPublic();
+
+    // Get client key share and adjust by coefficient.
+    if (this.state.accountIndex !== 0) {
+      throw CoreKitError.default("Account index not supported for ed25519");
+    }
+
+    // Generate session identifier.
+    const tssNonce = this.getTssNonce();
+    const sessionNonce = generateSessionNonce();
+    const session = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, sessionNonce);
+
+    // Run signing protocol.
+
+    const serverURLs = endpoints.map((x) => x.url);
+    const tssPubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
+
+    const factorPub = Point.fromSEC1(secp256k1, this.state.remoteClient.remoteFactorPub);
+    const params: { remoteSignParams: RemoteFrostSignParams; msgHash: string } = {
+      remoteSignParams: {
+        sessionId: session,
+        signatures: this.signatures,
+        tssCommits: this.tKey.getTSSCommits().map((commit) => pointToHex(commit)),
+        factorEnc: this.tKey.getFactorEncs(factorPub),
+        serverXCoords,
+        clientXCoord,
+        serverCoefficients: serverCoefficients.map((sc) => sc.toString("hex")),
+        clientCoefficient: clientCoefficient.toString("hex"),
+        tssPubKeyHex,
+        serverURLs,
+        curve: this.tkey.tssKeyType,
+      },
+      msgHash: data.toString("hex"),
+    };
+
+    const result = await post<{ data?: Record<string, string> }>(`${this.state.remoteClient.remoteClientUrl}/api/v3/mpc/sign/frost`, params, {
+      headers: {
+        Authorization: `Bearer ${this.state.remoteClient.remoteClientToken}`,
+      },
+    });
+
+    return Buffer.from(result.data.signature, "hex");
   }
 
   public updateState(newState: Partial<Web3AuthState>): void {
