@@ -774,7 +774,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async commitChanges(): Promise<void> {
     this.checkReady();
-    if (!this.state.factorKey) {
+    if (!this.state.factorKey && !this.state.remoteClient.remoteClientToken) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when committing changes.");
     }
 
