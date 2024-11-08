@@ -267,6 +267,16 @@ export interface ICoreKit {
   getKeyDetails(): MPCKeyDetails;
 
   /**
+   * Get specific general domain's metadata which is used by plugin or modules.
+   */
+  getGeneralStoreDomain<T>(domain: string): T;
+
+  /**
+   * Set specific general domain's metadata which is used by plugin or modules.
+   */
+  setGeneralStoreDomain<T>(domain: string, value: T): void;
+
+  /**
    * Commit the changes made to the user's account when in manual sync mode.
    */
   commitChanges(): Promise<void>;

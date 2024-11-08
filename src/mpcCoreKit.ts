@@ -985,6 +985,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.state = { ...this.state, ...newState };
   }
 
+  public getGeneralStoreDomain<T>(domain: string): T {
+    return this.tkey.metadata.getGeneralStoreDomain(domain) as T;
+  }
+
+  public setGeneralStoreDomain<T>(domain: string, value: T): void {
+    // should we add check for root flag before allow to mutate metadata?
+    this.tkey.metadata.setGeneralStoreDomain(domain, value);
+  }
+
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
     this.atomicCallStackCounter += 1;
 
