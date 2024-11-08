@@ -1,4 +1,4 @@
-import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { BNString, KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
 import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -92,7 +92,7 @@ export interface EnableMFAParams {
   /**
    * A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
    */
-  factorKey?: BN;
+  factorKey?: BNString;
   /**
    * Setting the Description of Share - Security Questions, Device Share, Seed Phrase, Password Share, Social Share, Other. Default is Other.
    */
@@ -229,7 +229,7 @@ export interface ICoreKit {
    * Share. You can generate it using `generateFactorKey()` function or use an
    * existing one.
    */
-  inputFactorKey(factorKey: BN): Promise<void>;
+  inputFactorKey(factorKey: BNString): Promise<void>;
 
   /**
    * Returns the current Factor Key and TssShareType in MPC Core Kit State

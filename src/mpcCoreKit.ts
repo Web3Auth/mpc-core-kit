@@ -520,19 +520,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async inputFactorKey(factorKey: BN): Promise<void> {
+  public async inputFactorKey(factorKey: BNString): Promise<void> {
+    const factorKeyBN = new BN(factorKey, "hex");
     this.checkReady();
     try {
       // input tkey device share when required share > 0 ( or not reconstructed )
       // assumption tkey shares will not changed
       if (!this.tKey.secp256k1Key) {
-        const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
+        const factorKeyMetadata = await this.getFactorKeyMetadata(factorKeyBN);
         await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
       }
 
       // Finalize initialization.
       await this.tKey.reconstructKey();
-      await this.finalizeTkey(factorKey);
+      await this.finalizeTkey(factorKeyBN);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -637,6 +638,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const { shareType } = createFactorParams;
 
     let { factorKey, shareDescription, additionalMetadata } = createFactorParams;
+    if (typeof factorKey === "string") {
+      factorKey = new BN(factorKey, "hex");
+    }
 
     if (!VALID_SHARE_INDICES.includes(shareType)) {
       throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${shareType}). Valid share types are ${VALID_SHARE_INDICES}.`);
@@ -992,6 +996,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public setGeneralStoreDomain<T>(domain: string, value: T): void {
     // should we add check for root flag before allow to mutate metadata?
     this.tkey.metadata.setGeneralStoreDomain(domain, value);
+  }
+
+  public getmetadataKey(): string | undefined {
+    return this.tkey?.secp256k1Key.toString(16);
   }
 
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
