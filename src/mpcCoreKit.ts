@@ -1,6 +1,5 @@
 import { BNString, KeyType, Point, secp256k1, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
-import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { KEY_TYPE, SIGNER_MAP } from "@toruslabs/constants";
@@ -112,7 +111,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (options.enableLogging) {
       log.enableAll();
       this.enableLogging = true;
-    } else log.setLevel("error");
+    } else {
+      log.setLevel("error");
+      options.enableLogging = false;
+    }
     if (typeof options.manualSync !== "boolean") options.manualSync = false;
     if (!options.web3AuthNetwork) options.web3AuthNetwork = WEB3AUTH_NETWORK.MAINNET;
     // if sessionTime is not provided, it is defaulted to 86400
@@ -197,6 +199,56 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this.keyType === KeyType.ed25519 && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
   }
 
+  static async fromJSON(value: StringifiedType, options: Web3AuthOptions): Promise<Web3AuthMPCCoreKit> {
+    const coreKit = new Web3AuthMPCCoreKit(options);
+    const { state, serviceProvider, storageLayer, keyType, atomicCallStackCounter, ready, sessionId, tkey } = value;
+    coreKit.torusSp = TSSTorusServiceProvider.fromJSON(serviceProvider);
+    coreKit.storageLayer = TorusStorageLayer.fromJSON(storageLayer);
+
+    coreKit.tkey = await TKeyTSS.fromJSON(tkey, {
+      serviceProvider: coreKit.torusSp,
+      storageLayer: coreKit.storageLayer,
+      enableLogging: options.enableLogging,
+      tssKeyType: options.tssLib.keyType as KeyType,
+    });
+    await coreKit.tkey.reconstructKey();
+
+    if (state.factorKey) state.factorKey = new BN(state.factorKey, "hex");
+    if (state.tssPubKey) state.tssPubKey = Buffer.from(state.tssPubKey, "hex");
+    coreKit.state = state;
+    coreKit.sessionManager.sessionId = sessionId;
+    coreKit.atomicCallStackCounter = atomicCallStackCounter;
+    coreKit.ready = ready;
+
+    if (coreKit._keyType !== keyType) {
+      throw CoreKitError.invalidConfig();
+    }
+
+    // will be derived from option during constructor
+    // sessionManager
+    // enableLogging
+    // private _tssLib: TssLibType;
+    // private wasmLib: DKLSWasmLib | FrostWasmLib;
+    // private _keyType: KeyType;
+    return coreKit;
+  }
+
+  public toJSON(): StringifiedType {
+    const factorKey = this.state.factorKey ? this.state.factorKey.toString("hex") : undefined;
+    const tssPubKey = this.state.tssPubKey ? this.state.tssPubKey.toString("hex") : undefined;
+    return {
+      state: { ...this.state, factorKey, tssPubKey },
+      options: this.options,
+      serviceProvider: this.torusSp.toJSON(),
+      storageLayer: this.storageLayer.toJSON(),
+      tkey: this.tKey.toJSON(),
+      keyType: this.keyType,
+      sessionId: this.sessionManager.sessionId,
+      atomicCallStackCounter: this.atomicCallStackCounter,
+      ready: this.ready,
+    };
+  }
+
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
   // TssShareType.DEVICE and TssShareType.RECOVERY
   // if the factors key provided is the same type recovery will not works
@@ -256,16 +308,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       enableLogging: this.enableLogging,
     });
 
-    const shareSerializationModule = new ShareSerializationModule();
-
     this.tkey = new TKeyTSS({
       enableLogging: this.enableLogging,
       serviceProvider: this.torusSp,
       storageLayer: this.storageLayer,
       manualSync: this.options.manualSync,
-      modules: {
-        shareSerialization: shareSerializationModule,
-      },
       tssKeyType: this.keyType,
     });
 
@@ -473,19 +520,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async inputFactorKey(factorKey: BN): Promise<void> {
+  public async inputFactorKey(factorKey: BNString): Promise<void> {
+    const factorKeyBN = new BN(factorKey, "hex");
     this.checkReady();
     try {
       // input tkey device share when required share > 0 ( or not reconstructed )
       // assumption tkey shares will not changed
       if (!this.tKey.secp256k1Key) {
-        const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
+        const factorKeyMetadata = await this.getFactorKeyMetadata(factorKeyBN);
         await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
       }
 
       // Finalize initialization.
       await this.tKey.reconstructKey();
-      await this.finalizeTkey(factorKey);
+      await this.finalizeTkey(factorKeyBN);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -590,6 +638,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const { shareType } = createFactorParams;
 
     let { factorKey, shareDescription, additionalMetadata } = createFactorParams;
+    if (typeof factorKey === "string") {
+      factorKey = new BN(factorKey, "hex");
+    }
 
     if (!VALID_SHARE_INDICES.includes(shareType)) {
       throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${shareType}). Valid share types are ${VALID_SHARE_INDICES}.`);
@@ -936,6 +987,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public updateState(newState: Partial<Web3AuthState>): void {
     this.state = { ...this.state, ...newState };
+  }
+
+  public getGeneralStoreDomain<T>(domain: string): T {
+    return this.tkey.metadata.getGeneralStoreDomain(domain) as T;
+  }
+
+  public setGeneralStoreDomain<T>(domain: string, value: T): void {
+    // should we add check for root flag before allow to mutate metadata?
+    this.tkey.metadata.setGeneralStoreDomain(domain, value);
+  }
+
+  public getmetadataKey(): string | undefined {
+    return this.tkey?.secp256k1Key.toString(16);
   }
 
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
