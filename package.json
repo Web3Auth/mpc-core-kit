@@ -47,11 +47,11 @@
     }
   },
   "dependencies": {
-    "@tkey/common-types": "^15.1.0",
-    "@tkey/core": "^15.2.0-alpha.0",
+    "@tkey/common-types": "^15.2.1-alpha.0",
+    "@tkey/core": "^15.2.1-alpha.0",
     "@tkey/share-serialization": "^15.1.0",
     "@tkey/storage-layer-torus": "^15.1.0",
-    "@tkey/tss": "^15.2.0-alpha.0",
+    "@tkey/tss": "^15.2.1-alpha.0",
     "@toruslabs/constants": "^14.2.0",
     "@toruslabs/customauth": "^20.3.0",
     "@toruslabs/elliptic-wrapper": "^0.1.1",
