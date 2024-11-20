@@ -1,5 +1,5 @@
-import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
-import { TKeyTSS } from "@tkey/tss";
+import { BNString, FactorEnc, KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { IRemoteClientState, TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
@@ -9,7 +9,7 @@ import type {
   TorusVerifierResponse,
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
-import { Client } from "@toruslabs/tss-client";
+import { Client, PointHex } from "@toruslabs/tss-client";
 // TODO: move the types to a base class for both dkls and frost in future
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
 import type { tssLib as TssFrostLib } from "@toruslabs/tss-frost-lib";
@@ -92,7 +92,7 @@ export interface EnableMFAParams {
   /**
    * A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
    */
-  factorKey?: BN;
+  factorKey?: BNString;
   /**
    * Setting the Description of Share - Security Questions, Device Share, Seed Phrase, Password Share, Social Share, Other. Default is Other.
    */
@@ -100,7 +100,7 @@ export interface EnableMFAParams {
   /**
    * Additional metadata information you want to be stored alongside this factor for easy identification.
    */
-  additionalMetadata?: Record<string, string>;
+  additionalMetadata?: Record<string, string | number>;
 }
 
 export interface CreateFactorParams extends EnableMFAParams {
@@ -162,6 +162,7 @@ export interface Web3AuthState {
   tssPubKey?: Buffer;
   accountIndex: number;
   factorKey?: BN;
+  remoteClient?: IRemoteClientState;
 }
 
 export interface ICoreKit {
@@ -449,6 +450,7 @@ export interface SessionData {
   tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
+  remoteClientState?: IRemoteClientState;
 }
 
 export interface TkeyLocalStoreData {
@@ -471,6 +473,44 @@ export interface EthereumSigner {
   sign: (msgHash: Buffer) => Promise<EthSig>;
   getPublic: () => Promise<Buffer>;
 }
+
+type SupportedCurve = "secp256k1" | "ed25519";
+// remote signer interface
+export type RemoteDklsSignParams = {
+  factorEnc?: FactorEnc;
+  sessionId: string;
+  tssNonce: number;
+  accountNonce: string;
+  tssPubKeyHex: string;
+
+  nodeIndexes: number[];
+  tssCommits: PointHex[];
+
+  signatures: string[];
+
+  serverEndpoints: {
+    endpoints: string[];
+    tssWSEndpoints: string[];
+    partyIndexes: number[];
+  };
+
+  curve: SupportedCurve;
+};
+
+export type RemoteFrostSignParams = {
+  sessionId: string;
+  signatures: string[];
+  tssCommits: PointHex[];
+  factorEnc: FactorEnc;
+  serverXCoords: number[];
+  clientXCoord: number;
+  serverCoefficients: string[];
+  clientCoefficient: string;
+  tssPubKeyHex: string;
+  serverURLs: string[];
+
+  curve: SupportedCurve;
+};
 
 export interface Secp256k1PrecomputedClient {
   client: Client;

@@ -7,14 +7,14 @@ import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 
-import { COREKIT_STATUS, IAsyncStorage, IStorage, MemoryStorage, TssLib, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
+import { COREKIT_STATUS, IAsyncStorage, IStorage, MemoryStorage, TssLibType, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { AsyncMemoryStorage, bufferToElliptic, criticalResetAccount, mockLogin } from "./setup";
 
 type FactorTestVariable = {
   manualSync?: boolean;
   storage?: IAsyncStorage | IStorage;
   email: string;
-  tssLib?: TssLib;
+  tssLib?: TssLibType;
 };
 
 function getPubKeys(kit: Web3AuthMPCCoreKit, indices: number[]): EllipticPoint[] {
