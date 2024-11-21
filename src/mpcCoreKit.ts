@@ -672,11 +672,29 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   /**
    * Get public key in ed25519 format.
    *
-   * Throws an error if keytype is not compatible with ed25519.
+   * Throws an error if signature type is not ed25519.
    */
   public getPubKeyEd25519(): Buffer {
+    if (this._sigType !== SigType.ed25519) {
+      throw CoreKitError.default(`getPubKeyEd25519 not supported for signature type ${this.sigType}`);
+    }
+
     const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
     return ed25519().keyFromPublic(p).getPublic();
+  }
+
+  /**
+   * Get public key in bip340 format.
+   *
+   * Throws an error if signature type is not bip340.
+   */
+  public getPubKeyBip340(): Buffer {
+    if (this._sigType !== SigType.bip340) {
+      throw CoreKitError.default(`getPubKeyBip340 not supported for signature type ${this.sigType}`);
+    }
+
+    const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
+    return p.getX().toBuffer("be", 32);
   }
 
   public async precompute_secp256k1(): Promise<{
