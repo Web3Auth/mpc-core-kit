@@ -1138,14 +1138,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async createSession() {
-    if (!this.sessionManager) {
+    if (!this.options.disableSessionManager && !this.sessionManager) {
       throw new Error("sessionManager is not available");
     }
 
     try {
       const sessionId = SessionManager.generateRandomSessionKey();
       this.sessionManager.sessionId = sessionId;
-      const { postBoxKey, factorKey, userInfo, tssShareIndex, tssPubKey } = this.state;
+      const { postBoxKey, factorKey, userInfo, tssShareIndex, tssPubKey, postboxKeyNodeIndexes } = this.state;
       if (!this.state.factorKey) {
         throw CoreKitError.factorKeyNotPresent("factorKey not present in state when creating session.");
       }
@@ -1157,6 +1157,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       const payload: SessionData = {
         postBoxKey,
+        postboxKeyNodeIndexes: postboxKeyNodeIndexes || [],
         factorKey: factorKey?.toString("hex"),
         tssShareIndex: tssShareIndex as number,
         tssPubKey: Buffer.from(tssPubKey).toString("hex"),
