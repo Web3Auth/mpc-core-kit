@@ -73,9 +73,9 @@ import {
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
 
-  private options: Web3AuthOptionsWithDefaults;
+  public torusSp: TSSTorusServiceProvider | null = null;
 
-  private torusSp: TSSTorusServiceProvider | null = null;
+  private options: Web3AuthOptionsWithDefaults;
 
   private storageLayer: TorusStorageLayer | null = null;
 
@@ -333,6 +333,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
         this.updateState({
           postBoxKey: this._getPostBoxKey(loginResponse),
+          postboxKeyNodeIndexes: loginResponse.nodesData?.nodeIndexes,
           userInfo: loginResponse.userInfo,
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
@@ -347,6 +348,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
         this.updateState({
           postBoxKey: this._getPostBoxKey(loginResponse),
+          postboxKeyNodeIndexes: loginResponse.nodesData?.nodeIndexes,
           userInfo: loginResponse.userInfo[0],
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
@@ -406,6 +408,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       this.updateState({
         postBoxKey,
+        postboxKeyNodeIndexes: loginResponse.nodesData?.nodeIndexes || [],
         userInfo: { ...parseToken(idToken), verifier, verifierId },
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
@@ -438,6 +441,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         }
         this.updateState({
           postBoxKey: this._getPostBoxKey(data),
+          postboxKeyNodeIndexes: data.nodesData?.nodeIndexes || [],
           userInfo: data.userInfo,
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
@@ -450,6 +454,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         }
         this.updateState({
           postBoxKey: this._getPostBoxKey(data),
+          postboxKeyNodeIndexes: data.nodesData?.nodeIndexes || [],
           userInfo: data.userInfo[0],
           signatures: this._getSignatures(data.sessionData.sessionTokenData),
         });
@@ -1121,6 +1126,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       this.updateState({
         factorKey: new BN(result.factorKey, "hex"),
         postBoxKey,
+        postboxKeyNodeIndexes: result.postboxKeyNodeIndexes || [],
         tssShareIndex: result.tssShareIndex,
         tssPubKey: this.tkey.getTSSPub().toSEC1(this.tKey.tssCurve, false),
         signatures: result.signatures,

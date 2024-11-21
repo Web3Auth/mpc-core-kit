@@ -157,6 +157,7 @@ export interface JWTLoginParams {
 export interface Web3AuthState {
   postBoxKey?: string;
   signatures?: string[];
+  postboxKeyNodeIndexes?: number[];
   userInfo?: UserInfo;
   tssShareIndex?: number;
   tssPubKey?: Buffer;
@@ -444,6 +445,7 @@ export interface SessionData {
    */
   oAuthKey?: string;
   postBoxKey?: string;
+  postboxKeyNodeIndexes?: number[];
   factorKey: string;
   tssShareIndex: number;
   tssPubKey: string;
