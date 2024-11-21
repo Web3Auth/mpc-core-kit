@@ -3,18 +3,19 @@ import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
-import { KEY_TYPE, SIGNER_MAP } from "@toruslabs/constants";
+import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
-import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
+import { Ed25519Curve, Secp256k1Curve } from "@toruslabs/elliptic-wrapper";
 import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { SessionManager } from "@toruslabs/session-manager";
 import { Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type { WasmLib as DKLSWasmLib } from "@toruslabs/tss-dkls-lib";
-import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
-import type { WasmLib as FrostWasmLib } from "@toruslabs/tss-frost-lib";
+import { sign as signFrost } from "@toruslabs/tss-frost-client";
+import type { WasmLib as FrostWasmLibEd25519 } from "@toruslabs/tss-frost-lib";
+import type { WasmLib as FrostWasmLibBip340 } from "@toruslabs/tss-frost-lib-bip340";
 import BN from "bn.js";
 import bowser from "bowser";
 import { ec as EC } from "elliptic";
@@ -45,6 +46,7 @@ import {
   OAuthLoginParams,
   Secp256k1PrecomputedClient,
   SessionData,
+  SigType,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
   TssLibType,
@@ -93,9 +95,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _tssLib: TssLibType;
 
-  private wasmLib: DKLSWasmLib | FrostWasmLib;
+  private wasmLib: DKLSWasmLib | FrostWasmLibEd25519 | FrostWasmLibBip340;
 
   private _keyType: KeyType;
+
+  private _sigType: SigType;
 
   private atomicCallStackCounter: number = 0;
 
@@ -106,6 +110,22 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this._tssLib = options.tssLib;
     this._keyType = options.tssLib.keyType as KeyType;
+    this._sigType = (() => {
+      if (!(options.tssLib as V4TSSLibType).sigType) {
+        if (this._keyType === "secp256k1") {
+          return SigType.ecdsa_secp256k1;
+        } else if (this._keyType === "ed25519") {
+          return SigType.ed25519;
+        }
+        throw CoreKitError.invalidKeyType();
+      }
+      const sigType = (options.tssLib as V4TSSLibType).sigType as SigType;
+      // Check if sigType is valid  SigType.
+      if (!Object.values(SigType).includes(sigType)) {
+        throw CoreKitError.invalidSigType();
+      }
+      return sigType;
+    })();
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
@@ -149,6 +169,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this._keyType;
   }
 
+  get sigType(): SigType {
+    return this._sigType;
+  }
+
   get signatures(): string[] {
     return this.state?.signatures ? this.state.signatures : [];
   }
@@ -175,7 +199,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   get supportsAccountIndex(): boolean {
-    return this._keyType !== KeyType.ed25519;
+    return this._sigType !== SigType.ed25519;
   }
 
   private get verifier(): string {
@@ -194,7 +218,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private get useClientGeneratedTSSKey(): boolean {
-    return this.keyType === KeyType.ed25519 && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
+    return this._sigType === SigType.ed25519 && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
   }
 
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
@@ -233,8 +257,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
-    if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG) {
-      throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
+    if (this._sigType === SigType.ed25519 && this.options.useDKG) {
+      throw CoreKitError.invalidConfig("DKG is not supported for ed25519 signature type");
     }
 
     this.torusSp = new TSSTorusServiceProvider({
@@ -745,11 +769,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async sign(data: Buffer, hashed: boolean = false, secp256k1Precompute?: Secp256k1PrecomputedClient): Promise<Buffer> {
     this.wasmLib = await this.loadTssWasm();
-    if (this.keyType === KeyType.secp256k1) {
+    if (this._sigType === SigType.ecdsa_secp256k1) {
       const sig = await this.sign_ECDSA_secp256k1(data, hashed, secp256k1Precompute);
       return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
-    } else if (this.keyType === KeyType.ed25519) {
-      return this.sign_ed25519(data, hashed);
+    } else if (this._sigType === SigType.ed25519 || this._sigType === SigType.bip340) {
+      return this.sign_frost(data, hashed);
     }
     throw CoreKitError.default(`sign not supported for key type ${this.keyType}`);
   }
@@ -890,12 +914,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    *
    * Exports the private key scalar for the current account index.
    *
-   * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
+   * For signature type ed25519, consider using _UNSAFE_exportTssEd25519Seed.
    */
   public async _UNSAFE_exportTssKey(): Promise<string> {
-    if (this.keyType !== KeyType.secp256k1) {
-      throw CoreKitError.default("Wrong KeyType. Method can only be used when KeyType is secp256k1");
-    }
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss key.");
     }
@@ -921,8 +942,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * flow has been used.
    */
   public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
-    if (this.keyType !== KeyType.ed25519) {
-      throw CoreKitError.default("Wrong KeyType. Method can only be used when KeyType is ed25519");
+    if (this._sigType !== SigType.ed25519) {
+      throw CoreKitError.default("Wrong signature type. Method can only be used when signature type is ed25519.");
     }
     if (!this.state.factorKey) throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss ed25519 seed.");
     if (!this.state.signatures) throw CoreKitError.signaturesNotPresent("Signatures not present in state when exporting tss ed25519 seed.");
@@ -992,14 +1013,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     let importTssKey = providedImportTssKey;
     if (!existingUser) {
       if (!importTssKey && this.useClientGeneratedTSSKey) {
-        if (this.keyType === KeyType.ed25519) {
+        if (this._sigType === SigType.ed25519) {
           const k = generateEd25519Seed();
           importTssKey = k.toString("hex");
         } else if (this.keyType === KeyType.secp256k1) {
           const k = secp256k1.genKeyPair().getPrivate();
           importTssKey = scalarBNToBufferSEC1(k).toString("hex");
         } else {
-          throw CoreKitError.default("Unsupported key type");
+          throw CoreKitError.default(`Unsupported key type and sig type combination: ${this.keyType}, ${this._sigType}`);
         }
       }
       await this.handleNewUser(importTssKey);
@@ -1385,28 +1406,40 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  private async sign_ed25519(data: Buffer, hashed: boolean = false): Promise<Buffer> {
+  private async sign_frost(data: Buffer, hashed: boolean = false): Promise<Buffer> {
     if (hashed) {
-      throw CoreKitError.default("hashed data not supported for ed25519");
+      throw CoreKitError.default(`hashed data not supported for ${this._sigType}`);
     }
 
-    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
+    const serverEndpoints = (() => {
+      // We have to fix the key type to `ed25519` for now, because we would get
+      // the DKLS tss server endpoints otherwise.
+      const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
+      // Endpoints must end with backslash, but URLs returned by
+      // `fetch-node-details` don't have it.
+      return nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
+    })();
+
+    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
     if (!nodeDetails.torusNodeTSSEndpoints) {
       throw CoreKitError.default("could not fetch tss node endpoints");
     }
 
-    // Endpoints must end with backslash, but URLs returned by
-    // `fetch-node-details` don't have it.
-    const ED25519_ENDPOINTS = nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
-
     // Select endpoints and derive party indices.
-    const serverThreshold = Math.floor(ED25519_ENDPOINTS.length / 2) + 1;
-    const endpoints = sampleEndpoints(ED25519_ENDPOINTS, serverThreshold);
+    const serverThreshold = Math.floor(serverEndpoints.length / 2) + 1;
+    const endpoints = sampleEndpoints(serverEndpoints, serverThreshold);
     const serverXCoords = endpoints.map((x) => x.index);
     const clientXCoord = Math.max(...endpoints.map((ep) => ep.index)) + 1;
 
     // Derive share coefficients for flat hierarchy.
-    const ec = new Ed25519Curve();
+    const ec = (() => {
+      if (this.keyType === KeyType.secp256k1) {
+        return new Secp256k1Curve();
+      } else if (this.keyType === KeyType.ed25519) {
+        return new Ed25519Curve();
+      }
+      throw CoreKitError.default(`key type ${this.keyType} not supported with FROST signing`);
+    })();
     const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord, this.state.tssShareIndex);
 
     // Get pub key.
@@ -1414,7 +1447,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const tssPubKeyPoint = ec.keyFromPublic(tssPubKey).getPublic();
 
     // Get client key share and adjust by coefficient.
-    if (this.state.accountIndex !== 0) {
+    if (this._sigType === "ed25519" && this.state.accountIndex !== 0) {
       throw CoreKitError.default("Account index not supported for ed25519");
     }
     const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
@@ -1430,8 +1463,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const serverURLs = endpoints.map((x) => x.url);
     const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
     const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
-    const signature = await signEd25519(
-      this.wasmLib as FrostWasmLib,
+    const signature = await signFrost(
+      this.wasmLib as FrostWasmLibEd25519 | FrostWasmLibBip340,
       session,
       this.signatures,
       serverXCoords,
@@ -1450,10 +1483,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private async loadTssWasm() {
     if (this.wasmLib) return this.wasmLib;
     if (typeof (this._tssLib as V4TSSLibType).load === "function") {
-      // dont wait for wasm to be loaded, we can reload it during signing if not loaded
       return (this._tssLib as V4TSSLibType).load();
     } else if ((this._tssLib as V3TSSLibType).lib) {
-      return (this._tssLib as V3TSSLibType).lib as DKLSWasmLib | FrostWasmLib;
+      return (this._tssLib as V3TSSLibType).lib as DKLSWasmLib | FrostWasmLibEd25519 | FrostWasmLibBip340;
     }
   }
 }
