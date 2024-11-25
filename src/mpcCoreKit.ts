@@ -75,6 +75,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public torusSp: TSSTorusServiceProvider | null = null;
 
+  public fetchSessionSignatures: () => Promise<string[]>;
+
   private options: Web3AuthOptionsWithDefaults;
 
   private storageLayer: TorusStorageLayer | null = null;
@@ -124,7 +126,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
     if (options.disableSessionManager === undefined) options.disableSessionManager = false;
-
+    this.fetchSessionSignatures = () => Promise.resolve(this.signatures);
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
@@ -151,6 +153,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   get signatures(): string[] {
     return this.state?.signatures ? this.state.signatures : [];
+  }
+
+  get config(): Web3AuthOptionsWithDefaults {
+    return this.options;
   }
 
   public get _storageKey(): string {
@@ -195,6 +201,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private get useClientGeneratedTSSKey(): boolean {
     return this.keyType === KeyType.ed25519 && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
+  }
+
+  public setSessionSigGenerator(sessionSigGenerator: () => Promise<string[]>) {
+    this.fetchSessionSignatures = sessionSigGenerator;
   }
 
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
@@ -331,12 +341,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
         if (this.isRedirectMode) return;
 
-        this.updateState({
-          postBoxKey: this._getPostBoxKey(loginResponse),
-          postboxKeyNodeIndexes: loginResponse.nodesData?.nodeIndexes,
-          userInfo: loginResponse.userInfo,
-          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
-        });
+        await this._finalizeOauthLogin(loginResponse, loginResponse.userInfo, true, importTssKey);
       } else if (aggregateParams.subVerifierDetailsArray) {
         const loginResponse = await tkeyServiceProvider.triggerAggregateLogin({
           aggregateVerifierType: aggregateParams.aggregateVerifierType || AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID,
@@ -346,15 +351,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
         if (this.isRedirectMode) return;
 
-        this.updateState({
-          postBoxKey: this._getPostBoxKey(loginResponse),
-          postboxKeyNodeIndexes: loginResponse.nodesData?.nodeIndexes,
-          userInfo: loginResponse.userInfo[0],
-          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
-        });
+        await this._finalizeOauthLogin(loginResponse, loginResponse.userInfo[0], true, importTssKey);
       }
-
-      await this.setupTkey(importTssKey);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -401,18 +399,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       // wait for prefetch completed before setup tkey
       const [loginResponse] = await Promise.all([loginPromise, ...prefetchTssPubs]);
-
-      const postBoxKey = this._getPostBoxKey(loginResponse);
-
-      this.torusSp.postboxKey = new BN(postBoxKey, "hex");
-
-      this.updateState({
-        postBoxKey,
-        postboxKeyNodeIndexes: loginResponse.nodesData?.nodeIndexes || [],
-        userInfo: { ...parseToken(idToken), verifier, verifierId },
-        signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
-      });
-      await this.setupTkey(importTssKey);
+      const userInfo = { ...parseToken(idToken), verifier, verifierId };
+      await this._finalizeOauthLogin(loginResponse, userInfo, true, importTssKey);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -476,6 +464,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       log.error("error while handling redirect result", error);
       throw CoreKitError.default((error as Error).message);
     }
+  }
+
+  public async _finalizeOauthLogin(loginResponse: TorusKey, userInfo: UserInfo, persistSessionSigs = true, importTssKey?: string): Promise<void> {
+    const postBoxKey = this._getPostBoxKey(loginResponse);
+    this.torusSp.postboxKey = new BN(postBoxKey, "hex");
+
+    this.updateState({
+      postBoxKey,
+      postboxKeyNodeIndexes: loginResponse.nodesData?.nodeIndexes,
+      userInfo,
+      signatures: persistSessionSigs ? this._getSignatures(loginResponse.sessionData.sessionTokenData) : [],
+    });
+
+    await this.setupTkey(importTssKey);
   }
 
   public async inputFactorKey(factorKey: BN): Promise<void> {
@@ -658,6 +660,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async precompute_secp256k1(): Promise<{
     client: Client;
     serverCoeffs: Record<string, string>;
+    signatures: string[];
   }> {
     this.wasmLib = await this.loadTssWasm();
     // PreSetup
@@ -707,7 +710,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.activeSessionNotFound();
     }
 
-    const { signatures } = this;
+    const signatures = await this.fetchSessionSignatures();
     if (!signatures) {
       throw CoreKitError.signaturesNotPresent();
     }
@@ -740,6 +743,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return {
       client,
       serverCoeffs,
+      signatures,
     };
   }
 
@@ -774,7 +778,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         throw CoreKitError.factorInUseCannotBeDeleted("Cannot delete current active factor");
       }
 
-      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
+      const authSignatures = await this.fetchSessionSignatures();
+      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures });
       const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
       const allDesc = this.tKey.metadata.getShareDescription();
       const keyDesc = allDesc[factorPubHex];
@@ -1224,11 +1229,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.tKey.metadata.factorPubs[this.tKey.tssTag].length >= MAX_FACTORS) {
       throw CoreKitError.maximumFactorsReached(`The maximum number of allowable factors (${MAX_FACTORS}) has been reached.`);
     }
-
+    const authSignatures = await this.fetchSessionSignatures();
     // Generate new share.
     await this.tkey.addFactorPub({
       existingFactorKey: this.state.factorKey,
-      authSignatures: this.signatures,
+      authSignatures,
       newFactorPub,
       newTSSIndex: newFactorTSSIndex,
       refreshShares: this.state.tssShareIndex !== newFactorTSSIndex, // Refresh shares if we have a new factor key index.
@@ -1364,9 +1369,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     const isAlreadyPrecomputed = precomputedTssClient?.client && precomputedTssClient?.serverCoeffs;
-    const { client, serverCoeffs } = isAlreadyPrecomputed ? precomputedTssClient : await this.precompute_secp256k1();
+    const { client, serverCoeffs, signatures } = isAlreadyPrecomputed ? precomputedTssClient : await this.precompute_secp256k1();
 
-    const { signatures } = this;
     if (!signatures) {
       throw CoreKitError.signaturesNotPresent();
     }
@@ -1430,10 +1434,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const serverURLs = endpoints.map((x) => x.url);
     const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
     const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
+    const authSignatures = await this.fetchSessionSignatures();
+
     const signature = await signEd25519(
       this.wasmLib as FrostWasmLib,
       session,
-      this.signatures,
+      authSignatures,
       serverXCoords,
       serverURLs,
       clientXCoord,

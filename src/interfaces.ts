@@ -477,4 +477,5 @@ export interface EthereumSigner {
 export interface Secp256k1PrecomputedClient {
   client: Client;
   serverCoeffs: Record<string, string>;
+  signatures: string[];
 }
