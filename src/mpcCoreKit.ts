@@ -1371,7 +1371,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const { r, s, recoveryParam } = await client.sign(hashedData.toString("base64"), true, "", "keccak256", {
         signatures,
       });
-      await client.cleanup({ signatures, server_coeffs: serverCoeffs });
+      // intentionally not awaiting cleanup
+      // since it eventually cleaned by server so optimistically not waiting for it
+      // in order to reduce latency in returning the response
+      client.cleanup({ signatures, server_coeffs: serverCoeffs });
       return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
     };
     if (!hashed) {
@@ -1404,7 +1407,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     // TODO: See comments in this function, these are bugs that need fixing throughout by the original author.
 
     if (data.length <= 1) {
-      throw CoreKitError.default("Not a batch");
+      throw CoreKitError.default("Batch signing requires at least 2 messages. For single message, use sign() instead.");
     }
 
     if (data.length > 5) {
@@ -1434,7 +1437,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const executeBatchSign = async (client: Client, serverCoeffs: Record<string, string>, hashedData: BatchSignParams[], signatures: string[]) => {
       const sigs = await client.batch_sign(hashedData, { signatures });
-      await client.cleanup({ signatures, server_coeffs: serverCoeffs }); // server_coeffs are only needed in precompute, nowhere else.
+      // intentionally not awaiting cleanup
+      // since it eventually cleaned by server so optimistically not waiting for it
+      // in order to reduce latency in returning the response
+      client.cleanup({ signatures, server_coeffs: serverCoeffs }); // server_coeffs are only needed in precompute, nowhere else.
 
       const results = [];
       for (let i = 0; i < sigs.length; i++) {
