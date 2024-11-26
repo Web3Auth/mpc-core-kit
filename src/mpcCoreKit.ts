@@ -11,7 +11,7 @@ import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { SessionManager } from "@toruslabs/session-manager";
 import { Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
-import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
+import { BatchSignParams, Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type { WasmLib as DKLSWasmLib } from "@toruslabs/tss-dkls-lib";
 import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
 import type { WasmLib as FrostWasmLib } from "@toruslabs/tss-frost-lib";
@@ -754,6 +754,22 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     throw CoreKitError.default(`sign not supported for key type ${this.keyType}`);
   }
 
+  public async sign_batch(data: Buffer[], hashed: boolean[] = [false], secp256k1Precompute?: Secp256k1PrecomputedClient): Promise<Buffer[]> {
+    // NOTE: Checks here must ensure a batch is only submitted to dkls, frost does not support batch signatures.
+    if (this.keyType === KeyType.secp256k1) {
+      this.wasmLib = await this.loadTssWasm();
+      const sigs = await this.sign_ECDSA_secp256k1_batch(data, hashed, secp256k1Precompute);
+      const results = [];
+      for (let i = 0; i < sigs.length; i++) {
+        const sig = sigs[i];
+        results.push(Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]));
+      }
+      return results;
+    } else if (this.keyType === KeyType.ed25519) {
+      throw CoreKitError.default(`batch signing is only supported by dkls for key type ${this.keyType}`);
+    }
+  }
+
   // mutation function
   async deleteFactor(factorPub: Point, factorKey?: BNString): Promise<void> {
     if (!this.state.factorKey) {
@@ -1355,8 +1371,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const { r, s, recoveryParam } = await client.sign(hashedData.toString("base64"), true, "", "keccak256", {
         signatures,
       });
-      // skip await cleanup
-      client.cleanup({ signatures, server_coeffs: serverCoeffs });
+      await client.cleanup({ signatures, server_coeffs: serverCoeffs });
       return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
     };
     if (!hashed) {
@@ -1380,6 +1395,72 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // Retry with new client if precomputed client failed, this is to handle the case when precomputed session might have expired
       const { client: newClient, serverCoeffs: newServerCoeffs } = await this.precompute_secp256k1();
       const result = await executeSign(newClient, newServerCoeffs, data, signatures);
+
+      return result;
+    }
+  }
+
+  private async sign_ECDSA_secp256k1_batch(data: Buffer[], hashed: boolean[] = [false], precomputedTssClient?: Secp256k1PrecomputedClient) {
+    // TODO: See comments in this function, these are bugs that need fixing throughout by the original author.
+
+    if (data.length <= 1) {
+      throw CoreKitError.default("Not a batch");
+    }
+
+    if (data.length > 5) {
+      throw CoreKitError.default("Batch size too large");
+    }
+
+    if (hashed.length !== data.length) {
+      throw CoreKitError.default("Hashed size must be same as data size");
+    }
+
+    const batchSignParams: BatchSignParams[] = [];
+
+    for (let i = 0; i < data.length; i++) {
+      let dataItem = data[i];
+      const hashedItem = hashed[i];
+      if (!hashedItem) {
+        dataItem = keccak256(dataItem);
+      }
+
+      batchSignParams.push({
+        msg: dataItem.toString("base64"), // This is the hashed or unhashed message, should be sent as supplied.
+        hash_only: true, // This should indicate IF the message is hashed or not, not that it needs hashing above.
+        original_message: "", // This should be the unhashed message, should be sent only if message is hashed.
+        hash_algo: "keccak256", // Constant, only supported value
+      });
+    }
+
+    const executeBatchSign = async (client: Client, serverCoeffs: Record<string, string>, hashedData: BatchSignParams[], signatures: string[]) => {
+      const sigs = await client.batch_sign(hashedData, { signatures });
+      await client.cleanup({ signatures, server_coeffs: serverCoeffs }); // server_coeffs are only needed in precompute, nowhere else.
+
+      const results = [];
+      for (let i = 0; i < sigs.length; i++) {
+        const { r, s, recoveryParam } = sigs[i];
+        results.push({ v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) });
+      }
+      return results;
+    };
+
+    const isAlreadyPrecomputed = precomputedTssClient?.client && precomputedTssClient?.serverCoeffs;
+    const { client, serverCoeffs } = isAlreadyPrecomputed ? precomputedTssClient : await this.precompute_secp256k1();
+
+    const { signatures } = this;
+    if (!signatures) {
+      throw CoreKitError.signaturesNotPresent();
+    }
+
+    try {
+      return await executeBatchSign(client, serverCoeffs, batchSignParams, signatures);
+    } catch (error) {
+      if (!isAlreadyPrecomputed) {
+        throw error;
+      }
+      // Retry with new client if precomputed client failed, this is to handle the case when precomputed session might have expired
+      const { client: newClient, serverCoeffs: newServerCoeffs } = await this.precompute_secp256k1();
+      const result = await executeBatchSign(newClient, newServerCoeffs, batchSignParams, signatures);
 
       return result;
     }
