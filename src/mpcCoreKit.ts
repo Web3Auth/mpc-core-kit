@@ -754,7 +754,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     throw CoreKitError.default(`sign not supported for key type ${this.keyType}`);
   }
 
-  public async sign_batch(data: Buffer[], hashed: boolean[] = [false], secp256k1Precompute?: Secp256k1PrecomputedClient): Promise<Buffer[]> {
+  public async sign_batch(data: Buffer[], hashed: boolean[], secp256k1Precompute?: Secp256k1PrecomputedClient): Promise<Buffer[]> {
     // NOTE: Checks here must ensure a batch is only submitted to dkls, frost does not support batch signatures.
     if (this.keyType === KeyType.secp256k1) {
       this.wasmLib = await this.loadTssWasm();

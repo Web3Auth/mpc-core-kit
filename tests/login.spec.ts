@@ -168,6 +168,37 @@ variable.forEach((testVariable) => {
       assert(pubkey2.eq(publicKeyPoint));
     });
 
+    await t.test("#able to sign batch", async function () {
+      const coreKitInstance = newCoreKitInstance();
+      await coreKitInstance.init({ handleRedirectResult: false, rehydrate: false });
+      const localToken = await mockLogin2(email);
+      await coreKitInstance.loginWithJWT({
+        verifier: "torus-test-health",
+        verifierId: email,
+        idToken: localToken.idToken,
+      });
+      const msg = "hello world";
+      const msgBuffer = Buffer.from(msg);
+      const msgHash = keccak256(msgBuffer);
+      const secp256k1 = new EC("secp256k1");
+
+      const buffers = [];
+      buffers.push(msgHash);
+      buffers.push(msgHash);
+
+      const hashed = [];
+      hashed.push(true);
+      hashed.push(true);
+
+      const signatures = await coreKitInstance.sign_batch(buffers,hashed)
+      for (let i = 0; i < signatures.length; i++) {
+        const signature = sigToRSV(signatures[i]);
+        const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v) as EllipticPoint;
+        const publicKeyPoint = bufferToElliptic(coreKitInstance.getPubKey());
+        assert(pubkey.eq(publicKeyPoint));
+      }
+    });
+
     await t.test("#Login and sign with different account/wallet index", async function () {
       const vid = stringGen(10);
       const coreKitInstance = newCoreKitInstance();
