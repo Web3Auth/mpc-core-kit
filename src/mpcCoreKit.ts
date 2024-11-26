@@ -1429,19 +1429,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.default(`hashed data not supported for ${this._sigType}`);
     }
 
-    const serverEndpoints = (() => {
-      // We have to fix the key type to `ed25519` for now, because we would get
-      // the DKLS tss server endpoints otherwise.
-      const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, "ed25519");
-      // Endpoints must end with backslash, but URLs returned by
-      // `fetch-node-details` don't have it.
-      return nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
-    })();
-
-    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
+    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType, this._sigType);
     if (!nodeDetails.torusNodeTSSEndpoints) {
       throw CoreKitError.default("could not fetch tss node endpoints");
     }
+
+    // Endpoints must end with backslash, but URLs returned by
+    // `fetch-node-details` don't have it.
+    const serverEndpoints = nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
 
     // Select endpoints and derive party indices.
     const serverThreshold = Math.floor(serverEndpoints.length / 2) + 1;
