@@ -1411,7 +1411,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     if (data.length > 5) {
-      throw CoreKitError.default("Batch size too large");
+      throw CoreKitError.default("Batch signing is limited to a maximum of 5 messages at a time");
     }
 
     if (hashed.length !== data.length) {
