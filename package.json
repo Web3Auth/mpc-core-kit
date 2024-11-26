@@ -56,7 +56,7 @@
     "@toruslabs/metadata-helpers": "^6.0.0",
     "@toruslabs/session-manager": "^3.1.0",
     "@toruslabs/openlogin-utils": "^8.2.1",
-    "@toruslabs/torus.js": "^15.1.0",
+    "@toruslabs/torus.js": "file:./toruslabs-torus.js-15.1.2.tgz",
     "@toruslabs/tss-client": "^3.1.0",
     "@toruslabs/tss-frost-client": "0.3.1",
     "@toruslabs/tss-frost-common": "^1.0.1",
