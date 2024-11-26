@@ -63,6 +63,7 @@ import {
   UserInfo,
   V3TSSLibType,
   V4TSSLibType,
+  WEB3AUTH_NETWORK_TYPE,
   Web3AuthOptions,
   Web3AuthOptionsWithDefaults,
   Web3AuthState,
@@ -1131,6 +1132,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public updateState(newState: Partial<Web3AuthState>): void {
     this.state = { ...this.state, ...newState };
+  }
+
+  public getWeb3AuthNetwork(): WEB3AUTH_NETWORK_TYPE {
+    return this.options.web3AuthNetwork;
+  }
+
+  public getMetadataKey(): string {
+    return this.tkey.secp256k1Key.toString("hex");
+  }
+
+  public getMetadataPublicKey(): string {
+    return this.tkey.getKeyDetails().pubKey.toSEC1(secp256k1, true).toString("hex");
   }
 
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
