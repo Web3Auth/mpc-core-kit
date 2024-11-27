@@ -51,8 +51,6 @@ import {
   TkeyLocalStoreData,
   TssLibType,
   UserInfo,
-  V3TSSLibType,
-  V4TSSLibType,
   Web3AuthOptions,
   Web3AuthOptionsWithDefaults,
   Web3AuthState,
@@ -1480,10 +1478,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async loadTssWasm() {
     if (this.wasmLib) return this.wasmLib;
-    if (typeof (this._tssLib as V4TSSLibType).load === "function") {
-      return (this._tssLib as V4TSSLibType).load();
-    } else if ((this._tssLib as V3TSSLibType).lib) {
-      return (this._tssLib as V3TSSLibType).lib as DKLSWasmLib | FrostWasmLibEd25519 | FrostWasmLibBip340;
-    }
+    return this._tssLib.load();
   }
 }

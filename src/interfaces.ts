@@ -21,9 +21,8 @@ import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWOR
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
-export type V3TSSLibType = { keyType: string; lib: unknown };
 export type V4TSSLibType = typeof TssDklsLib | typeof TssFrostLibEd25519 | typeof TssFrostLibBip340;
-export type TssLibType = V4TSSLibType | V3TSSLibType;
+export type TssLibType = typeof TssDklsLib | typeof TssFrostLibEd25519 | typeof TssFrostLibBip340;
 
 export interface IStorage {
   getItem(key: string): string | null;
