@@ -1,5 +1,6 @@
 import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
 import { TKeyTSS } from "@tkey/tss";
+import { WEB3AUTH_SIG_TYPE } from "@toruslabs/constants";
 import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
@@ -458,11 +459,7 @@ export interface TkeyLocalStoreData {
   factorKey: string;
 }
 
-export enum SigType {
-  ecdsa_secp256k1 = "ecdsa-secp256k1",
-  ed25519 = "ed25519",
-  bip340 = "bip340",
-}
+export type SigType = WEB3AUTH_SIG_TYPE;
 
 export interface CoreKitSigner {
   keyType: KeyType;

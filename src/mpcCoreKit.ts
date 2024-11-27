@@ -110,22 +110,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     this._tssLib = options.tssLib;
     this._keyType = options.tssLib.keyType as KeyType;
-    this._sigType = (() => {
-      if (!(options.tssLib as V4TSSLibType).sigType) {
-        if (this._keyType === "secp256k1") {
-          return SigType.ecdsa_secp256k1;
-        } else if (this._keyType === "ed25519") {
-          return SigType.ed25519;
-        }
-        throw CoreKitError.invalidKeyType();
-      }
-      const sigType = (options.tssLib as V4TSSLibType).sigType as SigType;
-      // Check if sigType is valid  SigType.
-      if (!Object.values(SigType).includes(sigType)) {
-        throw CoreKitError.invalidSigType();
-      }
-      return sigType;
-    })();
+    this._sigType = options.tssLib.sigType as SigType;
 
     const isNodejsOrRN = this.isNodejsOrRN(options.uxMode);
 
@@ -199,7 +184,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   get supportsAccountIndex(): boolean {
-    return this._sigType !== SigType.ed25519;
+    return this._sigType !== "ed25519";
   }
 
   private get verifier(): string {
@@ -218,7 +203,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private get useClientGeneratedTSSKey(): boolean {
-    return this._sigType === SigType.ed25519 && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
+    return this._sigType === "ed25519" && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
   }
 
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
@@ -257,7 +242,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
-    if (this._sigType === SigType.ed25519 && this.options.useDKG) {
+    if (this._sigType === "ed25519" && this.options.useDKG) {
       throw CoreKitError.invalidConfig("DKG is not supported for ed25519 signature type");
     }
 
@@ -675,7 +660,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * Throws an error if signature type is not ed25519.
    */
   public getPubKeyEd25519(): Buffer {
-    if (this._sigType !== SigType.ed25519) {
+    if (this._sigType !== "ed25519") {
       throw CoreKitError.default(`getPubKeyEd25519 not supported for signature type ${this.sigType}`);
     }
 
@@ -689,7 +674,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * Throws an error if signature type is not bip340.
    */
   public getPubKeyBip340(): Buffer {
-    if (this._sigType !== SigType.bip340) {
+    if (this._sigType !== "bip340") {
       throw CoreKitError.default(`getPubKeyBip340 not supported for signature type ${this.sigType}`);
     }
 
@@ -787,10 +772,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async sign(data: Buffer, hashed: boolean = false, secp256k1Precompute?: Secp256k1PrecomputedClient): Promise<Buffer> {
     this.wasmLib = await this.loadTssWasm();
-    if (this._sigType === SigType.ecdsa_secp256k1) {
+    if (this._sigType === "ecdsa-secp256k1") {
       const sig = await this.sign_ECDSA_secp256k1(data, hashed, secp256k1Precompute);
       return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
-    } else if (this._sigType === SigType.ed25519 || this._sigType === SigType.bip340) {
+    } else if (this._sigType === "ed25519" || this._sigType === "bip340") {
       return this.sign_frost(data, hashed);
     }
     throw CoreKitError.default(`sign not supported for key type ${this.keyType}`);
@@ -960,7 +945,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    * flow has been used.
    */
   public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
-    if (this._sigType !== SigType.ed25519) {
+    if (this._sigType !== "ed25519") {
       throw CoreKitError.default("Wrong signature type. Method can only be used when signature type is ed25519.");
     }
     if (!this.state.factorKey) throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss ed25519 seed.");
@@ -1031,7 +1016,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     let importTssKey = providedImportTssKey;
     if (!existingUser) {
       if (!importTssKey && this.useClientGeneratedTSSKey) {
-        if (this._sigType === SigType.ed25519) {
+        if (this._sigType === "ed25519") {
           const k = generateEd25519Seed();
           importTssKey = k.toString("hex");
         } else if (this.keyType === KeyType.secp256k1) {
