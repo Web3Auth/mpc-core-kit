@@ -4,7 +4,7 @@ import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 
-import { IAsyncStorage, IStorage, parseToken, TssLib, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { IAsyncStorage, IStorage, parseToken, TssLibType, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -97,7 +97,7 @@ export const newCoreKitLogInInstance = async ({
   manualSync: boolean;
   email: string;
   storageInstance: IStorage | IAsyncStorage;
-  tssLib?: TssLib;
+  tssLib?: TssLibType;
   importTssKey?: string;
   login?: LoginFunc;
 }) => {
