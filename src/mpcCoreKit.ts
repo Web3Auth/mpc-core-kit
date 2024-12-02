@@ -476,7 +476,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       userInfo,
       signatures: persistSessionSigs ? this._getSignatures(loginResponse.sessionData.sessionTokenData) : [],
     });
-
+    const sp = this.tkey.serviceProvider;
+    if (!sp) {
+      throw new Error("Oauth Service provider is missing in tkey");
+    }
+    if (!sp?.verifierId) {
+      sp.verifierId = userInfo.verifierId;
+    }
+    if (!sp?.verifierName) {
+      sp.verifierName = userInfo.aggregateVerifier || userInfo.verifier;
+    }
     await this.setupTkey(importTssKey);
   }
 

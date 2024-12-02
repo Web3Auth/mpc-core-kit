@@ -588,6 +588,10 @@ function App() {
       throw new Error("passkeyPlugin is not set");
     }
     await passkeyPlugin.authenticateWithPasskey()
+    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      await setupProvider();
+    }
+    setCoreKitStatus(coreKitInstance.status);
   };
   const listPasskeys = async () => {
     if (!coreKitInstance) {
@@ -598,6 +602,26 @@ function App() {
     }
     const passkeys = await passkeyPlugin.listPasskeys()
     uiConsole(passkeys)
+  };
+  const enableStrictPasskey = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    if (!passkeyPlugin) {
+      throw new Error("passkeyPlugin is not set");
+    }
+    await passkeyPlugin.enableStrictPasskeyAuth()
+    uiConsole("Strict Passkey Auth Enabled")
+  };
+  const disableStrictPasskey = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    if (!passkeyPlugin) {
+      throw new Error("passkeyPlugin is not set");
+    }
+    await passkeyPlugin.disableStrictPasskeyAuth()
+    uiConsole("Strict Passkey Auth Disabled")
   };
   const commit = async () => {
     if (!coreKitInstance) {
@@ -659,6 +683,12 @@ function App() {
           </button>
           <button onClick={listPasskeys} className="card">
             List Passkeys
+          </button>
+          <button onClick={enableStrictPasskey} className="card">
+            Enable Transaction MFA with Passkey
+          </button>
+          <button onClick={disableStrictPasskey} className="card">
+            Disable Transaction MFA with Passkey
           </button>
         </div>
         <h4>Manual Factors Manipulation</h4>
