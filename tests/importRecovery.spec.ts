@@ -4,14 +4,14 @@ import test from "node:test";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 
-import { AsyncStorage, MemoryStorage, TssLib, TssShareType, WEB3AUTH_NETWORK } from "../src";
+import { AsyncStorage, MemoryStorage, TssLibType, TssShareType, WEB3AUTH_NETWORK } from "../src";
 import { bufferToElliptic, criticalResetAccount, newCoreKitLogInInstance } from "./setup";
 
 type ImportKeyTestVariable = {
   manualSync?: boolean;
   email: string;
   importKeyEmail: string;
-  tssLib: TssLib;
+  tssLib: TssLibType;
 };
 
 const storageInstance = new MemoryStorage();

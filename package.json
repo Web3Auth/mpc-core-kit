@@ -1,6 +1,6 @@
 {
   "name": "@web3auth/mpc-core-kit",
-  "version": "3.2.6",
+  "version": "4.0.0-alpha.0",
   "description": "MPC CoreKit SDK for web3Auth",
   "keywords": [
     "web3Auth/mpc-core-kit",
@@ -31,14 +31,18 @@
   ],
   "peerDependencies": {
     "@babel/runtime": "^7.x",
-    "@toruslabs/tss-dkls-lib": "^4.0.0",
-    "@toruslabs/tss-frost-lib": "^1.0.0"
+    "@toruslabs/tss-dkls-lib": "^5.0.0-alpha.0",
+    "@toruslabs/tss-frost-lib": "^2.0.0-alpha.0",
+    "@toruslabs/tss-frost-lib-bip340": "^0.1.0-alpha.0"
   },
   "peerDependenciesMeta": {
     "@toruslabs/tss-dkls-lib": {
       "optional": true
     },
     "@toruslabs/tss-frost-lib": {
+      "optional": true
+    },
+    "@toruslabs/tss-frost-lib-bip340": {
       "optional": true
     }
   },
@@ -48,17 +52,17 @@
     "@tkey/share-serialization": "^15.1.0",
     "@tkey/storage-layer-torus": "^15.1.0",
     "@tkey/tss": "^15.1.0",
-    "@toruslabs/constants": "^14.0.0",
+    "@toruslabs/constants": "^14.2.0",
     "@toruslabs/customauth": "^20.3.0",
-    "@toruslabs/elliptic-wrapper": "^0.1.0",
-    "@toruslabs/fetch-node-details": "^14.0.1",
-    "@toruslabs/fnd-base": "^14.0.0",
+    "@toruslabs/elliptic-wrapper": "^0.1.1",
+    "@toruslabs/fetch-node-details": "^14.2.0",
+    "@toruslabs/fnd-base": "^14.2.0",
     "@toruslabs/metadata-helpers": "^6.0.0",
-    "@toruslabs/session-manager": "^3.1.0",
     "@toruslabs/openlogin-utils": "^8.2.1",
     "@toruslabs/torus.js": "15.2.0-alpha.0",
-    "@toruslabs/tss-client": "^3.1.0",
-    "@toruslabs/tss-frost-client": "0.3.1",
+    "@toruslabs/session-manager": "^3.1.0",
+    "@toruslabs/tss-client": "^3.3.0-alpha.0",
+    "@toruslabs/tss-frost-client": "^1.0.0-alpha.0",
     "@toruslabs/tss-frost-common": "^1.0.1",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
@@ -67,11 +71,12 @@
   },
   "devDependencies": {
     "@babel/register": "^7.25.7",
+    "@noble/curves": "^1.6.0",
     "@toruslabs/config": "^2.2.0",
     "@toruslabs/eslint-config-typescript": "^3.3.3",
     "@toruslabs/torus-scripts": "^6.1.2",
-    "@toruslabs/tss-dkls-lib": "^4.0.0",
-    "@toruslabs/tss-frost-lib": "^1.0.0",
+    "@toruslabs/tss-dkls-lib": "^5.0.0-alpha.0",
+    "@toruslabs/tss-frost-lib": "^2.0.0-alpha.0",
     "@types/chai": "^4.3.16",
     "@types/elliptic": "^6.4.18",
     "@types/jsonwebtoken": "^9.0.7",

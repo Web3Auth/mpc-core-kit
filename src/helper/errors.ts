@@ -135,6 +135,8 @@ class CoreKitError extends AbstractCoreKitError {
     1005: "No valid storage option found.",
     1006: "No data found in storage.",
     1007: "Invalid config.",
+    1008: "Invalid key type.",
+    1009: "Invalid signature type.",
 
     // TSS and key management errors
     1101: "'tssLib' is required when running in this UX mode.",
@@ -213,6 +215,14 @@ class CoreKitError extends AbstractCoreKitError {
 
   public static invalidConfig(extraMessage = ""): ICoreKitError {
     return CoreKitError.fromCode(1007, extraMessage);
+  }
+
+  public static invalidKeyType(extraMessage = ""): ICoreKitError {
+    return CoreKitError.fromCode(1008, extraMessage);
+  }
+
+  public static invalidSigType(extraMessage = ""): ICoreKitError {
+    return CoreKitError.fromCode(1009, extraMessage);
   }
 
   // TSS and key management errors

@@ -1,5 +1,6 @@
 import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
 import { TKeyTSS } from "@tkey/tss";
+import { WEB3AUTH_SIG_TYPE } from "@toruslabs/constants";
 import type {
   AGGREGATE_VERIFIER_TYPE,
   ExtraParams,
@@ -12,17 +13,17 @@ import type {
 import { Client } from "@toruslabs/tss-client";
 // TODO: move the types to a base class for both dkls and frost in future
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
-import type { tssLib as TssFrostLib } from "@toruslabs/tss-frost-lib";
+import type { tssLib as TssFrostLibEd25519 } from "@toruslabs/tss-frost-lib";
+import type { tssLib as TssFrostLibBip340 } from "@toruslabs/tss-frost-lib-bip340";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
-export type V3TSSLibType = { keyType: string; lib: unknown };
+export type V4TSSLibType = typeof TssDklsLib | typeof TssFrostLibEd25519 | typeof TssFrostLibBip340;
+export type TssLibType = typeof TssDklsLib | typeof TssFrostLibEd25519 | typeof TssFrostLibBip340;
 
-export type V4TSSLibType = typeof TssFrostLib | typeof TssDklsLib;
-export type TssLibType = V4TSSLibType | V3TSSLibType;
 export interface IStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -457,8 +458,11 @@ export interface TkeyLocalStoreData {
   factorKey: string;
 }
 
+export type SigType = WEB3AUTH_SIG_TYPE;
+
 export interface CoreKitSigner {
   keyType: KeyType;
+  sigType: SigType;
   sign(data: Buffer, hashed?: boolean): Promise<Buffer>;
   getPubKey(): Buffer;
 }

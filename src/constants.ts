@@ -1,4 +1,4 @@
-import { TORUS_SAPPHIRE_NETWORK } from "@toruslabs/constants";
+import { SIG_TYPE, TORUS_SAPPHIRE_NETWORK } from "@toruslabs/constants";
 
 export const WEB3AUTH_NETWORK = {
   MAINNET: TORUS_SAPPHIRE_NETWORK.SAPPHIRE_MAINNET,
@@ -51,3 +51,5 @@ export const FIELD_ELEMENT_HEX_LEN = 32 * 2; // Length of secp256k1 field elemen
 
 export const MAX_FACTORS = 10; // Maximum number of factors that can be added to an account.
 export const SOCIAL_TKEY_INDEX = 1;
+
+export { SIG_TYPE };

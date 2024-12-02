@@ -12,6 +12,7 @@ import {
   parseToken,
   factorKeyCurve,
   makeEthereumSigner,
+  SIG_TYPE,
 } from "@web3auth/mpc-core-kit";
 import { PasskeysPlugin } from "@web3auth/mpc-passkey-plugin";
 import Web3 from "web3";
@@ -19,12 +20,15 @@ import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { BN } from "bn.js";
 import { KeyType, Point } from "@tkey/common-types";
-import { tssLib } from "@toruslabs/tss-dkls-lib";
-// import{ tssLib } from "@toruslabs/tss-frost-lib";
+import { tssLib as tssLibDkls } from "@toruslabs/tss-dkls-lib";
+import{ tssLib as tssLibFrost } from "@toruslabs/tss-frost-lib";
+import{ tssLib as tssLibFrostBip340 } from "@toruslabs/tss-frost-lib-bip340";
 
 import "./App.css";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
+
+type TssLib = typeof tssLibDkls | typeof tssLibFrost | typeof tssLibFrostBip340;
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -47,16 +51,6 @@ const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   decimals: 18,
 };
 
-const coreKitInstance = new Web3AuthMPCCoreKit({
-  web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
-  web3AuthNetwork: selectedNetwork,
-  uxMode: "redirect",
-  manualSync: true,
-  storage: window.localStorage,
-  // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
-  tssLib,
-  useDKG: false,
-});
 
 const passkeyPlugin = new PasskeysPlugin();
 
@@ -100,7 +94,18 @@ function App() {
   const [question, setQuestion] = useState<string | undefined>(undefined);
   const [newQuestion, setNewQuestion] = useState<string | undefined>(undefined);
   const securityQuestion = useMemo(() => new TssSecurityQuestion(), []);
-
+  const [selectedTssLib, setSelectedTssLib] = useState<TssLib>(tssLibDkls);
+  const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit>(
+    new Web3AuthMPCCoreKit({
+        web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
+        web3AuthNetwork: selectedNetwork,
+        uxMode: "redirect",
+        manualSync: true,
+        storage: window.localStorage,
+        tssLib: selectedTssLib,
+        useDKG: false,
+      })
+  );
   async function setupProvider(chainConfig?: CustomChainConfig) {
     if (coreKitInstance.keyType !== KeyType.secp256k1) {
       console.warn(`Ethereum requires keytype ${KeyType.secp256k1}, skipping provider setup`);
@@ -113,45 +118,55 @@ function App() {
 
   // decide whether to rehydrate session
   const rehydrate = true;
-  const initialized = useRef(false);
-  useEffect(() => {
-    const init = async () => {
-      // Example config to handle redirect result manually
-      if (coreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
-        await coreKitInstance.init({ handleRedirectResult: false, rehydrate });
-        await passkeyPlugin.initWithMpcCoreKit(coreKitInstance as any);
-        if (window.location.hash.includes("#state")) {
-          await coreKitInstance.handleRedirectResult();
-        }
+  const init = async (newCoreKitInstance: Web3AuthMPCCoreKit) => {
+    // Example config to handle redirect result manually
+    if (newCoreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
+      await newCoreKitInstance.init({ handleRedirectResult: false, rehydrate });
+      if (window.location.hash.includes("#state")) {
+        await newCoreKitInstance.handleRedirectResult();
       }
-      if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-        await setupProvider();
-      }
-
-      if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
-        uiConsole(
-          "required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]"
-        );
-      }
-
-      console.log("coreKitInstance.status", coreKitInstance.status);
-      setCoreKitStatus(coreKitInstance.status);
-
-      try {
-        let result = securityQuestion.getQuestion(coreKitInstance!);
-        setQuestion(result);
-        uiConsole("security question set");
-      } catch (e) {
-        uiConsole("security question not set");
-      }
-    };
-    if (!initialized.current)
-    {
-      init();
-      initialized.current = true;
+    }
+    if (newCoreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      await setupProvider();
     }
 
-  }, []);
+    if (newCoreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
+      uiConsole(
+        "required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]"
+      );
+    }
+
+    console.log("newCoreKitInstance.status", newCoreKitInstance.status);
+    setCoreKitStatus(newCoreKitInstance.status);
+
+    try {
+      let result = securityQuestion.getQuestion(newCoreKitInstance!);
+      setQuestion(result);
+      uiConsole("security question set");
+    } catch (e) {
+      uiConsole("security question not set");
+    }
+  };
+
+  useEffect(() => {
+    const instance =  new Web3AuthMPCCoreKit({
+      web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
+      web3AuthNetwork: selectedNetwork,
+      uxMode: "redirect",
+      manualSync: true,
+      storage: window.localStorage,
+      tssLib: selectedTssLib,
+      useDKG: false,
+    })
+    setCoreKitInstance(
+      instance
+    )
+    if (instance.status === COREKIT_STATUS.NOT_INITIALIZED)
+    {
+      init(instance);
+    }
+
+  }, [selectedTssLib]);
 
   useEffect(() => {
     if (provider) {
@@ -175,7 +190,7 @@ function App() {
     if (!factorPubs) {
       throw new Error("factorPubs not found");
     }
-    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map((pub) => {
+    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map(pub => {
       return pub.toSEC1(factorKeyCurve, true).toString("hex");
     });
     uiConsole(pubsHex);
@@ -361,8 +376,7 @@ function App() {
     }
     const address = (await web3.eth.getAccounts())[0];
     const balance = web3.utils.fromWei(
-      await web3.eth.getBalance(address),
-      // Balance is in wei
+      await web3.eth.getBalance(address), // Balance is in wei
       "ether"
     );
     uiConsole(balance);
@@ -370,19 +384,18 @@ function App() {
   };
 
   const signMessage = async (): Promise<any> => {
-    if (coreKitInstance.keyType === "secp256k1") {
+    if (coreKitInstance.sigType === SIG_TYPE.ECDSA_SECP256K1) {
       if (!web3) {
         uiConsole("web3 not initialized yet");
         return;
       }
       const fromAddress = (await web3.eth.getAccounts())[0];
-     
       const message = "hello";
       const signedMessage = await web3.eth.personal.sign(message, fromAddress, "");
       
 
       uiConsole(signedMessage);
-    } else if (coreKitInstance.keyType === "ed25519") {
+    } else if (coreKitInstance.sigType === SIG_TYPE.ED25519 || coreKitInstance.sigType === SIG_TYPE.BIP340) {
       const msg = Buffer.from("hello signer!");
       const sig = await coreKitInstance.sign(msg);
       uiConsole(sig.toString("hex"));
@@ -630,6 +643,32 @@ function App() {
     await coreKitInstance.commitChanges();
   };
 
+  const tssLibSelector = (
+    <div className="flex-container">
+      <label>TSS Library:</label>
+      <select 
+        value={selectedTssLib === tssLibDkls ? "dkls" : selectedTssLib === tssLibFrost ? "frost" : "frostBip340"} 
+        onChange={(e) => {
+          switch(e.target.value) {
+            case "dkls":
+              setSelectedTssLib(tssLibDkls);
+              break;
+            case "frost":
+              setSelectedTssLib(tssLibFrost);
+              break;
+            case "frostBip340":
+              setSelectedTssLib(tssLibFrostBip340);
+              break;
+          }
+        }}
+      >
+        <option value="dkls">DKLS</option>
+        <option value="frost">FROST</option>
+        <option value="frostBip340">FROST BIP340</option>
+      </select>
+    </div>
+  );
+
   const loggedInView = (
     <>
       <h2 className="subtitle">Account Details</h2>
@@ -804,6 +843,7 @@ function App() {
 
   const unloggedInView = (
     <>
+      {tssLibSelector}
       <input value={mockEmail} onChange={(e) => setMockEmail(e.target.value)}></input>
       <button onClick={() => loginWithMock()} className="card">
         MockLogin
