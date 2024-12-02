@@ -122,6 +122,8 @@ function App() {
     // Example config to handle redirect result manually
     if (newCoreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
       await newCoreKitInstance.init({ handleRedirectResult: false, rehydrate });
+      debugger
+      await passkeyPlugin.initWithMpcCoreKit(newCoreKitInstance);
       if (window.location.hash.includes("#state")) {
         await newCoreKitInstance.handleRedirectResult();
       }
@@ -305,6 +307,7 @@ function App() {
       throw new Error("coreKitInstance not found");
     }
     await coreKitInstance.logout();
+    await passkeyPlugin.logout(); // TODO: remove this after adding event emitter in mpc core kit
     uiConsole("Log out");
     setProvider(null);
     setCoreKitStatus(coreKitInstance.status);
@@ -604,6 +607,7 @@ function App() {
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
       await setupProvider();
     }
+    debugger;
     setCoreKitStatus(coreKitInstance.status);
   };
   const listPasskeys = async () => {
@@ -627,6 +631,11 @@ function App() {
     uiConsole("Strict Passkey Auth Enabled")
   };
   const disableStrictPasskey = async () => {
+    const isEnabled = await passkeyPlugin.isStrictPasskeyEnabled()
+    if (!isEnabled) {
+      uiConsole("Strict Passkey Auth is not enabled")
+      return
+    }
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
