@@ -607,7 +607,6 @@ function App() {
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
       await setupProvider();
     }
-    debugger;
     setCoreKitStatus(coreKitInstance.status);
   };
   const listPasskeys = async () => {
