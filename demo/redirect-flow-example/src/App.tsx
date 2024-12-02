@@ -24,12 +24,74 @@ import { tssLib as tssLibDkls } from "@toruslabs/tss-dkls-lib";
 import{ tssLib as tssLibFrost } from "@toruslabs/tss-frost-lib";
 import{ tssLib as tssLibFrostBip340 } from "@toruslabs/tss-frost-lib-bip340";
 
+import bowser from "bowser";
+
+
+
 import "./App.css";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
 
 type TssLib = typeof tssLibDkls | typeof tssLibFrost | typeof tssLibFrostBip340;
+const PASSKEYS_ALLOWED_MAP = [bowser.OS_MAP.iOS, bowser.OS_MAP.MacOS, bowser.OS_MAP.Android, bowser.OS_MAP.Windows];
 
+const getWindowsVersion = (osVersion: string) => {
+  const windowsVersionRegex = /NT (\d+\.\d+)/;
+  const match = osVersion.match(windowsVersionRegex);
+  if (match) return parseInt(match[1], 10);
+  return 0;
+};
+
+
+const checkIfOSIsSupported = (osName: string, osVersion: string) => {
+  if (!PASSKEYS_ALLOWED_MAP.includes(osName)) return false;
+  if (osName === bowser.OS_MAP.MacOS) return true;
+  switch (osName) {
+    case bowser.OS_MAP.iOS: {
+      const version = parseInt(osVersion.split(".")[0], 10);
+      return version >= 16;
+    }
+    case bowser.OS_MAP.Android: {
+      const version = parseInt(osVersion.split(".")[0], 10);
+      return version >= 9;
+    }
+    case bowser.OS_MAP.Windows: {
+      const version = getWindowsVersion(osVersion);
+      return version >= 10;
+    }
+    default:
+      return false;
+  }
+};
+
+export function shouldSupportPasskey(): { isBrowserSupported: boolean; isOsSupported: boolean; supportedBrowser?: Record<string, string> } {
+  const browser = bowser.getParser(navigator.userAgent);
+  const osDetails = browser.parseOS();
+  if (!osDetails) return { isBrowserSupported: false, isOsSupported: false };
+  const osName = osDetails.name || "";
+  const result = checkIfOSIsSupported(osName, osDetails.version || "");
+  if (!result) return { isBrowserSupported: false, isOsSupported: false };
+  const browserData: Record<string, Record<string, string>> = {
+    iOS: {
+      safari: ">=16",
+      chrome: ">=108",
+    },
+    macOS: {
+      safari: ">=16",
+      chrome: ">=108",
+      firefox: ">=122",
+    },
+    Android: {
+      chrome: ">=108",
+    },
+    Windows: {
+      edge: ">=108",
+      chrome: ">=108",
+    },
+  };
+  const isBrowserSupported = browser.satisfies({ ...browserData }) || false;
+  return { isBrowserSupported, isOsSupported: true, supportedBrowser: browserData[osName] };
+}
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
   if (el) {
@@ -52,7 +114,9 @@ const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
 };
 
 
-const passkeyPlugin = new PasskeysPlugin();
+const passkeyPlugin = new PasskeysPlugin({
+  baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1"
+});
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
 const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
@@ -122,7 +186,6 @@ function App() {
     // Example config to handle redirect result manually
     if (newCoreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
       await newCoreKitInstance.init({ handleRedirectResult: false, rehydrate });
-      debugger
       await passkeyPlugin.initWithMpcCoreKit(newCoreKitInstance);
       if (window.location.hash.includes("#state")) {
         await newCoreKitInstance.handleRedirectResult();
@@ -593,6 +656,11 @@ function App() {
     if (!passkeyPlugin) {
       throw new Error("passkeyPlugin is not set");
     }
+    const result = shouldSupportPasskey();
+    if (!result.isBrowserSupported) {
+      uiConsole("Browser not supported");
+      return;
+    }
     await passkeyPlugin.registerPasskey()
   };
 
@@ -602,6 +670,11 @@ function App() {
     }
     if (!passkeyPlugin) {
       throw new Error("passkeyPlugin is not set");
+    }
+    const result = shouldSupportPasskey();
+    if (!result.isBrowserSupported) {
+      uiConsole("Browser not supported");
+      return;
     }
     await passkeyPlugin.authenticateWithPasskey()
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
@@ -626,6 +699,11 @@ function App() {
     if (!passkeyPlugin) {
       throw new Error("passkeyPlugin is not set");
     }
+    const result = shouldSupportPasskey();
+    if (!result.isBrowserSupported) {
+      uiConsole("Browser not supported");
+      return;
+    }
     await passkeyPlugin.enableStrictPasskeyAuth()
     uiConsole("Strict Passkey Auth Enabled")
   };
@@ -640,6 +718,11 @@ function App() {
     }
     if (!passkeyPlugin) {
       throw new Error("passkeyPlugin is not set");
+    }
+    const result = shouldSupportPasskey();
+    if (!result.isBrowserSupported) {
+      uiConsole("Browser not supported");
+      return;
     }
     await passkeyPlugin.disableStrictPasskeyAuth()
     uiConsole("Strict Passkey Auth Disabled")
