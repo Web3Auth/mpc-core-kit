@@ -13,6 +13,7 @@ import {
   factorKeyCurve,
   makeEthereumSigner,
 } from "@web3auth/mpc-core-kit";
+import { PasskeysPlugin } from "@web3auth/mpc-passkey-plugin";
 import Web3 from "web3";
 import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
@@ -56,6 +57,8 @@ const coreKitInstance = new Web3AuthMPCCoreKit({
   tssLib,
   useDKG: false,
 });
+
+const passkeyPlugin = new PasskeysPlugin();
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
 const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
@@ -116,6 +119,7 @@ function App() {
       // Example config to handle redirect result manually
       if (coreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
         await coreKitInstance.init({ handleRedirectResult: false, rehydrate });
+        await passkeyPlugin.initWithMpcCoreKit(coreKitInstance as any);
         if (window.location.hash.includes("#state")) {
           await coreKitInstance.handleRedirectResult();
         }
@@ -171,7 +175,7 @@ function App() {
     if (!factorPubs) {
       throw new Error("factorPubs not found");
     }
-    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map((pub: Point) => {
+    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map((pub) => {
       return pub.toSEC1(factorKeyCurve, true).toString("hex");
     });
     uiConsole(pubsHex);
@@ -357,7 +361,9 @@ function App() {
     }
     const address = (await web3.eth.getAccounts())[0];
     const balance = web3.utils.fromWei(
-      await web3.eth.getBalance(address) // Balance is in wei
+      await web3.eth.getBalance(address),
+      // Balance is in wei
+      "ether"
     );
     uiConsole(balance);
     return balance;
@@ -512,7 +518,7 @@ function App() {
     const fromAddress = (await web3.eth.getAccounts())[0];
 
     const destination = "0x2E464670992574A613f10F7682D5057fB507Cc21";
-    const amount = web3.utils.toWei("0.0001"); // Convert 1 ether to wei
+    const amount = web3.utils.toWei("0.0001", "ether"); // Convert 1 ether to wei
 
     // Submit transaction to the blockchain and wait for it to be mined
     uiConsole("Sending transaction...");
@@ -564,7 +570,59 @@ function App() {
 
     uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
   };
+  const registerPasskey = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    if (!passkeyPlugin) {
+      throw new Error("passkeyPlugin is not set");
+    }
+    await passkeyPlugin.registerPasskey()
+  };
 
+  const loginWithPasskey = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    if (!passkeyPlugin) {
+      throw new Error("passkeyPlugin is not set");
+    }
+    await passkeyPlugin.authenticateWithPasskey()
+    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      await setupProvider();
+    }
+    setCoreKitStatus(coreKitInstance.status);
+  };
+  const listPasskeys = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    if (!passkeyPlugin) {
+      throw new Error("passkeyPlugin is not set");
+    }
+    const passkeys = await passkeyPlugin.listPasskeys()
+    uiConsole(passkeys)
+  };
+  const enableStrictPasskey = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    if (!passkeyPlugin) {
+      throw new Error("passkeyPlugin is not set");
+    }
+    await passkeyPlugin.enableStrictPasskeyAuth()
+    uiConsole("Strict Passkey Auth Enabled")
+  };
+  const disableStrictPasskey = async () => {
+    if (!coreKitInstance) {
+      throw new Error("coreKitInstance is not set");
+    }
+    if (!passkeyPlugin) {
+      throw new Error("passkeyPlugin is not set");
+    }
+    await passkeyPlugin.disableStrictPasskeyAuth()
+    uiConsole("Strict Passkey Auth Disabled")
+  };
   const commit = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
@@ -615,6 +673,22 @@ function App() {
         <div className="flex-container">
           <button onClick={enableMFA} className="card">
             Enable MFA
+          </button>
+        </div>
+
+        <h4>Register Passkey</h4>
+        <div className="flex-container">
+          <button onClick={registerPasskey} className="card">
+            Register Passkey
+          </button>
+          <button onClick={listPasskeys} className="card">
+            List Passkeys
+          </button>
+          <button onClick={enableStrictPasskey} className="card">
+            Enable Transaction MFA with Passkey
+          </button>
+          <button onClick={disableStrictPasskey} className="card">
+            Disable Transaction MFA with Passkey
           </button>
         </div>
         <h4>Manual Factors Manipulation</h4>
@@ -733,6 +807,10 @@ function App() {
       <input value={mockEmail} onChange={(e) => setMockEmail(e.target.value)}></input>
       <button onClick={() => loginWithMock()} className="card">
         MockLogin
+      </button>
+
+      <button onClick={loginWithPasskey} className="card">
+        Login with Passkey
       </button>
 
       <button onClick={() => login()} className="card">
