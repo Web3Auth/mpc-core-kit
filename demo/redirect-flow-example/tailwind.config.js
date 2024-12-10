@@ -32,15 +32,6 @@ export default {
         balanceCard: "url('/https://assets.web3pay.io/images/background.svg')",
         walletConnectCard: "url('/images/wallet-connect-background.png')",
       },
-      containers: {
-        // => @media (min-width: width) { ... }
-        xs: "428px",
-        sm: "640px",
-        md: "768px",
-        lg: "1024px",
-        xl: "1280px",
-        "2xl": "1536px",
-      },
       colors: {
         transparent: colors.transparent,
         app: {
