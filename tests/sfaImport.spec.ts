@@ -74,7 +74,14 @@ export const ImportSFATest = async (testVariable: ImportKeyTestVariable) => {
       email: testVariable.email,
       storageInstance,
     });
-    assert.strictEqual(sfaResult2.finalKeyData.privKey,"");
+    assert.strictEqual(sfaResult2.finalKeyData.privKey, "");
+        
+    const coreKitInstance2 = await newCoreKitInstance(testVariable.email);
+    const tssKey2 = await coreKitInstance2._UNSAFE_exportTssKey();
+    // core kit should have same sfa key which was imported before
+    assert.strictEqual(tssKey2, exportedTssKey1);
+    assert.strictEqual(sfaResult.finalKeyData.privKey, tssKey2);
+
 
     });
 
