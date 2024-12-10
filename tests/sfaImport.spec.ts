@@ -34,13 +34,10 @@ export const ImportSFATest = async (testVariable: ImportKeyTestVariable) => {
   }
 
   test(`import sfa key and recover tss key : ${testVariable.manualSync}`, async function (t) {
-    const beforeTest = async () => {
-      await resetAccount(testVariable.email);
-    };
-
-    await beforeTest();
-
-      await t.test("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
+    const afterTest = async () => {
+        await resetAccount(testVariable.email);
+      };
+    await t.test("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
       const sfaResult = await loginWithSFA({
         network: WEB3AUTH_NETWORK.DEVNET,
         manualSync: testVariable.manualSync,
@@ -81,6 +78,7 @@ export const ImportSFATest = async (testVariable: ImportKeyTestVariable) => {
 
     });
 
+    await afterTest();
     t.afterEach(function () {
       return console.info("finished running recovery test");
     });
