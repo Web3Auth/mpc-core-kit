@@ -1026,13 +1026,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         }
       }
       await this.handleNewUser(importTssKey);
-      if (importTssKey) {
-        throw CoreKitError.tssKeyImportNotAllowed();
-      }
-    } else {
       if (importTssKey && isSfaKey) {
         await this.tkey.addLocalMetadataTransitions({ input: [{ message: ONE_KEY_DELETE_NONCE }], privKey: [new BN(this.state.postBoxKey, "hex")] });
         if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
+      }
+    } else {
+      if (importTssKey) {
+        throw CoreKitError.tssKeyImportNotAllowed();
       }
       await this.handleExistingUser();
     }
