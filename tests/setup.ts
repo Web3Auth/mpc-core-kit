@@ -153,13 +153,13 @@ export const loginWithSFA = async ({
   const { idToken, parsedToken } = login ? await login(email) : await mockLogin(email);
   await instance.init();
   const nodeDetails = await instance.torusSp.customAuthInstance.nodeDetailManager.getNodeDetails({
-    verifier: "torus-key-test",
+    verifier: "torus-test-health",
     verifierId: parsedToken.email,
   })
   return await instance.torusSp.customAuthInstance.torus.retrieveShares({
     idToken,
     nodePubkeys: nodeDetails.torusNodePub,
-    verifier: "torus-key-test",
+    verifier: "torus-test-health",
     verifierParams: {
       verifier_id: parsedToken.email,
     },
