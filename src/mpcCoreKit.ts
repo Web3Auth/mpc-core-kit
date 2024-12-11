@@ -367,9 +367,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           throw CoreKitError.invalidConfig("Cannot register existing SFA key for v1 users, please contact web3auth support.");
         }
         const existingSFAKey = loginResponse.finalKeyData.privKey.padStart(64, "0");
-        await this.setupTkey(existingSFAKey, true);
+        await this.setupTkey(existingSFAKey, loginResponse, true);
       } else {
-        await this.setupTkey(importTssKey, false);
+        await this.setupTkey(importTssKey, loginResponse, false);
       }
     } catch (err: unknown) {
       log.error("login error", err);
@@ -437,9 +437,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           throw CoreKitError.invalidConfig("Cannot register existing SFA key for v1 users, please contact web3auth support.");
         }
         const existingSFAKey = loginResponse.finalKeyData.privKey.padStart(64, "0");
-        await this.setupTkey(existingSFAKey, true);
+        await this.setupTkey(existingSFAKey, loginResponse, true);
       } else {
-        await this.setupTkey(importTssKey, false);
+        await this.setupTkey(importTssKey, loginResponse, false);
       }
     } catch (err: unknown) {
       log.error("login error", err);
@@ -1012,7 +1012,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tssNonce;
   }
 
-  private async setupTkey(providedImportTssKey?: string, isSfaKey?: boolean): Promise<void> {
+  private async setupTkey(
+    providedImportTssKey?: string,
+    sfaLoginResponse?: TorusKey | TorusLoginResponse | TorusAggregateLoginResponse,
+    registerSFAKey?: boolean
+  ): Promise<void> {
+    if (registerSFAKey && !sfaLoginResponse) {
+      throw CoreKitError.default("SFA key registration requires SFA login response");
+    }
+    if (providedImportTssKey && registerSFAKey) {
+      throw CoreKitError.default("Cannot provide both importTssKey and registerSFAKey");
+    }
     if (!this.state.postBoxKey) {
       throw CoreKitError.userNotLoggedIn();
     }
@@ -1030,8 +1040,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           throw CoreKitError.default("Unsupported key type");
         }
       }
-
-      await this.handleNewUser(importTssKey, isSfaKey);
+      if (registerSFAKey && sfaLoginResponse && sfaLoginResponse.metadata.upgraded) {
+        throw CoreKitError.default("SFA key registration is not allowed for already upgraded users");
+      }
+      await this.handleNewUser(importTssKey, registerSFAKey);
     } else {
       if (importTssKey) {
         throw CoreKitError.tssKeyImportNotAllowed();
