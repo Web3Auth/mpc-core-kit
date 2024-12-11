@@ -1,9 +1,18 @@
-.container {
-	width: 60%;
-	margin: auto;
-	padding: 0 2rem;
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  width: 100%;
 }
 
+body {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 .main {
 	min-height: 100vh;
 	padding: 4rem 0;
@@ -34,7 +43,6 @@
 }
 
 .grid {
-	display: flex;
 	align-items: center;
 	flex-direction: column;
 }
@@ -80,12 +88,13 @@
 	height: 1.5rem;
 	margin-left: 0.5rem;
 }
-
+/* 
 @media (max-width: 1200px) {
 	.container {
 		width: 100%;
+		height: 100%;
 	}
-}
+} */
 
 .flex-container {
 	display: flex;
