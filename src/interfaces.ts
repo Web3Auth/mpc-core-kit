@@ -501,7 +501,7 @@ export type SigType = WEB3AUTH_SIG_TYPE;
 export interface CoreKitSigner {
   keyType: KeyType;
   sigType: SigType;
-  sign(data: Buffer, hashed?: boolean): Promise<Buffer>;
+  sign(data: Buffer, opts?: { hashed?: boolean }): Promise<Buffer>;
   getPubKey(): Buffer;
 }
 

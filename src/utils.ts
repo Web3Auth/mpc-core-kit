@@ -201,7 +201,7 @@ export function makeEthereumSigner(kit: CoreKitSigner): EthereumSigner {
   }
   return {
     sign: async (msgHash: Buffer) => {
-      const sig = await kit.sign(msgHash, true);
+      const sig = await kit.sign(msgHash, { hashed: true });
       return sigToRSV(sig);
     },
     getPublic: async () => {
