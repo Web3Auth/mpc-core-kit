@@ -4,7 +4,6 @@ import { Card } from "../../Card";
 import { TextField } from "../../TextField";
 import { useCoreKit } from "../../../composibles/useCoreKit";
 import { COREKIT_STATUS, FactorKeyTypeShareDescription, TssSecurityQuestion, TssShareType } from "@web3auth/mpc-core-kit";
-import { BN } from "bn.js";
 
 const GetPasswordCard: React.FC = () => {
   const { coreKitInstance, setDrawerHeading, setDrawerInfo } = useCoreKit();
@@ -21,6 +20,9 @@ const GetPasswordCard: React.FC = () => {
       }
       if (!coreKitInstance) {
         throw new Error("coreKitInstance is not set");
+      }
+      if (coreKitInstance.getTssFactorPub().length === 1) {
+        await coreKitInstance.enableMFA({}, false);
       }
       const factorKey = await securityQuestion.setSecurityQuestion({
         mpcCoreKit: coreKitInstance,

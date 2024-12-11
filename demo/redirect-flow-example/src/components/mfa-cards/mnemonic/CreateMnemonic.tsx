@@ -25,15 +25,19 @@ const CreateMnemonicPhraseCard: React.FC = () => {
         throw new Error("required fields are not set");
       }
 
-      // await coreKitInstance.createFactor({
-      //   shareType: TssShareType.RECOVERY,
-      //   factorKey: factorKey,
-      // });
-      await coreKitInstance.enableMFA({
-        factorKey: factorKey,
-        additionalMetadata: { shareType: TssShareType.RECOVERY.toString() },
-        shareDescription: FactorKeyTypeShareDescription.SeedPhrase,
-      });
+      if (coreKitInstance.getTssFactorPub().length === 1) {
+        await coreKitInstance.enableMFA({
+          factorKey: factorKey,
+          additionalMetadata: { shareType: TssShareType.RECOVERY.toString() },
+          shareDescription: FactorKeyTypeShareDescription.SeedPhrase,
+        });
+      } else {
+        await coreKitInstance.createFactor({
+          shareType: TssShareType.RECOVERY,
+          factorKey: factorKey,
+        });
+      }
+      
       // await coreKitInstance.enableMFA({}, false)
 
       console.log("created mnemonice factor share");

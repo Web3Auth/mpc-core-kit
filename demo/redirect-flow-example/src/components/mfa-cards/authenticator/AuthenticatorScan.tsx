@@ -125,7 +125,7 @@ const AuthenticatorQRCodeCard: React.FC = () => {
     const totpURL = otpauthURL({
       secret: key,
       label: userInfo?.verifierId,
-      issuer: "trust wallet",
+      issuer: "MPC Core kit",
       encoding: "base32",
     });
     return { url, key, totpURL };
@@ -204,21 +204,23 @@ const AuthenticatorQRCodeCard: React.FC = () => {
       setIsLoading(false);
     }
   };
-
   const creatAuthFactor = async (): Promise<void> => {
     if (!coreKitInstance || !secretKey) {
       throw new Error("required fields are not set");
     }
 
-    // await coreKitInstance.createFactor({
-    //   shareType: TssShareType.DEVICE,
-    //   factorKey: factorKey?.private,
-    // });
-    await coreKitInstance.enableMFA({
-      factorKey: factorKey?.private,
-      additionalMetadata: { shareType: TssShareType.RECOVERY.toString() },
-      shareDescription: FactorKeyTypeShareDescription.Other,
-    });
+    if (coreKitInstance.getTssFactorPub().length === 1) {
+      await coreKitInstance.enableMFA({
+        factorKey: factorKey?.private,
+        additionalMetadata: { shareType: TssShareType.RECOVERY.toString() },
+        shareDescription: FactorKeyTypeShareDescription.Other,
+      });
+    } else {
+      await coreKitInstance.createFactor({
+        shareType: TssShareType.DEVICE,
+        factorKey: factorKey?.private,
+      });
+    }
 
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
       await coreKitInstance.commitChanges();
