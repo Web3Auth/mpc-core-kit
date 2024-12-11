@@ -1013,39 +1013,36 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async setupTkey(
-    providedImportTssKey?: string,
+    providedImportKey?: string,
     sfaLoginResponse?: TorusKey | TorusLoginResponse | TorusAggregateLoginResponse,
-    registerSFAKey?: boolean
+    importingSFAKey?: boolean
   ): Promise<void> {
-    if (registerSFAKey && !sfaLoginResponse) {
+    if (importingSFAKey && !sfaLoginResponse) {
       throw CoreKitError.default("SFA key registration requires SFA login response");
-    }
-    if (providedImportTssKey && registerSFAKey) {
-      throw CoreKitError.default("Cannot provide both importTssKey and registerSFAKey");
     }
     if (!this.state.postBoxKey) {
       throw CoreKitError.userNotLoggedIn();
     }
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
-    let importTssKey = providedImportTssKey;
+    let importKey = providedImportKey;
     if (!existingUser) {
-      if (!importTssKey && this.useClientGeneratedTSSKey) {
+      if (!importKey && this.useClientGeneratedTSSKey) {
         if (this.keyType === KeyType.ed25519) {
           const k = generateEd25519Seed();
-          importTssKey = k.toString("hex");
+          importKey = k.toString("hex");
         } else if (this.keyType === KeyType.secp256k1) {
           const k = secp256k1.genKeyPair().getPrivate();
-          importTssKey = scalarBNToBufferSEC1(k).toString("hex");
+          importKey = scalarBNToBufferSEC1(k).toString("hex");
         } else {
           throw CoreKitError.default("Unsupported key type");
         }
       }
-      if (registerSFAKey && sfaLoginResponse && sfaLoginResponse.metadata.upgraded) {
+      if (importingSFAKey && sfaLoginResponse && sfaLoginResponse.metadata.upgraded) {
         throw CoreKitError.default("SFA key registration is not allowed for already upgraded users");
       }
-      await this.handleNewUser(importTssKey, registerSFAKey);
+      await this.handleNewUser(importKey, importingSFAKey);
     } else {
-      if (importTssKey) {
+      if (importKey) {
         throw CoreKitError.tssKeyImportNotAllowed();
       }
       await this.handleExistingUser();
