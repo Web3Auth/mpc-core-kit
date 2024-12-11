@@ -187,4 +187,5 @@ export default {
     tailwindCssVariables,
     containerQueries,
   ],
+  darkMode: "class",
 } as Config;
