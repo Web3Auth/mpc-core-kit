@@ -25,7 +25,6 @@
     "copy-webpack-plugin": "^11.0.0",
     "hi-base32": "^0.5.1",
     "html-webpack-plugin": "^5.5.3",
-    "jsonwebtoken": "^8.5.1",
     "jsrsasign": "^10.6.1",
     "keccak256": "^1.0.6",
     "react": "^18.3.1",

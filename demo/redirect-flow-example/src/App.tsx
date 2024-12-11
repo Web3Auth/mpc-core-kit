@@ -5,7 +5,6 @@ import {
   WEB3AUTH_NETWORK,
   SubVerifierDetailsParams,
   COREKIT_STATUS,
-  parseToken,
   makeEthereumSigner,
   AggregateVerifierLoginParams,
 } from "@web3auth/mpc-core-kit";
