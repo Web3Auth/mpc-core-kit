@@ -1,4 +1,4 @@
-import { BNString, KeyType, Point, secp256k1, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
+import { BNString, KeyType, ONE_KEY_DELETE_NONCE, Point, secp256k1, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
@@ -318,16 +318,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (this.isNodejsOrRN(this.options.uxMode)) {
       throw CoreKitError.oauthLoginUnsupported(`Oauth login is NOT supported in ${this.options.uxMode} mode.`);
     }
-    const { importTssKey } = params;
+    const { importTssKey, registerExistingSFAKey } = params;
     const tkeyServiceProvider = this.torusSp;
 
+    if (registerExistingSFAKey && importTssKey) {
+      throw CoreKitError.invalidConfig("Cannot import TSS key and register SFA key at the same time.");
+    }
+
+    if (this.isRedirectMode && (importTssKey || registerExistingSFAKey)) {
+      throw CoreKitError.invalidConfig("key import is not supported in redirect mode");
+    }
     try {
       // oAuth login.
       const verifierParams = params as SubVerifierDetailsParams;
       const aggregateParams = params as AggregateVerifierLoginParams;
+      let loginResponse: TorusLoginResponse | TorusAggregateLoginResponse;
       if (verifierParams.subVerifierDetails) {
         // single verifier login.
-        const loginResponse = await tkeyServiceProvider.triggerLogin((params as SubVerifierDetailsParams).subVerifierDetails);
+        loginResponse = await tkeyServiceProvider.triggerLogin((params as SubVerifierDetailsParams).subVerifierDetails);
 
         if (this.isRedirectMode) return;
 
@@ -338,7 +346,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
       } else if (aggregateParams.subVerifierDetailsArray) {
-        const loginResponse = await tkeyServiceProvider.triggerAggregateLogin({
+        loginResponse = await tkeyServiceProvider.triggerAggregateLogin({
           aggregateVerifierType: aggregateParams.aggregateVerifierType || AGGREGATE_VERIFIER.SINGLE_VERIFIER_ID,
           verifierIdentifier: aggregateParams.aggregateVerifierIdentifier as string,
           subVerifierDetailsArray: aggregateParams.subVerifierDetailsArray,
@@ -354,7 +362,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         });
       }
 
-      await this.setupTkey(importTssKey);
+      if (loginResponse && registerExistingSFAKey && loginResponse.finalKeyData.privKey) {
+        if (loginResponse.metadata.typeOfUser === "v1") {
+          throw CoreKitError.invalidConfig("Cannot register existing SFA key for v1 users, please contact web3auth support.");
+        }
+        const existingSFAKey = loginResponse.finalKeyData.privKey.padStart(64, "0");
+        await this.setupTkey(existingSFAKey, loginResponse, true);
+      } else {
+        await this.setupTkey(importTssKey, loginResponse, false);
+      }
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -373,9 +389,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.prefetchValueExceeded(`The prefetch value '${prefetchTssPublicKeys}' exceeds the maximum allowed limit of 3.`);
     }
 
-    const { verifier, verifierId, idToken, importTssKey } = params;
+    const { verifier, verifierId, idToken, importTssKey, registerExistingSFAKey } = params;
     this.torusSp.verifierName = verifier;
     this.torusSp.verifierId = verifierId;
+
+    if (registerExistingSFAKey && importTssKey) {
+      throw CoreKitError.invalidConfig("Cannot import TSS key and register SFA key at the same time.");
+    }
 
     try {
       // prefetch tss pub keys.
@@ -412,7 +432,15 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         userInfo: { ...parseToken(idToken), verifier, verifierId },
         signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
       });
-      await this.setupTkey(importTssKey);
+      if (registerExistingSFAKey && loginResponse.finalKeyData.privKey) {
+        if (loginResponse.metadata.typeOfUser === "v1") {
+          throw CoreKitError.invalidConfig("Cannot register existing SFA key for v1 users, please contact web3auth support.");
+        }
+        const existingSFAKey = loginResponse.finalKeyData.privKey.padStart(64, "0");
+        await this.setupTkey(existingSFAKey, loginResponse, true);
+      } else {
+        await this.setupTkey(importTssKey, loginResponse, false);
+      }
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
@@ -433,30 +461,30 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     try {
       const result = await this.torusSp.customAuthInstance.getRedirectResult();
-
+      let loginResponse: TorusLoginResponse | TorusAggregateLoginResponse;
       if (result.method === TORUS_METHOD.TRIGGER_LOGIN) {
-        const data = result.result as TorusLoginResponse;
-        if (!data) {
+        loginResponse = result.result as TorusLoginResponse;
+        if (!loginResponse) {
           throw CoreKitError.invalidTorusLoginResponse();
         }
         this.updateState({
-          postBoxKey: this._getPostBoxKey(data),
-          postboxKeyNodeIndexes: data.nodesData?.nodeIndexes || [],
-          userInfo: data.userInfo,
-          signatures: this._getSignatures(data.sessionData.sessionTokenData),
+          postBoxKey: this._getPostBoxKey(loginResponse),
+          postboxKeyNodeIndexes: loginResponse.nodesData?.nodeIndexes || [],
+          userInfo: loginResponse.userInfo,
+          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
         const userInfo = this.getUserInfo();
         this.torusSp.verifierName = userInfo.verifier;
       } else if (result.method === TORUS_METHOD.TRIGGER_AGGREGATE_LOGIN) {
-        const data = result.result as TorusAggregateLoginResponse;
-        if (!data) {
+        loginResponse = result.result as TorusAggregateLoginResponse;
+        if (!loginResponse) {
           throw CoreKitError.invalidTorusAggregateLoginResponse();
         }
         this.updateState({
-          postBoxKey: this._getPostBoxKey(data),
-          postboxKeyNodeIndexes: data.nodesData?.nodeIndexes || [],
-          userInfo: data.userInfo[0],
-          signatures: this._getSignatures(data.sessionData.sessionTokenData),
+          postBoxKey: this._getPostBoxKey(loginResponse),
+          postboxKeyNodeIndexes: loginResponse.nodesData?.nodeIndexes || [],
+          userInfo: loginResponse.userInfo[0],
+          signatures: this._getSignatures(loginResponse.sessionData.sessionTokenData),
         });
         const userInfo = this.getUserInfo();
         this.torusSp.verifierName = userInfo.aggregateVerifier;
@@ -984,27 +1012,37 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return tssNonce;
   }
 
-  private async setupTkey(providedImportTssKey?: string): Promise<void> {
+  private async setupTkey(
+    providedImportKey?: string,
+    sfaLoginResponse?: TorusKey | TorusLoginResponse | TorusAggregateLoginResponse,
+    importingSFAKey?: boolean
+  ): Promise<void> {
+    if (importingSFAKey && !sfaLoginResponse) {
+      throw CoreKitError.default("SFA key registration requires SFA login response");
+    }
     if (!this.state.postBoxKey) {
       throw CoreKitError.userNotLoggedIn();
     }
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
-    let importTssKey = providedImportTssKey;
+    let importKey = providedImportKey;
     if (!existingUser) {
-      if (!importTssKey && this.useClientGeneratedTSSKey) {
+      if (!importKey && this.useClientGeneratedTSSKey) {
         if (this.keyType === KeyType.ed25519) {
           const k = generateEd25519Seed();
-          importTssKey = k.toString("hex");
+          importKey = k.toString("hex");
         } else if (this.keyType === KeyType.secp256k1) {
           const k = secp256k1.genKeyPair().getPrivate();
-          importTssKey = scalarBNToBufferSEC1(k).toString("hex");
+          importKey = scalarBNToBufferSEC1(k).toString("hex");
         } else {
           throw CoreKitError.default("Unsupported key type");
         }
       }
-      await this.handleNewUser(importTssKey);
+      if (importingSFAKey && sfaLoginResponse && sfaLoginResponse.metadata.upgraded) {
+        throw CoreKitError.default("SFA key registration is not allowed for already upgraded users");
+      }
+      await this.handleNewUser(importKey, importingSFAKey);
     } else {
-      if (importTssKey) {
+      if (importKey) {
         throw CoreKitError.tssKeyImportNotAllowed();
       }
       await this.handleExistingUser();
@@ -1012,7 +1050,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   // mutation function
-  private async handleNewUser(importTssKey?: string) {
+  private async handleNewUser(importTssKey?: string, isSfaKey?: boolean) {
     await this.atomicSync(async () => {
       // Generate or use hash factor and initialize tkey with it.
       let factorKey: BN;
@@ -1053,6 +1091,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           factorKey,
           shareDescription: FactorKeyTypeShareDescription.HashedShare,
           updateMetadata: false,
+        });
+      }
+      if (importTssKey && isSfaKey) {
+        await this.tkey.addLocalMetadataTransitions({
+          input: [{ message: ONE_KEY_DELETE_NONCE }],
+          privKey: [new BN(this.state.postBoxKey, "hex")],
         });
       }
     });

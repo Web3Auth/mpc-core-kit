@@ -85,7 +85,18 @@ export type MPCKeyDetails = {
   tssPubKey?: TkeyPoint;
 };
 
-export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
+export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & {
+  /**
+   * Key to import key into Tss during first time login.
+   */
+  importTssKey?: string;
+
+  /**
+   * For new users, use SFA key if user was registered with SFA before.
+   * Useful when you created the user with SFA before and now want to convert it to TSS.
+   */
+  registerExistingSFAKey?: boolean;
+};
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface EnableMFAParams {
@@ -145,6 +156,12 @@ export interface JWTLoginParams {
    * Key to import key into Tss during first time login.
    */
   importTssKey?: string;
+
+  /**
+   * For new users, use SFA key if user was registered with SFA before.
+   * Useful when you created the user with SFA before and now want to convert it to TSS.
+   */
+  registerExistingSFAKey?: boolean;
 
   /**
    * Number of TSS public keys to prefetch. For the best performance, set it to
