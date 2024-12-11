@@ -12,31 +12,6 @@ export default {
   ],
   theme: {
     extend: {
-      transitionProperty: {
-        height: "height",
-        spacing: "margin, padding",
-      },
-      transformOrigin: {
-        top: "top",
-      },
-      scale: {
-        "0": "0",
-        "100": "1",
-      },
-      opacity: {
-        "0": "0",
-        "100": "1",
-      },
-      fontSize: {
-        "2xs": "0.7rem",
-      },
-      fontFamily: {
-        primary: ["Inter", ...defaultTheme.fontFamily.sans],
-      },
-      backgroundImage: {
-        balanceCard: "url('/https://assets.web3pay.io/images/background.svg')",
-        walletConnectCard: "url('/images/wallet-connect-background.png')",
-      },
       colors: {
         transparent: colors.transparent,
         app: {
@@ -100,6 +75,27 @@ export default {
           alertDark: "var(--app-alertDark)",
           blueBorder: "var(--app-blueBorder)",
         },
+      },
+      transitionProperty: {
+        height: "height",
+        spacing: "margin, padding",
+      },
+      transformOrigin: {
+        top: "top",
+      },
+      scale: {
+        "0": "0",
+        "100": "1",
+      },
+      opacity: {
+        "0": "0",
+        "100": "1",
+      },
+      fontSize: {
+        "2xs": "0.7rem",
+      },
+      fontFamily: {
+        primary: ["Inter", ...defaultTheme.fontFamily.sans],
       },
       keyframes: {
         fadeIn: {
