@@ -1,5 +1,5 @@
 import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
-import { TKeyTSS } from "@tkey/tss";
+import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { WEB3AUTH_SIG_TYPE } from "@toruslabs/constants";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -7,9 +7,12 @@ import type {
   LoginWindowResponse,
   PasskeyExtraParams,
   SubVerifierDetails,
+  TorusAggregateLoginResponse,
+  TorusLoginResponse,
   TorusVerifierResponse,
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
+import { TorusKey } from "@toruslabs/torus.js";
 import { Client } from "@toruslabs/tss-client";
 // TODO: move the types to a base class for both dkls and frost in future
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
@@ -18,6 +21,7 @@ import type { tssLib as TssFrostLibBip340 } from "@toruslabs/tss-frost-lib-bip34
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
@@ -86,7 +90,18 @@ export type MPCKeyDetails = {
   tssPubKey?: TkeyPoint;
 };
 
-export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
+export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & {
+  /**
+   * Key to import key into Tss during first time login.
+   */
+  importTssKey?: string;
+
+  /**
+   * For new users, use SFA key if user was registered with SFA before.
+   * Useful when you created the user with SFA before and now want to convert it to TSS.
+   */
+  registerExistingSFAKey?: boolean;
+};
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface EnableMFAParams {
@@ -148,6 +163,12 @@ export interface JWTLoginParams {
   importTssKey?: string;
 
   /**
+   * For new users, use SFA key if user was registered with SFA before.
+   * Useful when you created the user with SFA before and now want to convert it to TSS.
+   */
+  registerExistingSFAKey?: boolean;
+
+  /**
    * Number of TSS public keys to prefetch. For the best performance, set it to
    * the number of factors you want to create. Set it to 0 for an existing user.
    * Default is 1, maximum is 3.
@@ -166,17 +187,30 @@ export interface Web3AuthState {
   factorKey?: BN;
 }
 
+export interface IContext {
+  status: COREKIT_STATUS;
+  state: Web3AuthState;
+  sessionId: string;
+  serviceProvider: TSSTorusServiceProvider | null;
+  updateState: (newState: Partial<Web3AuthState>) => void;
+  getUserInfo: () => UserInfo;
+  logout: () => Promise<void>;
+  setupTkey: (params?: {
+    providedImportKey?: string;
+    sfaLoginResponse?: TorusKey | TorusLoginResponse | TorusAggregateLoginResponse;
+    userInfo?: UserInfo;
+    importingSFAKey?: boolean;
+    persistSessionSigs?: boolean;
+  }) => Promise<void>;
+  setCustomSessionSigGenerator: (sessionSigGenerator: ISessionSigGenerator) => void;
+}
+
 export interface ICoreKit {
   /**
    * The tKey instance, if initialized.
    * TKey is the core module on which this wrapper SDK sits for easy integration.
    **/
   tKey: TKeyTSS | null;
-
-  /**
-   * Signatures generated from the OAuth Login.
-   **/
-  signatures: string[] | null;
 
   /**
    * Status of the current MPC Core Kit Instance
@@ -193,6 +227,7 @@ export interface ICoreKit {
    */
   sessionId: string;
 
+  getContext(): IContext;
   /**
    * The function used to initailise the state of MPCCoreKit
    * Also is useful to resume an existing session.
@@ -267,6 +302,10 @@ export interface ICoreKit {
    * Get information about how the keys of the user is managed according to the information in the metadata server.
    */
   getKeyDetails(): MPCKeyDetails;
+
+  getSessionSignatures(): Promise<string[]>;
+
+  setCustomSessionSigGenerator(sessionSigGenerator: ISessionSigGenerator): void;
 
   /**
    * Commit the changes made to the user's account when in manual sync mode.
