@@ -36,7 +36,7 @@ interface CoreKitContextType {
 const CoreKitContext = createContext<CoreKitContextType>({
   coreKitInstance: new Web3AuthMPCCoreKit({
     web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
-    web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
+    web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET,
     uxMode: "redirect",
     manualSync: false,
     storage: window.localStorage,
@@ -69,7 +69,7 @@ interface CoreKitProviderProps {
 }
 
 export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) => {
-  const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
+  const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
 
   const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit>(
     new Web3AuthMPCCoreKit({

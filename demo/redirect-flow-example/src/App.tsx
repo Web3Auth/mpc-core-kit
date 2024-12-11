@@ -104,7 +104,7 @@ const uiConsole = (...args: any[]): void => {
   console.log(...args);
 };
 
-const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
+const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
 
 export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
@@ -194,8 +194,8 @@ function App() {
       const verifierConfig = {
         subVerifierDetails: {
           typeOfLogin: "google",
-          verifier: "w3a-google-demo",
-          clientId: "519228911939-cri01h55lsjbsia1k7ll6qpalrus75ps.apps.googleusercontent.com",
+          verifier: "w3-google-temp",
+          clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
         },
       } as SubVerifierDetailsParams;
 
