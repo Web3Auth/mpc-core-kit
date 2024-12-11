@@ -21,7 +21,6 @@ import { tssLib as tssLibFrostBip340 } from "@toruslabs/tss-frost-lib-bip340";
 import bowser from "bowser";
 
 import "./App.css";
-import jwt, { Algorithm } from "jsonwebtoken";
 import { LoginCard } from "./components/LoginCard";
 import HomePage from "./page/Home";
 import { useCoreKit } from "./composibles/useCoreKit";
@@ -117,32 +116,6 @@ export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   ticker: "ETH",
   tickerName: "Ethereum",
   decimals: 18,
-};
-
-const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
-const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
-const alg: Algorithm = "ES256";
-export const mockLogin = async (email: string) => {
-  const iat = Math.floor(Date.now() / 1000);
-  const payload = {
-    iss: "torus-key-test",
-    aud: "torus-key-test",
-    name: email,
-    email,
-    scope: "email",
-    iat,
-    eat: iat + 120,
-  };
-
-  const algo = {
-    expiresIn: 120,
-    algorithm: alg,
-  };
-
-  const token = jwt.sign(payload, jwtPrivateKey, algo);
-  const idToken = token;
-  const parsedToken = parseToken(idToken);
-  return { idToken, parsedToken };
 };
 
 function App() {
@@ -292,7 +265,6 @@ function App() {
             ) : (
               <LoginCard handleEmailPasswordLess={loginWithAuth0EmailPasswordless} handleSocialLogin={login} />
             )
-            // <HomePage />
           }
         </>
       )}
