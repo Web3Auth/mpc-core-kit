@@ -35,8 +35,7 @@
     "react-router-dom": "^7.0.2",
     "tailwind-merge": "^2.5.2",
     "typescript": "^5.6.3",
-    "web3": "^4.13.0",
-    "tailwindcss": "^3.4.16"
+    "web3": "^4.13.0"
   },
   "scripts": {
     "start": "vite",
@@ -88,6 +87,8 @@
     "https-browserify": "^1.0.0",
     "os-browserify": "^0.3.0",
     "path-browserify": "^1.0.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
     "prettier-plugin-tailwindcss": "^0.5.14",
     "process": "^0.11.10",
     "stream-browserify": "^3.0.0",
