@@ -190,15 +190,28 @@ function App() {
       if (!coreKitInstance) {
         throw new Error("initiated to login");
       }
-      const verifierConfig = {
-        subVerifierDetails: {
-          typeOfLogin: "google",
-          verifier: "w3-google-temp",
-          clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
-        },
-      } as SubVerifierDetailsParams;
+       const verifierConfig = {
+        aggregateVerifierIdentifier: "web-aggregate-core-kit",
+        subVerifierDetailsArray: [
+          {
+            typeOfLogin: "google",
+            verifier: "web3-aggreate-google",
+            clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
+            jwtParams: {
+              verifierIdField: "email",
+            },
+          },
+        ],
+       };
+      // const verifierConfig = {
+      //   subVerifierDetails: {
+      //     typeOfLogin: "google",
+      //     verifier: "w3-google-temp",
+      //     clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
+      //   },
+      // } as SubVerifierDetailsParams;
 
-      await coreKitInstance.loginWithOAuth(verifierConfig);
+      await coreKitInstance.loginWithOAuth(verifierConfig as any);
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await coreKitInstance.commitChanges(); // Needed for new accounts
       }
@@ -219,11 +232,11 @@ function App() {
 
       // IMP START - Login
       const verifierConfig = {
-        aggregateVerifierIdentifier: "aggregate-sapphire",
+        aggregateVerifierIdentifier: "web-aggregate-core-kit",
         subVerifierDetailsArray: [
           {
             typeOfLogin: "jwt",
-            verifier: "w3a-a0-email-passwordless",
+            verifier: "web3-aggregate-passwordless",
             clientId: "QiEf8qZ9IoasbZsbHvjKZku4LdnRC1Ct",
             jwtParams: {
               // connection: "passwordless",
