@@ -1,6 +1,7 @@
 {
   "extends": "@toruslabs/config/tsconfig.default.json",
   "compilerOptions": {
-    "baseUrl": "."
+    "baseUrl": ".",
+    "esModuleInterop": true,
   }
 }

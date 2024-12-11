@@ -1,3 +1,4 @@
+import type { Config } from "tailwindcss";
 import tailwindCssVariables from "@mertasan/tailwindcss-variables";
 import containerQueries from "@tailwindcss/container-queries";
 import colors from "tailwindcss/colors";
@@ -186,4 +187,4 @@ export default {
     tailwindCssVariables,
     containerQueries,
   ],
-};
+} as Config;
