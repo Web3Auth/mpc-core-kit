@@ -4,6 +4,8 @@ import { Card } from "./Card";
 import { AddShareType, useCoreKit } from "../composibles/useCoreKit";
 import { BN } from "bn.js";
 import { HiOutlineMail } from "react-icons/hi";
+import { COREKIT_STATUS } from "@web3auth/mpc-core-kit";
+import { useNavigate } from "react-router-dom";
 
 const FACTOR_MAP: Record<string, { title: string; icon?: string }> = {
   device: { title: "Device", icon: "mobile-icon" },
@@ -24,7 +26,8 @@ const shareDetails = [
 }));
 
 const MfaCard: React.FC = () => {
-  const { setAddShareType, coreKitInstance } = useCoreKit();
+  const { setAddShareType, coreKitInstance, setCoreKitStatus } = useCoreKit();
+  const navigate = useNavigate();
   const [userInfo, setUserInfo] = React.useState<any>({});
 
   React.useEffect(() => {
@@ -55,6 +58,10 @@ const MfaCard: React.FC = () => {
       privKey: new BN(coreKitInstance.state.postBoxKey!, "hex"),
       input: { message: "KEY_NOT_FOUND" },
     });
+    await coreKitInstance.logout();
+    setCoreKitStatus(COREKIT_STATUS.NOT_INITIALIZED)
+    navigate("/");
+    window.location.reload();
   }
 
   return (
