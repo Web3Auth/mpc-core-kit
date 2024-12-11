@@ -320,6 +320,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     const { importTssKey, registerExistingSFAKey } = params;
     const tkeyServiceProvider = this.torusSp;
+
+    if (registerExistingSFAKey && importTssKey) {
+      throw CoreKitError.invalidConfig("Cannot import TSS key and register SFA key at the same time.");
+    }
+
     if (this.isRedirectMode && (importTssKey || registerExistingSFAKey)) {
       throw CoreKitError.invalidConfig("key import is not supported in redirect mode");
     }
@@ -1025,11 +1030,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           throw CoreKitError.default("Unsupported key type");
         }
       }
-      await this.handleNewUser(importTssKey);
-      if (importTssKey && isSfaKey) {
-        await this.tkey.addLocalMetadataTransitions({ input: [{ message: ONE_KEY_DELETE_NONCE }], privKey: [new BN(this.state.postBoxKey, "hex")] });
-        if (!this.tkey?.manualSync) await this.tkey?.syncLocalMetadataTransitions();
-      }
+
+      await this.handleNewUser(importTssKey, isSfaKey);
     } else {
       if (importTssKey) {
         throw CoreKitError.tssKeyImportNotAllowed();
@@ -1039,7 +1041,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   // mutation function
-  private async handleNewUser(importTssKey?: string) {
+  private async handleNewUser(importTssKey?: string, isSfaKey?: boolean) {
     await this.atomicSync(async () => {
       // Generate or use hash factor and initialize tkey with it.
       let factorKey: BN;
@@ -1080,6 +1082,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           factorKey,
           shareDescription: FactorKeyTypeShareDescription.HashedShare,
           updateMetadata: false,
+        });
+      }
+      if (importTssKey && isSfaKey) {
+        await this.tkey.addLocalMetadataTransitions({
+          input: [{ message: ONE_KEY_DELETE_NONCE }],
+          privKey: [new BN(this.state.postBoxKey, "hex")],
         });
       }
     });
