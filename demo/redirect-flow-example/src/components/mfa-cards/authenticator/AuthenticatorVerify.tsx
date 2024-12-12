@@ -14,30 +14,29 @@ const VerifyAuthenticatorCodeCard: React.FC = () => {
   const { coreKitInstance, inputBackupFactorKey } = useCoreKit();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
 
   const verifyExistingAuthenticator = async () => {
     setIsLoading(true);
+    setError("");
     try {
       if (!coreKitInstance || !code) {
         throw new Error("coreKitInstance is not set");
       }
-
-      // const pubKey = getEcCrypto().keyFromPublic(coreKitInstance.getPubKey()).getPublic();
       const pubKey = coreKitInstance.tKey.getTSSPub().toSEC1(coreKitInstance.tKey.tssCurve, false);
-      const pubKey2 = getEcCrypto().keyFromPublic(pubKey).getPublic();
+      const pubKeypoint = getEcCrypto().keyFromPublic(pubKey).getPublic();
 
       const {
         data: { data: dataFactor },
       } = await axios.post(`${authenticatorVerifierUrl}/api/v1/verify`, {
-        address: `${pubKey2.getX()?.toString("hex") ?? ""}${pubKey2.getY()?.toString("hex") ?? ""}`,
-        // address: `${coreKitInstance.tKey.metadata.pubKey.x?.toString("hex") ?? ""}${coreKitInstance.tKey.metadata.pubKey.y?.toString("hex") ?? ""}`,
+        address: `${pubKeypoint.getX()?.toString("hex") ?? ""}${pubKeypoint.getY()?.toString("hex") ?? ""}`,
         code,
       });
-      console.log(dataFactor.factorKey);
       await inputBackupFactorKey(dataFactor.factorKey);
       navigate("/");
     } catch (error: any) {
       console.error(error);
+      setError((error as Error).message || "An error occurred while verifying the authenticator code.");
       if (error.response && error.response.data && error.response.data.code) throw new Error("Generic error");
       throw error;
     } finally {
@@ -57,7 +56,10 @@ const VerifyAuthenticatorCodeCard: React.FC = () => {
           <Card className="px-8 !h-[300px] w-full flex justify-center items-start py-6 !rounded-2xl !shadow-modal !border-0 dark:!border-app-gray-800 dark:!shadow-dark">
             <div className="text-center">
               <h3 className="font-semibold text-app-gray-900 dark:text-app-white mb-4">Verify Authenticator Code</h3>
-              <TextField value={code} onChange={(e) => setCode(e.target.value)} label="6 Digit Code" placeholder="Enter code" className="mb-4" />
+              <TextField value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter code" className="mb-4"  classes={{
+                container: "flex flex-col justify-center items-center",
+              }} />
+              {error && <p className="text-app-red-400 text-sm mb-4">{error}</p>}
               <Button className="w-full" variant="primary" onClick={verifyExistingAuthenticator}>
                 Verify
               </Button>

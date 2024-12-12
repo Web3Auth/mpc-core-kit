@@ -107,3 +107,10 @@ export enum LOGIN_PROVIDER {
   WEBAUTHN = "webauthn",
   JWT = "jwt",
 }
+
+export type ShareDescription = {
+  module: string;
+  dateAdded: number;
+  shareType: string;
+  tssShareIndex: number;
+};

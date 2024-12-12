@@ -15,7 +15,7 @@ import { getEcCrypto } from "../../../App";
 import { keccak256 } from "ethereum-cryptography/keccak";
 
 const AuthenticatorQRCodeCard: React.FC = () => {
-  const { coreKitInstance, setDrawerHeading, setDrawerInfo } = useCoreKit();
+  const { coreKitInstance, setDrawerHeading, setDrawerInfo, setAddShareType } = useCoreKit();
   const [imageUrl, setImageUrl] = React.useState("");
   const [currentStep, setCurrentStep] = React.useState("register");
   const [secretKey, setSecretKey] = React.useState<string>("");
@@ -213,18 +213,21 @@ const AuthenticatorQRCodeCard: React.FC = () => {
       await coreKitInstance.enableMFA({
         factorKey: factorKey?.private,
         additionalMetadata: { shareType: TssShareType.RECOVERY.toString() },
-        shareDescription: FactorKeyTypeShareDescription.Other,
+        shareDescription: "Authenticator" as FactorKeyTypeShareDescription,
       });
     } else {
       await coreKitInstance.createFactor({
         shareType: TssShareType.DEVICE,
         factorKey: factorKey?.private,
+        additionalMetadata: { shareType: "Authenticator" },
+        shareDescription: "Authenticator" as FactorKeyTypeShareDescription,
       });
     }
 
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
       await coreKitInstance.commitChanges();
     }
+    setAddShareType("")
     // await inputBackupFactorKey(mnemonic);
   };
 
@@ -248,7 +251,9 @@ const AuthenticatorQRCodeCard: React.FC = () => {
         <Card className="px-8 py-6 w-full !rounded-2xl !shadow-modal !border-0 dark:!border-app-gray-800 dark:!shadow-dark">
           <div className="text-center">
             <h3 className="font-semibold text-app-gray-900 dark:text-app-white mb-4">Verify Authenticator Code</h3>
-            <TextField value={code} onChange={(e) => setCode(e.target.value)} label="6 Digit Code" placeholder="Enter code" className="mb-4" />
+              <TextField value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter code" className="mb-4" classes={{
+                container: "flex flex-col justify-center items-center",
+              }}/>
             <Button loading={isLoading} className="w-full" variant="primary" onClick={verifyNewAuthenticator}>
               Verify
             </Button>

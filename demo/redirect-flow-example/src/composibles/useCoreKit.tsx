@@ -1,4 +1,4 @@
-import { COREKIT_STATUS, makeEthereumSigner, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "@web3auth/mpc-core-kit";
+import { COREKIT_STATUS, makeEthereumSigner, UserInfo, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "@web3auth/mpc-core-kit";
 import { PasskeysPlugin } from "@web3auth/mpc-passkey-plugin";
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { tssLib as tssLibDkls } from "@toruslabs/tss-dkls-lib";
@@ -8,6 +8,7 @@ import { BN } from "bn.js";
 import { KeyType } from "@tkey/common-types";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { DEFAULT_CHAIN_CONFIG } from "../App";
+import { ShareDescription } from "../components/types";
 
 export type AddShareType = "phrase" | "authenticator" | "password" | "";
 
@@ -30,6 +31,13 @@ interface CoreKitContextType {
   setDrawerHeading: (drawerHeading: string) => void;
   drawerInfo?: any;
   setDrawerInfo: (drawerInfo: any) => void;
+  userInfo?: UserInfo;
+  setUserInfo: (userInfo?: UserInfo) => void;
+  globalLoading?: boolean;
+  setGlobalLoading: (globalLoading: boolean) => void;
+  getShareDescriptions: () => void;
+  shareDescriptions: ShareDescription[] | null;
+  existingModules: string[];
 }
 
 // Create the context with default values
@@ -37,7 +45,7 @@ const CoreKitContext = createContext<CoreKitContextType>({
   coreKitInstance: new Web3AuthMPCCoreKit({
     web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
     web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET,
-    uxMode: "redirect",
+    uxMode: "popup",
     manualSync: false,
     storage: window.localStorage,
     tssLib: tssLibDkls,
@@ -60,7 +68,14 @@ const CoreKitContext = createContext<CoreKitContextType>({
   setDrawerHeading: (drawerHeading: string) => { },
   drawerInfo: "",
   setDrawerInfo: (drawerInfo: any) => {},
+  userInfo: undefined,
+  setUserInfo: (userInfo?: UserInfo) => { },
+  globalLoading: false,
+  setGlobalLoading: (globalLoading: boolean) => { },
   inputBackupFactorKey: async (backupFactorKey: string) => Promise.resolve(),
+  getShareDescriptions: () => { },
+  shareDescriptions: null,
+  existingModules: [],
 });
 
 // Create a provider component
@@ -70,12 +85,13 @@ interface CoreKitProviderProps {
 
 export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) => {
   const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
+  const possibleModules = ["seedPhrase", "tssSecurityQuestions", "Authenticator"];
 
   const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit>(
     new Web3AuthMPCCoreKit({
       web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
       web3AuthNetwork: selectedNetwork,
-      uxMode: "redirect",
+      uxMode: "popup",
       manualSync: false,
       storage: window.localStorage,
       tssLib: tssLibDkls,
@@ -92,8 +108,12 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
   const [addShareType, setAddShareType] = useState<AddShareType>("");
   const [coreKitStatus, setCoreKitStatus] = useState<COREKIT_STATUS>(COREKIT_STATUS.NOT_INITIALIZED);
    
+  const [userInfo, setUserInfo] = useState<UserInfo>();
   const [drawerHeading, setDrawerHeading] = useState<string>("");
   const [drawerInfo, setDrawerInfo] = useState<any>("");
+  const [shareDescriptions, setShareDescriptions] = React.useState<ShareDescription[] | null>(null);
+  const [globalLoading, setGlobalLoading] = useState<boolean>(false);
+  const [existingModules, setExistingModules] = React.useState<string[]>([]);
   
   async function setupProvider(chainConfig?: CustomChainConfig) {
     if (coreKitInstance.keyType !== KeyType.secp256k1) {
@@ -128,6 +148,34 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
     setCoreKitStatus(coreKitInstance.status);
   };
 
+  const getShareDescriptions = () => {
+    const moduleList: string[] = [];
+    const shareDesc = Object.values(coreKitInstance.tKey.getMetadata().getShareDescription())
+      .filter(shareDescription => shareDescription.length > 0)
+      .map(shareDescription => {
+        try {
+          const jsonObject = JSON.parse(shareDescription[0]) as ShareDescription;
+          if (!possibleModules.includes(jsonObject.module)) {
+            return null;
+          }
+          moduleList.push(jsonObject.module);
+          console.log("Existing Modules: ", [...existingModules, jsonObject.module]);
+          return jsonObject;
+        } catch (error) {
+          console.error('Failed to parse JSON:', error);
+          return null; // or handle the error as needed
+        }
+      })
+      .filter(jsonObject => jsonObject !== null);
+    setExistingModules(moduleList);
+    setShareDescriptions(shareDesc);
+  }
+
+  useEffect(() => {
+    if (coreKitInstance.state.userInfo)
+      getShareDescriptions();
+  }, [coreKitInstance, drawerHeading])
+
   return (
       <CoreKitContext.Provider value={{
           coreKitInstance, passkeyPlugin,
@@ -139,6 +187,10 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
           inputBackupFactorKey,
           drawerHeading, setDrawerHeading,
           drawerInfo, setDrawerInfo,
+          userInfo, setUserInfo,
+          globalLoading, setGlobalLoading,
+          getShareDescriptions,
+          shareDescriptions, existingModules,
       }}>{children}</CoreKitContext.Provider>
   );
 };

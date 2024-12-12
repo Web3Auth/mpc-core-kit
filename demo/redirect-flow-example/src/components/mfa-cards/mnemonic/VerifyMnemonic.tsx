@@ -11,9 +11,11 @@ const VerifyMnemonicPhraseCard: React.FC = () => {
   const [mnemonic, setMnemonic] = React.useState("");
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
 
   const mnemonicToFactorKeyHex = async () => {
     setIsLoading(true);
+    setError("");
     if (!mnemonic || !coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
@@ -23,6 +25,7 @@ const VerifyMnemonicPhraseCard: React.FC = () => {
       navigate("/");
       return factorKey;
     } catch (error) {
+      setError((error as Error).message || "An error occurred while verifying the mnemonic phrase.");
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -46,10 +49,11 @@ const VerifyMnemonicPhraseCard: React.FC = () => {
                 value={mnemonic}
                 onChange={(e) => setMnemonic(e.target.value)}
                 placeholder="Enter seed phrase"
-                className="mb-4 w-full p-2 border border-app-gray-300 rounded-md dark:bg-app-gray-700 dark:border-app-gray-600 dark:text-app-white"
+                className="min-w-[300px] mb-4 w-full p-2 border border-app-gray-300 rounded-md dark:bg-app-gray-700 dark:border-app-gray-600 dark:text-app-white"
                 rows={4}
                 style={{ resize: "none", whiteSpace: "pre-wrap" }}
               />
+              {error && <p className="text-app-red-400 text-sm mb-4">{error}</p>}
               <Button className="w-full" variant="primary" onClick={mnemonicToFactorKeyHex}>
                 Proceed
               </Button>

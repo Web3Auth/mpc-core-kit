@@ -8,7 +8,7 @@ import { COREKIT_STATUS } from "@web3auth/mpc-core-kit";
 
 const RecoveryOptionsCard: React.FC = () => {
   const navigate = useNavigate();
-  const { coreKitInstance, setCoreKitStatus } = useCoreKit();
+  const { coreKitInstance, setCoreKitStatus, existingModules } = useCoreKit();
 
   const handleRecoveryOption = (option: string) => {
     navigate(`/verify-${option}`);
@@ -36,15 +36,28 @@ const RecoveryOptionsCard: React.FC = () => {
       <Card className="px-8 !h-[300px] flex justify-center items-start py-6 !rounded-2xl !shadow-modal !border-0 dark:!border-app-gray-800 dark:!shadow-dark">
         <div className="text-center">
           <h3 className="font-semibold text-app-gray-900 dark:text-app-white mb-4">Choose Recovery Option</h3>
-          <Button className="w-full mb-4" variant="primary" onClick={() => handleRecoveryOption("phrase")}>
-            Recovery Phrase
-          </Button>
-          <Button className="w-full mb-4" variant="primary" onClick={() => handleRecoveryOption("authenticator")}>
-            Authenticator
-          </Button>
-          <Button className="w-full mb-4" variant="primary" onClick={() => handleRecoveryOption("password")}>
-            Password
-          </Button>
+          {
+            existingModules.includes("seedPhrase") && (
+              <Button className="w-full mb-4" variant="primary" onClick={() => handleRecoveryOption("phrase")}>
+                Recovery Phrase
+              </Button>
+            )
+          }
+          {
+            existingModules.includes("Authenticator") && (
+              <Button className="w-full mb-4" variant="primary" onClick={() => handleRecoveryOption("authenticator")}>
+                Authenticator
+              </Button>
+            )
+          }
+          {
+            existingModules.includes("tssSecurityQuestions") && (
+              <Button className="w-full mb-4" variant="primary" onClick={() => handleRecoveryOption("password")}>
+                Password
+              </Button>
+            )
+          }
+          
           <Button className="w-full mb-4" variant="primary" onClick={() => criticalReset()}>
             Critical Reset
           </Button>

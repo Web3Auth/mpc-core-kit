@@ -10,12 +10,11 @@ import { HiOutlineCheckCircle } from "react-icons/hi";
 import { Link } from "./Link";
 
 const UserCard: React.FC = () => {
-  const { coreKitInstance, web3, coreKitStatus, drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo } = useCoreKit();
+  const { coreKitInstance, web3, coreKitStatus, drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo } = useCoreKit();
 
   const [openConsole, setOpenConsole] = React.useState(false);
 
   const [isCopied, setIsCopied] = React.useState(false);
-  const [userInfo, setUserInfo] = React.useState<any>(null);
   const [account, setAccount] = React.useState<string>("");
   const [imageError, setImageError] = React.useState(false);
   const [currentDrawerHeading, setCurrentDrawerHeading] = React.useState("");
@@ -54,12 +53,6 @@ const UserCard: React.FC = () => {
     coreKitInstance.tKey.getMetadata().getGeneralStoreDomain("tssSecurityQuestion:default");
   };
 
-  const getUserInfo = (): void => {
-    const user = coreKitInstance?.getUserInfo();
-    console.log("User Info: ", user);
-    listFactors();
-    if (user) setUserInfo(user);
-  };
 
   const getAccounts = async () => {
     if (!web3) {
@@ -73,12 +66,6 @@ const UserCard: React.FC = () => {
   React.useEffect(() => {
     getAccounts();
   }, [web3]);
-
-  React.useEffect(() => {
-    if (coreKitStatus === COREKIT_STATUS.LOGGED_IN) {
-      getUserInfo();
-    }
-  }, [coreKitStatus]);
 
   const handleConsoleBtn = () => {
     setDrawerHeading("User Info Console");
@@ -131,7 +118,7 @@ const UserCard: React.FC = () => {
             <h3 className="font-bold text-app-gray-800 dark:text-app-white mb-2">{userInfo.name}</h3>
             <p className="text-xs text-app-gray-400 mb-1">{userInfo.email ? userInfo.email : userInfo.name}</p>
             <button className="leading-none" onClick={handleConsoleBtn}>
-              <Link className="text-xs dark:text-app-primary-500">View User Info</Link>
+              <Link className="text-xs text-app-primary-600">View User Info</Link>
             </button>
           </div>
           <div className="my-4 border-t border-app-gray-200 dark:border-app-gray-600"></div>

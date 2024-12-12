@@ -6,7 +6,7 @@ import { COREKIT_STATUS, FactorKeyTypeShareDescription, generateFactorKey, keyTo
 import BN from "bn.js";
 
 const CreateMnemonicPhraseCard: React.FC = () => {
-  const { coreKitInstance, setDrawerHeading, setDrawerInfo } = useCoreKit();
+  const { coreKitInstance, setDrawerHeading, setDrawerInfo, setAddShareType } = useCoreKit();
   const [mnemonic, setMnemonic] = React.useState("");
   const [factorKey, setFactorKey] = React.useState<BN | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -28,13 +28,15 @@ const CreateMnemonicPhraseCard: React.FC = () => {
       if (coreKitInstance.getTssFactorPub().length === 1) {
         await coreKitInstance.enableMFA({
           factorKey: factorKey,
-          additionalMetadata: { shareType: TssShareType.RECOVERY.toString() },
+          additionalMetadata: { shareType: "SeedPhrase" },
           shareDescription: FactorKeyTypeShareDescription.SeedPhrase,
         });
       } else {
         await coreKitInstance.createFactor({
           shareType: TssShareType.RECOVERY,
           factorKey: factorKey,
+          additionalMetadata: { shareType: "SeedPhrase" },
+          shareDescription: FactorKeyTypeShareDescription.SeedPhrase,
         });
       }
       
@@ -46,6 +48,7 @@ const CreateMnemonicPhraseCard: React.FC = () => {
       }
       setDrawerHeading("Seed Phrase");
       setDrawerInfo("Seed phrase has been set successfully");
+      setAddShareType("");
     } catch (error) {
       console.error(error);
     } finally {
@@ -58,12 +61,12 @@ const CreateMnemonicPhraseCard: React.FC = () => {
     <Card className="px-8 py-6 w-full !rounded-2xl !shadow-modal !border-0 dark:!border-app-gray-800 dark:!shadow-dark">
       <div className="text-center">
         <div className="flex flex-col justify-center items-center">
-          <h3 className="font-semibold text-app-gray-900 dark:text-app-white mb-4">Enter Mnemonic Phrase</h3>
+          <h3 className="font-semibold text-app-gray-900 dark:text-app-white mb-4">Your Mnemonic Phrase</h3>
           <textarea
             value={mnemonic}
             onChange={(e) => setMnemonic(e.target.value)}
             placeholder="Enter seed phrase"
-            className="text-center mb-4 w-full p-2 border border-app-gray-300 rounded-md dark:bg-app-gray-700 dark:border-app-gray-600 dark:text-app-white"
+            className="min-w-[300px] text-center mb-4 w-full p-2 border border-app-gray-300 rounded-md dark:bg-app-gray-700 dark:border-app-gray-600 dark:text-app-white"
             rows={4}
             style={{ resize: "none", whiteSpace: "pre-wrap" }}
           />
