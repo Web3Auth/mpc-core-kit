@@ -13,6 +13,7 @@ import {
   factorKeyCurve,
   makeEthereumSigner,
   SIG_TYPE,
+  IContext,
 } from "@web3auth/mpc-core-kit";
 import { PasskeysPlugin } from "@web3auth/mpc-passkey-plugin";
 import Web3 from "web3";
@@ -114,10 +115,6 @@ const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
 };
 
 
-const passkeyPlugin = new PasskeysPlugin({
-  baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1"
-});
-
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
 const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
 const alg: Algorithm = "ES256";
@@ -159,7 +156,7 @@ function App() {
   const [newQuestion, setNewQuestion] = useState<string | undefined>(undefined);
   const securityQuestion = useMemo(() => new TssSecurityQuestion(), []);
   const [selectedTssLib, setSelectedTssLib] = useState<TssLib>(tssLibDkls);
-  const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit>(
+  const coreKitInstance = useRef<Web3AuthMPCCoreKit>(
     new Web3AuthMPCCoreKit({
         web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
         web3AuthNetwork: selectedNetwork,
@@ -170,23 +167,46 @@ function App() {
         useDKG: false,
       })
   );
+  const mpcCoreKitContext = useRef<IContext | undefined>(undefined);
+  const passkeyPlugin = useRef<PasskeysPlugin | undefined>(
+    undefined
+    // new PasskeysPlugin(
+    //   coreKitInstance.getContext(),
+    //   {
+    //     baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1"
+    //   }
+    // )
+  )
   async function setupProvider(chainConfig?: CustomChainConfig) {
-    if (coreKitInstance.keyType !== KeyType.secp256k1) {
+    if (coreKitInstance.current.keyType !== KeyType.secp256k1) {
       console.warn(`Ethereum requires keytype ${KeyType.secp256k1}, skipping provider setup`);
       return;
     }
     let localProvider = new EthereumSigningProvider({ config: { chainConfig: chainConfig || DEFAULT_CHAIN_CONFIG } });
-    localProvider.setupProvider(makeEthereumSigner(coreKitInstance));
+    localProvider.setupProvider(makeEthereumSigner(coreKitInstance.current));
     setProvider(localProvider);
   }
 
   // decide whether to rehydrate session
   const rehydrate = true;
   const init = async (newCoreKitInstance: Web3AuthMPCCoreKit) => {
+    coreKitInstance.current = newCoreKitInstance;
+    mpcCoreKitContext.current = newCoreKitInstance.getContext();
+
     // Example config to handle redirect result manually
     if (newCoreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
       await newCoreKitInstance.init({ handleRedirectResult: false, rehydrate });
-      await passkeyPlugin.initWithMpcCoreKit(newCoreKitInstance);
+      if (!mpcCoreKitContext.current) {
+        throw new Error("mpcCoreKitContext not found");
+      }
+      const pkeyPlugin = new PasskeysPlugin( 
+        mpcCoreKitContext.current,
+        {
+          baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1"
+        });
+      await pkeyPlugin.init();
+      passkeyPlugin.current = pkeyPlugin;
+      debugger;
       if (window.location.hash.includes("#state")) {
         await newCoreKitInstance.handleRedirectResult();
       }
@@ -223,9 +243,8 @@ function App() {
       tssLib: selectedTssLib,
       useDKG: false,
     })
-    setCoreKitInstance(
-      instance
-    )
+ 
+
     if (instance.status === COREKIT_STATUS.NOT_INITIALIZED)
     {
       init(instance);
@@ -244,18 +263,18 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance not found");
     }
-    uiConsole(coreKitInstance.getKeyDetails());
+    uiConsole(coreKitInstance.current.getKeyDetails());
   };
 
   const listFactors = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance not found");
     }
-    const factorPubs = coreKitInstance.tKey.metadata.factorPubs;
+    const factorPubs = coreKitInstance.current.tKey.metadata.factorPubs;
     if (!factorPubs) {
       throw new Error("factorPubs not found");
     }
-    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map(pub => {
+    const pubsHex = factorPubs[coreKitInstance.current.tKey.tssTag].map(pub => {
       return pub.toSEC1(factorKeyCurve, true).toString("hex");
     });
     uiConsole(pubsHex);
@@ -267,17 +286,17 @@ function App() {
         throw new Error("mockEmail not found");
       }
       const { idToken, parsedToken } = await mockLogin(mockEmail);
-      await coreKitInstance.loginWithJWT({
+      await coreKitInstance.current.loginWithJWT({
         verifier: "torus-test-health",
         verifierId: parsedToken.email,
         idToken,
         prefetchTssPublicKeys: 1,
       });
 
-      if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      if (coreKitInstance.current.status === COREKIT_STATUS.LOGGED_IN) {
         await setupProvider();
       }
-      setCoreKitStatus(coreKitInstance.status);
+      setCoreKitStatus(coreKitInstance.current.status);
     } catch (error: unknown) {
       console.error(error);
     }
@@ -316,15 +335,15 @@ function App() {
         },
       } as SubVerifierDetailsParams;
 
-      await coreKitInstance.loginWithOAuth(verifierConfig);
-      setCoreKitStatus(coreKitInstance.status);
+      await coreKitInstance.current.loginWithOAuth(verifierConfig);
+      setCoreKitStatus(coreKitInstance.current.status);
     } catch (error: unknown) {
       console.error(error);
     }
   };
 
   const getDeviceShare = async () => {
-    const factorKey = await coreKitInstance!.getDeviceFactor();
+    const factorKey = await coreKitInstance.current.getDeviceFactor();
     setBackupFactorKey(factorKey);
     uiConsole("Device share: ", factorKey);
   };
@@ -337,30 +356,30 @@ function App() {
       throw new Error("backupFactorKey not found");
     }
     const factorKey = new BN(backupFactorKey, "hex");
-    await coreKitInstance.inputFactorKey(factorKey);
+    await coreKitInstance.current.inputFactorKey(factorKey);
 
-    if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
+    if (coreKitInstance.current.status === COREKIT_STATUS.REQUIRED_SHARE) {
       uiConsole(
         "required more shares even after inputing backup factor key, please enter your backup/ device factor key, or reset account [unrecoverable once reset, please use it with caution]"
       );
     }
 
-    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+    if (coreKitInstance.current.status === COREKIT_STATUS.LOGGED_IN) {
       await setupProvider();
     }
 
-    setCoreKitStatus(coreKitInstance.status);
+    setCoreKitStatus(coreKitInstance.current.status);
   };
 
   const recoverSecurityQuestionFactor = async () => {
-    if (!coreKitInstance) {
+    if (!coreKitInstance.current) {
       throw new Error("coreKitInstance not found");
     }
     if (!answer) {
       throw new Error("backupFactorKey not found");
     }
 
-    let factorKey = await securityQuestion.recoverFactor(coreKitInstance, answer);
+    let factorKey = await securityQuestion.recoverFactor(coreKitInstance.current, answer);
     setBackupFactorKey(factorKey);
     uiConsole("Security Question share: ", factorKey);
   };
@@ -369,15 +388,18 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance not found");
     }
-    await coreKitInstance.logout();
-    await passkeyPlugin.logout(); // TODO: remove this after adding event emitter in mpc core kit
+    if (!passkeyPlugin?.current) {
+      throw new Error("passkeyPlugin not found");
+    }
+    await coreKitInstance.current.logout();
+    await passkeyPlugin.current.logout(); // TODO: remove this after adding event emitter in mpc core kit
     uiConsole("Log out");
     setProvider(null);
-    setCoreKitStatus(coreKitInstance.status);
+    setCoreKitStatus(coreKitInstance.current.status);
   };
 
   const getUserInfo = (): void => {
-    const user = coreKitInstance?.getUserInfo();
+    const user = coreKitInstance?.current.getUserInfo();
     uiConsole(user);
   };
 
@@ -387,7 +409,7 @@ function App() {
     }
     uiConsole("export share type: ", exportTssShareType);
     const factorKey = generateFactorKey();
-    await coreKitInstance.createFactor({
+    await coreKitInstance.current.createFactor({
       shareType: exportTssShareType,
       factorKey: factorKey.private,
     });
@@ -405,7 +427,7 @@ function App() {
     }
     const pubBuffer = Buffer.from(factorPubToDelete, "hex");
     const pub = Point.fromSEC1(factorKeyCurve, pubBuffer.toString("hex"));
-    await coreKitInstance.deleteFactor(pub);
+    await coreKitInstance.current.deleteFactor(pub);
     uiConsole("factor deleted");
   };
 
@@ -420,7 +442,7 @@ function App() {
   };
 
   const setTSSWalletIndex = async (index = 0) => {
-    await coreKitInstance.setTssWalletIndex(index);
+    await coreKitInstance.current.setTssWalletIndex(index);
     // log new account details
     await getAccounts();
   };
@@ -450,7 +472,7 @@ function App() {
   };
 
   const signMessage = async (): Promise<any> => {
-    if (coreKitInstance.sigType === SIG_TYPE.ECDSA_SECP256K1) {
+    if (coreKitInstance.current.sigType === SIG_TYPE.ECDSA_SECP256K1) {
       if (!web3) {
         uiConsole("web3 not initialized yet");
         return;
@@ -461,38 +483,38 @@ function App() {
       
 
       uiConsole(signedMessage);
-    } else if (coreKitInstance.sigType === SIG_TYPE.ED25519 || coreKitInstance.sigType === SIG_TYPE.BIP340) {
+    } else if (coreKitInstance.current.sigType === SIG_TYPE.ED25519 || coreKitInstance.current.sigType === SIG_TYPE.BIP340) {
       const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.sign(msg);
+      const sig = await coreKitInstance.current.sign(msg);
       uiConsole(sig.toString("hex"));
     }
   };
   const signMessageWithPrecomputedTss = async (): Promise<any> => {
-    if (coreKitInstance.keyType === "secp256k1") {
-      const precomputedTssClient = await coreKitInstance.precompute_secp256k1();
+    if (coreKitInstance.current.keyType === "secp256k1") {
+      const precomputedTssClient = await coreKitInstance.current.precompute_secp256k1();
       const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.sign(msg, false, precomputedTssClient);
+      const sig = await coreKitInstance.current.sign(msg, false, precomputedTssClient);
       uiConsole(sig.toString("hex"));
-    } else if (coreKitInstance.keyType === "ed25519") {
+    } else if (coreKitInstance.current.keyType === "ed25519") {
       const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.sign(msg);
+      const sig = await coreKitInstance.current.sign(msg);
       uiConsole(sig.toString("hex"));
     }
   };
 
   const signMultipleMessagesWithPrecomputedTss = async (): Promise<any> => {
-    if (coreKitInstance.keyType === "secp256k1") {
-      const [precomputedTssClient, precomputedTssClient2] = await Promise.all([coreKitInstance.precompute_secp256k1(), coreKitInstance.precompute_secp256k1()]);
+    if (coreKitInstance.current.keyType === "secp256k1") {
+      const [precomputedTssClient, precomputedTssClient2] = await Promise.all([coreKitInstance.current.precompute_secp256k1(), coreKitInstance.current.precompute_secp256k1()]);
 
       const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.sign(msg, false, precomputedTssClient);
+      const sig = await coreKitInstance.current.sign(msg, false, precomputedTssClient);
       const msg2 = Buffer.from("hello signer2!");
 
-      const sig2 = await coreKitInstance.sign(msg2, false, precomputedTssClient2);
+      const sig2 = await coreKitInstance.current.sign(msg2, false, precomputedTssClient2);
       uiConsole("Sig1: ", sig.toString("hex"), "Sig2: ", sig2.toString("hex"));
-    } else if (coreKitInstance.keyType === "ed25519") {
+    } else if (coreKitInstance.current.keyType === "ed25519") {
       const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.sign(msg);
+      const sig = await coreKitInstance.current.sign(msg);
       uiConsole(sig.toString("hex"));
     }
   };
@@ -513,7 +535,7 @@ function App() {
       logo: "https://cryptologos.cc/logos/ethereum-eth-logo.png",
     };
 
-    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+    if (coreKitInstance.current.status === COREKIT_STATUS.LOGGED_IN) {
       await setupProvider(newChainConfig);
     }
     uiConsole("Changed to Sepolia Network");
@@ -535,7 +557,7 @@ function App() {
       ticker: "MATIC",
       tickerName: "MATIC",
     };
-    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+    if (coreKitInstance.current.status === COREKIT_STATUS.LOGGED_IN) {
       await setupProvider(newChainConfig);
     }
     uiConsole("Changed to Sepolia Network");
@@ -581,8 +603,8 @@ function App() {
     // if (selectedNetwork === WEB3AUTH_NETWORK.MAINNET) {
     //   throw new Error("reset account is not recommended on mainnet");
     // }
-    await coreKitInstance.tKey.storageLayer.setMetadata({
-      privKey: new BN(coreKitInstance.state.postBoxKey!, "hex"),
+    await coreKitInstance.current.tKey.storageLayer.setMetadata({
+      privKey: new BN(coreKitInstance.current.state.postBoxKey!, "hex"),
       input: { message: "KEY_NOT_FOUND" },
     });
     uiConsole("reset");
@@ -613,9 +635,9 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    await securityQuestion.setSecurityQuestion({ mpcCoreKit: coreKitInstance, question, answer, shareType: TssShareType.RECOVERY });
+    await securityQuestion.setSecurityQuestion({ mpcCoreKit: coreKitInstance.current, question, answer, shareType: TssShareType.RECOVERY });
     setNewQuestion(undefined);
-    let result = await securityQuestion.getQuestion(coreKitInstance);
+    let result = await securityQuestion.getQuestion(coreKitInstance.current);
     if (result) {
       setQuestion(question);
     }
@@ -625,8 +647,8 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    await securityQuestion.changeSecurityQuestion({ mpcCoreKit: coreKitInstance, newQuestion, newAnswer, answer });
-    let result = await securityQuestion.getQuestion(coreKitInstance);
+    await securityQuestion.changeSecurityQuestion({ mpcCoreKit: coreKitInstance.current, newQuestion, newAnswer, answer });
+    let result = await securityQuestion.getQuestion(coreKitInstance.current);
     if (result) {
       setQuestion(question);
     }
@@ -636,7 +658,7 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    await securityQuestion.deleteSecurityQuestion(coreKitInstance);
+    await securityQuestion.deleteSecurityQuestion(coreKitInstance.current);
     setQuestion(undefined);
   };
 
@@ -644,7 +666,7 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    const factorKey = await coreKitInstance.enableMFA({});
+    const factorKey = await coreKitInstance.current.enableMFA({});
     const factorKeyMnemonic = await keyToMnemonic(factorKey);
 
     uiConsole("MFA enabled, device factor stored in local store, deleted hashed cloud key, your backup factor key: ", factorKeyMnemonic);
@@ -653,7 +675,7 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    if (!passkeyPlugin) {
+    if (!passkeyPlugin?.current) {
       throw new Error("passkeyPlugin is not set");
     }
     const result = shouldSupportPasskey();
@@ -661,14 +683,14 @@ function App() {
       uiConsole("Browser not supported");
       return;
     }
-    await passkeyPlugin.registerPasskey()
+    await passkeyPlugin.current.registerPasskey()
   };
 
   const loginWithPasskey = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    if (!passkeyPlugin) {
+    if (!passkeyPlugin?.current) {
       throw new Error("passkeyPlugin is not set");
     }
     const result = shouldSupportPasskey();
@@ -676,27 +698,29 @@ function App() {
       uiConsole("Browser not supported");
       return;
     }
-    await passkeyPlugin.authenticateWithPasskey()
-    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+    await passkeyPlugin.current.authenticateWithPasskey()
+    if (coreKitInstance.current.status === COREKIT_STATUS.LOGGED_IN) {
       await setupProvider();
     }
-    setCoreKitStatus(coreKitInstance.status);
+    setCoreKitStatus(coreKitInstance.current.status);
   };
   const listPasskeys = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    if (!passkeyPlugin) {
+    if (!passkeyPlugin?.current) {
       throw new Error("passkeyPlugin is not set");
     }
-    const passkeys = await passkeyPlugin.listPasskeys()
+    const context = coreKitInstance.current.getContext()
+    console.log("coreKitInstance", context.state)
+    const passkeys = await passkeyPlugin.current.listPasskeys()
     uiConsole(passkeys)
   };
   const enableStrictPasskey = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    if (!passkeyPlugin) {
+    if (!passkeyPlugin?.current) {
       throw new Error("passkeyPlugin is not set");
     }
     const result = shouldSupportPasskey();
@@ -704,11 +728,14 @@ function App() {
       uiConsole("Browser not supported");
       return;
     }
-    await passkeyPlugin.enableStrictPasskeyAuth()
+    await passkeyPlugin.current.enableStrictPasskeyAuth()
     uiConsole("Strict Passkey Auth Enabled")
   };
   const disableStrictPasskey = async () => {
-    const isEnabled = await passkeyPlugin.isStrictPasskeyEnabled()
+    if (!passkeyPlugin?.current) {
+      throw new Error("passkeyPlugin not found");
+    }
+    const isEnabled = await passkeyPlugin.current.isStrictPasskeyEnabled()
     if (!isEnabled) {
       uiConsole("Strict Passkey Auth is not enabled")
       return
@@ -716,7 +743,7 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    if (!passkeyPlugin) {
+    if (!passkeyPlugin?.current) {
       throw new Error("passkeyPlugin is not set");
     }
     const result = shouldSupportPasskey();
@@ -724,14 +751,14 @@ function App() {
       uiConsole("Browser not supported");
       return;
     }
-    await passkeyPlugin.disableStrictPasskeyAuth()
+    await passkeyPlugin.current.disableStrictPasskeyAuth()
     uiConsole("Strict Passkey Auth Disabled")
   };
   const commit = async () => {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance is not set");
     }
-    await coreKitInstance.commitChanges();
+    await coreKitInstance.current.commitChanges();
   };
 
   const tssLibSelector = (
@@ -768,7 +795,7 @@ function App() {
           Get User Info
         </button>
 
-        <button onClick={async () => uiConsole(await coreKitInstance.getPubKey())} className="card">
+        <button onClick={async () => uiConsole(await coreKitInstance.current.getPubKey())} className="card">
           Get Public Key
         </button>
 
@@ -789,7 +816,7 @@ function App() {
           [CRITICAL] Reset Account
         </button>
 
-        <button onClick={async () => uiConsole(await coreKitInstance._UNSAFE_exportTssKey())} className="card">
+        <button onClick={async () => uiConsole(await coreKitInstance.current._UNSAFE_exportTssKey())} className="card">
           [CAUTION] Export TSS Private Key
         </button>
 

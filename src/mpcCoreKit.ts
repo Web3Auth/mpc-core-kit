@@ -106,6 +106,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private sessionSigGenerator: ISessionSigGenerator;
 
+  private readonly context: IContext;
+
   constructor(options: Web3AuthOptions) {
     if (!options.web3AuthClientId) {
       throw CoreKitError.clientIdInvalid();
@@ -144,6 +146,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     TorusUtils.setSessionTime(this.options.sessionTime);
+
+    this.context = {
+      status: this.status,
+      config: this.options,
+      state: this.state,
+      serviceProvider: this.torusSp,
+      updateState: this.updateState.bind(this),
+      getUserInfo: this.getUserInfo.bind(this),
+      logout: this.logout.bind(this),
+      setupTkey: this.setupTkey.bind(this),
+      setCustomSessionSigGenerator: this.setCustomSessionSigGenerator.bind(this),
+    } as const;
   }
 
   get tKey(): TKeyTSS {
@@ -209,19 +223,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     return this._sigType === "ed25519" && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
   }
 
-  public getContext(): IContext {
-    return {
-      status: this.status,
-      config: this.options,
-      state: this.state,
-      sessionId: this.sessionId,
-      serviceProvider: this.torusSp,
-      updateState: this.updateState.bind(this),
-      getUserInfo: this.getUserInfo.bind(this),
-      logout: this.logout.bind(this),
-      setupTkey: this.setupTkey.bind(this),
-      setCustomSessionSigGenerator: this.setCustomSessionSigGenerator.bind(this),
-    };
+  public getContext(): Readonly<IContext> {
+    return this.context;
   }
 
   public setCustomSessionSigGenerator(sessionSigGenerator: ISessionSigGenerator) {

@@ -339,7 +339,6 @@ export interface IContext {
   config: Web3AuthOptionsWithDefaults;
   status: COREKIT_STATUS;
   state: Web3AuthState;
-  sessionId: string;
   serviceProvider: TSSTorusServiceProvider | null;
   updateState: (newState: Partial<Web3AuthState>) => void;
   getUserInfo: () => UserInfo;
