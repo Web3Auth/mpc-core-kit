@@ -13,7 +13,6 @@ import {
   factorKeyCurve,
   makeEthereumSigner,
   SIG_TYPE,
-  IContext,
 } from "@web3auth/mpc-core-kit";
 import { PasskeysPlugin } from "@web3auth/mpc-passkey-plugin";
 import Web3 from "web3";
@@ -167,7 +166,6 @@ function App() {
         useDKG: false,
       })
   );
-  const mpcCoreKitContext = useRef<IContext | undefined>(undefined);
   const passkeyPlugin = useRef<PasskeysPlugin | undefined>(
     undefined
     // new PasskeysPlugin(
@@ -707,8 +705,6 @@ function App() {
     if (!passkeyPlugin?.current) {
       throw new Error("passkeyPlugin is not set");
     }
-    const context = coreKitInstance.current.getContext()
-    console.log("coreKitInstance", context.state)
     const passkeys = await passkeyPlugin.current.listPasskeys()
     uiConsole(passkeys)
   };
