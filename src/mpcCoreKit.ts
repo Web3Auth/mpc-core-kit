@@ -1179,9 +1179,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!this.options.disableSessionManager && !this.sessionManager) {
       throw new Error("sessionManager is not available");
     }
-    if (this.options.disableSessionManager) {
-      return;
-    }
 
     try {
       const sessionId = SessionManager.generateRandomSessionKey();
