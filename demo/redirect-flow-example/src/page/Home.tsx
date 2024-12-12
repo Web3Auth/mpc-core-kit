@@ -1,5 +1,6 @@
 import { Card } from "../components/Card";
 import { DocDetails } from "../components/DocDetails";
+import { FactorCard } from "../components/FactorsCard";
 import { Link } from "../components/Link";
 import Loader from "../components/Loader";
 import { AuthenticatorQRCodeCard } from "../components/mfa-cards/authenticator/AuthenticatorScan";
@@ -25,10 +26,11 @@ const HomePage = () => {
         <div className="break-inside-avoid space-y-4 mb-4">
           <UserCard />
           <PasskeysCard />
-          <MfaCard />
-        </div>
+          <FactorCard />
+          </div>
         {/* mfa */}
         <div className="break-inside-avoid lg:break-after-avoid xl:break-after-column mb-4 space-y-4">
+          <MfaCard />
           {addShareType === "phrase" && <CreateMnemonicPhraseCard />}
           {addShareType === "authenticator" && <AuthenticatorQRCodeCard />}
           {addShareType === "password" && <GetPasswordCard />}
