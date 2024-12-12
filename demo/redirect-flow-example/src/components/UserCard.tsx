@@ -10,7 +10,7 @@ import { HiOutlineCheckCircle } from "react-icons/hi";
 import { Link } from "./Link";
 
 const UserCard: React.FC = () => {
-  const { coreKitInstance, web3, coreKitStatus, drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo } = useCoreKit();
+  const { web3, drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo } = useCoreKit();
 
   const [openConsole, setOpenConsole] = React.useState(false);
 
@@ -36,24 +36,6 @@ const UserCard: React.FC = () => {
     }
   }, [drawerInfo]);
 
-  const listFactors = async () => {
-    if (!coreKitInstance) {
-      throw new Error("coreKitInstance not found");
-    }
-    const temp = await coreKitInstance.getDeviceFactor();
-    // const temp2 = await coreKitInstance.tKey.reconstructKey();
-    const factorPubs = coreKitInstance.tKey.metadata.factorPubs;
-    if (!factorPubs) {
-      throw new Error("factorPubs not found");
-    }
-    const pubsHex = factorPubs[coreKitInstance.tKey.tssTag].map((pub) => {
-      return pub.toSEC1(factorKeyCurve, true).toString("hex");
-    });
-    console.log(pubsHex);
-    coreKitInstance.tKey.getMetadata().getGeneralStoreDomain("tssSecurityQuestion:default");
-  };
-
-
   const getAccounts = async () => {
     if (!web3) {
       return;
@@ -65,7 +47,7 @@ const UserCard: React.FC = () => {
 
   React.useEffect(() => {
     getAccounts();
-  }, [web3]);
+  }, [userInfo, web3]);
 
   const handleConsoleBtn = () => {
     setDrawerHeading("User Info Console");
@@ -106,7 +88,7 @@ const UserCard: React.FC = () => {
                 src={userInfo.profileImage}
                 className="w-full h-full"
                 alt="Profile"
-                onError={(err) => {
+                onError={() => {
                   setImageError(true);
                 }}
               />

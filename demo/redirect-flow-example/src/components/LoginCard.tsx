@@ -64,7 +64,7 @@ const LoginCard: React.FC<LoginCardProps> = ({handleEmailPasswordLess, handleSoc
               label="Email"
               pill={true}
               type="email"
-              className="w-full"
+              className="w-full rounded-md"
               required
               placeholder="E.g. name@example.com"
             />
