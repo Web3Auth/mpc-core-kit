@@ -2,6 +2,7 @@ import "./index.css";
 import "../global.css";
 
 import ReactDOM from "react-dom/client";
+import * as serviceWorkerRegistration from './serviceWorkerRegistration';
 
 import App from "./App";
 import React from "react";
@@ -21,7 +22,6 @@ root.render(
         <Header />
         <Routes>
           <Route path="/" element={<App />} />
-          <Route path="/serviceworker/redirect" element={<App />} />
           <Route path="/recovery" element={<RecoveryOptionsCard />} />
           <Route path="/verify-phrase" element={<VerifyMnemonicPhraseCard />} />
           <Route path="/verify-authenticator" element={<VerifyAuthenticatorCodeCard />} />
@@ -31,3 +31,9 @@ root.render(
     </CoreKitProvider>
   </React.StrictMode>
 );
+
+
+// If you want your app to work offline and load faster, you can change
+// unregister() to register() below. Note this comes with some pitfalls.
+// Learn more about service workers: https://cra.link/PWA
+serviceWorkerRegistration.register();
