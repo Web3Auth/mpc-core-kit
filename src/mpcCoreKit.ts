@@ -212,6 +212,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public getContext(): IContext {
     return {
       status: this.status,
+      config: this.options,
       state: this.state,
       sessionId: this.sessionId,
       serviceProvider: this.torusSp,
