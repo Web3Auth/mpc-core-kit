@@ -251,7 +251,7 @@ const AuthenticatorQRCodeCard: React.FC = () => {
         <Card className="px-8 py-6 w-full !rounded-2xl !shadow-modal !border-0 dark:!border-app-gray-800 dark:!shadow-dark">
           <div className="text-center">
             <h3 className="font-semibold text-app-gray-900 dark:text-app-white mb-4">Verify Authenticator Code</h3>
-              <TextField value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter code" className="mb-4" classes={{
+              <TextField value={code} onChange={(e) => setCode(e.target.value)} placeholder="Enter code" className="mb-4 rounded-md" classes={{
                 container: "flex flex-col justify-center items-center",
               }}/>
             <Button loading={isLoading} className="w-full" variant="primary" onClick={verifyNewAuthenticator}>

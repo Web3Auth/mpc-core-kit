@@ -82,7 +82,7 @@ const GetPasswordCard: React.FC = () => {
           onChange={(e) => setPassword(e.target.value)}
           type="password"
           placeholder="Enter password"
-          className="mb-4"
+          className="mb-4 rounded-lg"
           classes={{
             container: "flex flex-col justify-center items-center",
           }}

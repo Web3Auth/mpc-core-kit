@@ -51,7 +51,7 @@ const TransactionCard: React.FC = () => {
           onChange={(e) => setAmount(e.target.value)}
           label="Amount (ETH)"
           placeholder="Enter amount in ETH"
-          className="mb-4"
+          className="mb-4 rounded-md"
           classes={{
             container: "flex flex-col justify-center items-center",
           }}

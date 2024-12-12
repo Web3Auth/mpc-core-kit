@@ -80,7 +80,7 @@ const ConfirmPasswordCard: React.FC = () => {
               onChange={(e) => setPassword(e.target.value)}
               type="password"
               placeholder="Confirm password"
-              className="mb-4"
+              className="mb-4 rounded-md"
               classes={{
                 container: "flex flex-col justify-center items-center",
               }}
