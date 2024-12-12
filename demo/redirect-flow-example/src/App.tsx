@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   Web3AuthMPCCoreKit,
   WEB3AUTH_NETWORK,
-  SubVerifierDetailsParams,
   COREKIT_STATUS,
   makeEthereumSigner,
   AggregateVerifierLoginParams,
@@ -117,9 +116,9 @@ export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
 };
 
 function App() {
-  const { coreKitInstance, passkeyPlugin, setCoreKitInstance, coreKitStatus, setCoreKitStatus, provider, setProvider, setWeb3 } = useCoreKit();
+  const { coreKitInstance, passkeyPlugin, setCoreKitInstance, coreKitStatus, setCoreKitStatus, provider, setProvider, setWeb3, setUserInfo, globalLoading, getShareDescriptions } = useCoreKit();
 
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
   const [selectedTssLib, setSelectedTssLib] = useState<TssLib>(tssLibDkls);
 
@@ -136,16 +135,17 @@ function App() {
   // decide whether to rehydrate session
   const init = async () => {
     // Example config to handle redirect result manually
+    setIsLoading(true);
     if (coreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
-      await coreKitInstance.init({ rehydrate: true, handleRedirectResult: true });
+      await coreKitInstance.init({ rehydrate: true, handleRedirectResult: false });
       setCoreKitInstance(coreKitInstance);
       await passkeyPlugin.initWithMpcCoreKit(coreKitInstance);
-      if (window.location.hash.includes("state")) {
-        // await coreKitInstance.handleRedirectResult();
-      }
+      setIsLoading(false);
     }
     if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
       await setupProvider();
+      setUserInformation();
+      setIsLoading(false);
     }
 
     if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
@@ -154,16 +154,31 @@ function App() {
         "required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]"
       );
     }
-
     console.log("coreKitInstance.status", coreKitInstance.status);
     setCoreKitStatus(coreKitInstance.status);
   };
 
   useEffect(() => {
+    const checkForRecoveryInitiation = async () => {
+      if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
+        navigate("/recovery");
+        uiConsole(
+          "required more shares, please enter your backup/ device factor key, or reset account unrecoverable once reset, please use it with caution]"
+        );
+      }
+    }
+    checkForRecoveryInitiation();
+  }, [coreKitStatus])
+
+  useEffect(() => {
+    setIsLoading(globalLoading || false);
+  }, [globalLoading]);
+
+  useEffect(() => {
     const instance = new Web3AuthMPCCoreKit({
       web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
       web3AuthNetwork: selectedNetwork,
-      uxMode: "redirect",
+      uxMode: "popup",
       manualSync: false,
       storage: window.localStorage,
       tssLib: selectedTssLib,
@@ -190,32 +205,30 @@ function App() {
       if (!coreKitInstance) {
         throw new Error("initiated to login");
       }
-       const verifierConfig = {
-        aggregateVerifierIdentifier: "web-aggregate-core-kit",
-        subVerifierDetailsArray: [
-          {
-            typeOfLogin: "google",
-            verifier: "web3-aggreate-google",
-            clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
-            jwtParams: {
-              verifierIdField: "email",
-            },
-          },
-        ],
-       };
+      const verifierConfig = {
+        subVerifierDetails: {
+          typeOfLogin: "google",
+          verifier: "w3a-google-demo",
+          clientId: "519228911939-cri01h55lsjbsia1k7ll6qpalrus75ps.apps.googleusercontent.com",
+        },
+      };
       // const verifierConfig = {
-      //   subVerifierDetails: {
-      //     typeOfLogin: "google",
-      //     verifier: "w3-google-temp",
-      //     clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
-      //   },
-      // } as SubVerifierDetailsParams;
+      //   aggregateVerifierIdentifier: "web-aggregate-core-kit",
+      //   subVerifierDetails: [
+      //     {
+      //       typeOfLogin: "google",
+      //       verifier: "web3-aggreate-google",
+      //       clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
+      //       },
+      //   ],
+      // };
 
       await coreKitInstance.loginWithOAuth(verifierConfig as any);
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await coreKitInstance.commitChanges(); // Needed for new accounts
       }
       setCoreKitStatus(coreKitInstance.status);
+      setUserInformation();
     } catch (error: unknown) {
       console.error(error);
     } finally {
@@ -249,10 +262,11 @@ function App() {
 
       await coreKitInstance.loginWithOAuth(verifierConfig);
       // IMP END - Login
-      setCoreKitStatus(coreKitInstance.status);
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await coreKitInstance.commitChanges(); // Needed for new accounts
       }
+      setCoreKitStatus(coreKitInstance.status);
+      setUserInformation();
     } catch (error: unknown) {
       uiConsole(error);
     } finally {
@@ -260,6 +274,11 @@ function App() {
     }
   };
 
+  const setUserInformation = () => {
+    const userInfo = coreKitInstance.getUserInfo();
+    setUserInfo(userInfo);
+    getShareDescriptions();
+  }
   return (
     <div className="container bg-app-gray-100 dark:bg-app-gray-900">
       {isLoading ? (
@@ -274,7 +293,9 @@ function App() {
             coreKitStatus === COREKIT_STATUS.LOGGED_IN ? (
               <HomePage />
             ) : (
-              <LoginCard handleEmailPasswordLess={loginWithAuth0EmailPasswordless} handleSocialLogin={login} />
+              <>
+                <LoginCard handleEmailPasswordLess={loginWithAuth0EmailPasswordless} handleSocialLogin={login} />
+              </>
             )
           }
         </>
