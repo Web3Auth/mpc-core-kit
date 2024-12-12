@@ -56,7 +56,7 @@ const TransactionCard: React.FC = () => {
             container: "flex flex-col justify-center items-center",
           }}
         />
-        <Button disabled={isLoading} loading={isLoading} className="w-full" variant="primary" onClick={sendTransaction}>
+        <Button disabled={isLoading} loading={isLoading} className="w-full" variant="secondary" onClick={sendTransaction}>
           Send Transaction
         </Button>
       </div>

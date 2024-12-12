@@ -49,11 +49,11 @@ const SignPersonalMessageCard: React.FC = () => {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Enter your message"
-          className="mb-4 w-full p-2 border border-app-gray-300 rounded-md dark:bg-app-gray-700 dark:border-app-gray-600 dark:text-app-white"
+          className="min-w-[300px] mb-4 w-full p-2 border border-app-gray-300 rounded-md dark:bg-app-gray-700 dark:border-app-gray-600 dark:text-app-white"
           rows={4}
           style={{ resize: "none", whiteSpace: "pre-wrap" }}
         />
-        <Button disabled={isLoading} loading={isLoading} className="w-full" variant="primary" onClick={signMessage}>
+        <Button disabled={isLoading} loading={isLoading} className="w-full" variant="secondary" onClick={signMessage}>
           Sign Message
         </Button>
       </div>

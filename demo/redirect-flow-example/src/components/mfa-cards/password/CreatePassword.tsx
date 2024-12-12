@@ -6,16 +6,44 @@ import { useCoreKit } from "../../../composibles/useCoreKit";
 import { COREKIT_STATUS, FactorKeyTypeShareDescription, TssSecurityQuestion, TssShareType } from "@web3auth/mpc-core-kit";
 
 const GetPasswordCard: React.FC = () => {
-  const { coreKitInstance, setDrawerHeading, setDrawerInfo } = useCoreKit();
+  const { coreKitInstance, setDrawerHeading, setDrawerInfo, setAddShareType } = useCoreKit();
   const [password, setPassword] = React.useState("");
   const securityQuestion = React.useMemo(() => new TssSecurityQuestion(), []);
   const question = "Enter your password";
   const [isLoading, setIsLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const validatePassword = (password: string) => {
+    if (password.length < 8) {
+      return "Password must be at least 8 characters long.";
+    }
+    if (!/[A-Z]/.test(password)) {
+      return "Password must contain at least one uppercase letter.";
+    }
+    if (!/[a-z]/.test(password)) {
+      return "Password must contain at least one lowercase letter.";
+    }
+    if (!/[0-9]/.test(password)) {
+      return "Password must contain at least one number.";
+    }
+    if (!/[!@#$%^&*]/.test(password)) {
+      return "Password must contain at least one special character.";
+    }
+    return "";
+  };
 
   const createSecurityQuestion = async () => {
     setIsLoading(true);
+    const errorMessage = validatePassword(password);
+    if (errorMessage) {
+      setError(errorMessage);
+      setIsLoading(false);
+      return;
+    }
+    setError("");
     try {
       if (!password) {
+        setIsLoading(false);
         return;
       }
       if (!coreKitInstance) {
@@ -24,22 +52,18 @@ const GetPasswordCard: React.FC = () => {
       if (coreKitInstance.getTssFactorPub().length === 1) {
         await coreKitInstance.enableMFA({}, false);
       }
-      const factorKey = await securityQuestion.setSecurityQuestion({
+      await securityQuestion.setSecurityQuestion({
         mpcCoreKit: coreKitInstance,
         question,
         answer: password,
         shareType: TssShareType.RECOVERY,
       });
-      // await coreKitInstance.enableMFA({
-      //   factorKey: new BN(factorKey, 16),
-      //   additionalMetadata: { "shareType": TssShareType.DEVICE.toString() },
-      //   shareDescription: FactorKeyTypeShareDescription.PasswordShare,
-      // });
       let result = securityQuestion.getQuestion(coreKitInstance);
       console.log("Security Question: ", result);
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await coreKitInstance.commitChanges();
       }
+      setAddShareType("");
       setDrawerHeading("Security Question");
       setDrawerInfo("Security question has been set successfully");
     } catch (error) {
@@ -56,7 +80,6 @@ const GetPasswordCard: React.FC = () => {
         <TextField
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          label="Password"
           type="password"
           placeholder="Enter password"
           className="mb-4"
@@ -64,6 +87,7 @@ const GetPasswordCard: React.FC = () => {
             container: "flex flex-col justify-center items-center",
           }}
         />
+        {error && <p className="text-app-red-400 text-sm mb-4">{error}</p>}
         <Button loading={isLoading} className="w-full" variant="primary" onClick={createSecurityQuestion}>
           Proceed
         </Button>
