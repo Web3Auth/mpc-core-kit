@@ -375,7 +375,6 @@ export interface ICoreKit {
    */
   sessionId: string;
 
-  getContext(): IContext;
   /**
    * The function used to initailise the state of MPCCoreKit
    * Also is useful to resume an existing session.

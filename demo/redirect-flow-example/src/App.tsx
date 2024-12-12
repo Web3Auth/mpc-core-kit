@@ -191,16 +191,12 @@ function App() {
   const rehydrate = true;
   const init = async (newCoreKitInstance: Web3AuthMPCCoreKit) => {
     coreKitInstance.current = newCoreKitInstance;
-    mpcCoreKitContext.current = newCoreKitInstance.getContext();
 
     // Example config to handle redirect result manually
     if (newCoreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
       await newCoreKitInstance.init({ handleRedirectResult: false, rehydrate });
-      if (!mpcCoreKitContext.current) {
-        throw new Error("mpcCoreKitContext not found");
-      }
       const pkeyPlugin = new PasskeysPlugin( 
-        mpcCoreKitContext.current,
+        coreKitInstance.current.getContext,
         {
           baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1"
         });

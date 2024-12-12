@@ -73,10 +73,12 @@ import {
   scalarBNToBufferSEC1,
 } from "./utils";
 
-export class Web3AuthMPCCoreKit implements ICoreKit {
+export class Web3AuthMPCCoreKit implements ICoreKit, IContext {
   public state: Web3AuthState = { accountIndex: 0 };
 
   public torusSp: TSSTorusServiceProvider | null = null;
+
+  serviceProvider: TSSTorusServiceProvider;
 
   private options: Web3AuthOptionsWithDefaults;
 
@@ -106,8 +108,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private sessionSigGenerator: ISessionSigGenerator;
 
-  private readonly context: IContext;
-
   constructor(options: Web3AuthOptions) {
     if (!options.web3AuthClientId) {
       throw CoreKitError.clientIdInvalid();
@@ -134,7 +134,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
     if (options.disableSessionManager === undefined) options.disableSessionManager = false;
-    this.sessionSigGenerator = new DefaultSessionSigGeneratorPlugin(this.getContext());
+    this.sessionSigGenerator = new DefaultSessionSigGeneratorPlugin(this);
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
@@ -146,18 +146,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     TorusUtils.setSessionTime(this.options.sessionTime);
-
-    this.context = {
-      status: this.status,
-      config: this.options,
-      state: this.state,
-      serviceProvider: this.torusSp,
-      updateState: this.updateState.bind(this),
-      getUserInfo: this.getUserInfo.bind(this),
-      logout: this.logout.bind(this),
-      setupTkey: this.setupTkey.bind(this),
-      setCustomSessionSigGenerator: this.setCustomSessionSigGenerator.bind(this),
-    } as const;
   }
 
   get tKey(): TKeyTSS {
@@ -221,10 +209,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private get useClientGeneratedTSSKey(): boolean {
     return this._sigType === "ed25519" && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
-  }
-
-  public getContext(): Readonly<IContext> {
-    return this.context;
   }
 
   public setCustomSessionSigGenerator(sessionSigGenerator: ISessionSigGenerator) {
@@ -1018,48 +1002,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.state = { ...this.state, ...newState };
   }
 
-  protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
-    this.atomicCallStackCounter += 1;
-
-    this.tkey.manualSync = true;
-    try {
-      const r = await f();
-      if (this.atomicCallStackCounter === 1) {
-        if (!this.options.manualSync) {
-          await this.commitChanges();
-        }
-      }
-      return r;
-    } catch (error) {
-      throw error as Error;
-    } finally {
-      this.atomicCallStackCounter -= 1;
-      if (this.atomicCallStackCounter === 0) {
-        this.tkey.manualSync = this.options.manualSync;
-      }
-    }
-  }
-
-  private async importTssKey(tssKey: string, factorPub: Point, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
-    if (!this.state.signatures) {
-      throw CoreKitError.signaturesNotPresent("Signatures not present in state when importing tss key.");
-    }
-
-    await this.tKey.importTssKey(
-      { tag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPub, newTSSIndex },
-      { authSignatures: this.state.signatures }
-    );
-  }
-
-  private getTssNonce(): number {
-    if (!this.tKey.metadata.tssNonces || this.tKey.metadata.tssNonces[this.tKey.tssTag] === undefined) {
-      throw CoreKitError.tssNoncesMissing(`tssNonce not present for tag ${this.tKey.tssTag}`);
-    }
-    const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
-    return tssNonce;
-  }
-
-  private async setupTkey(params?: {
+  public async setupTkey(params?: {
     providedImportKey?: string;
     sfaLoginResponse?: TorusKey | TorusLoginResponse | TorusAggregateLoginResponse;
     userInfo?: UserInfo;
@@ -1113,6 +1056,47 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
       await this.handleExistingUser();
     }
+  }
+
+  protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
+    this.atomicCallStackCounter += 1;
+
+    this.tkey.manualSync = true;
+    try {
+      const r = await f();
+      if (this.atomicCallStackCounter === 1) {
+        if (!this.options.manualSync) {
+          await this.commitChanges();
+        }
+      }
+      return r;
+    } catch (error) {
+      throw error as Error;
+    } finally {
+      this.atomicCallStackCounter -= 1;
+      if (this.atomicCallStackCounter === 0) {
+        this.tkey.manualSync = this.options.manualSync;
+      }
+    }
+  }
+
+  private async importTssKey(tssKey: string, factorPub: Point, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
+    if (!this.state.signatures) {
+      throw CoreKitError.signaturesNotPresent("Signatures not present in state when importing tss key.");
+    }
+
+    await this.tKey.importTssKey(
+      { tag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPub, newTSSIndex },
+      { authSignatures: this.state.signatures }
+    );
+  }
+
+  private getTssNonce(): number {
+    if (!this.tKey.metadata.tssNonces || this.tKey.metadata.tssNonces[this.tKey.tssTag] === undefined) {
+      throw CoreKitError.tssNoncesMissing(`tssNonce not present for tag ${this.tKey.tssTag}`);
+    }
+    const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
+    return tssNonce;
   }
 
   // mutation function
