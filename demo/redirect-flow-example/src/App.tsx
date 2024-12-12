@@ -142,11 +142,7 @@ function App() {
       await passkeyPlugin.initWithMpcCoreKit(coreKitInstance);
       setIsLoading(false);
     }
-    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
-      await setupProvider();
-      setUserInformation();
-      setIsLoading(false);
-    }
+    setupProviderPostLogin();
 
     if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
       navigate("/recovery");
@@ -158,6 +154,14 @@ function App() {
     setCoreKitStatus(coreKitInstance.status);
   };
 
+  const setupProviderPostLogin = async () => {
+    if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
+      await setupProvider();
+      setUserInformation();
+      setIsLoading(false);
+    }
+  }
+
   useEffect(() => {
     const checkForRecoveryInitiation = async () => {
       if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
@@ -168,6 +172,7 @@ function App() {
       }
     }
     checkForRecoveryInitiation();
+    setupProviderPostLogin();
   }, [coreKitStatus])
 
   useEffect(() => {
