@@ -85,15 +85,6 @@ const Button = React.forwardRef<HTMLButtonElement | HTMLAnchorElement, ButtonPro
         disabled={loading || props.disabled || loadingWithText}
         {...(props as React.ButtonHTMLAttributes<HTMLButtonElement> & React.AnchorHTMLAttributes<HTMLAnchorElement>)}
       >
-        {(loading || loadingWithText) && (
-          <span
-            className={cn(
-              "loading loading-spinner w-5 h-5",
-              { "mr-2": !loading },
-              classes.loader
-            )}
-          />
-        )}
         {loading && <Loader size={"sm"} containerClass="flex-none" />}
         {!loading && children}
       </Component>
