@@ -205,23 +205,23 @@ function App() {
       if (!coreKitInstance) {
         throw new Error("initiated to login");
       }
-      // const verifierConfig = {
-      //   subVerifierDetails: {
-      //     typeOfLogin: "google",
-      //     verifier: "w3-google-temp",
-      //     clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
-      //   },
-      // };
       const verifierConfig = {
-        aggregateVerifierIdentifier: "web-aggregate-core-kit",
-        subVerifierDetailsArray: [
-          {
-            typeOfLogin: "google",
-            verifier: "w3-google-temp",
-            clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
-            },
-        ],
+        subVerifierDetails: {
+          typeOfLogin: "google",
+          verifier: "w3-google-temp",
+          clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
+        },
       };
+      // const verifierConfig = {
+      //   aggregateVerifierIdentifier: "web-aggregate-core-kit",
+      //   subVerifierDetailsArray: [
+      //     {
+      //       typeOfLogin: "google",
+      //       verifier: "w3-google-temp",
+      //       clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
+      //     },
+      //   ],
+      // };
 
       await coreKitInstance.loginWithOAuth(verifierConfig as any);
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
@@ -245,7 +245,7 @@ function App() {
 
       // IMP START - Login
       const verifierConfig = {
-        aggregateVerifierIdentifier: "web-aggregate-core-kit",
+        aggregateVerifierIdentifier: "aggregate-sapphire",
         subVerifierDetailsArray: [
           {
             typeOfLogin: "jwt",
