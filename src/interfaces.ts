@@ -335,11 +335,11 @@ export interface Web3AuthOptions {
 }
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
-export interface IContext {
+export interface IMPCContext {
   config: Web3AuthOptionsWithDefaults;
   status: COREKIT_STATUS;
   state: Web3AuthState;
-  serviceProvider: TSSTorusServiceProvider | null;
+  torusSp: TSSTorusServiceProvider | null;
   updateState: (newState: Partial<Web3AuthState>) => void;
   getUserInfo: () => UserInfo;
   logout: () => Promise<void>;

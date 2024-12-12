@@ -196,7 +196,7 @@ function App() {
     if (newCoreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
       await newCoreKitInstance.init({ handleRedirectResult: false, rehydrate });
       const pkeyPlugin = new PasskeysPlugin( 
-        coreKitInstance.current.getContext,
+        newCoreKitInstance,
         {
           baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1"
         });

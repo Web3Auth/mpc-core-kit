@@ -38,9 +38,9 @@ import {
   CoreKitMode,
   CreateFactorParams,
   EnableMFAParams,
-  IContext,
   ICoreKit,
   IFactorKey,
+  IMPCContext,
   InitParams,
   JWTLoginParams,
   MPCKeyDetails,
@@ -73,12 +73,10 @@ import {
   scalarBNToBufferSEC1,
 } from "./utils";
 
-export class Web3AuthMPCCoreKit implements ICoreKit, IContext {
+export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   public state: Web3AuthState = { accountIndex: 0 };
 
   public torusSp: TSSTorusServiceProvider | null = null;
-
-  serviceProvider: TSSTorusServiceProvider;
 
   private options: Web3AuthOptionsWithDefaults;
 
@@ -147,6 +145,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IContext {
 
     TorusUtils.setSessionTime(this.options.sessionTime);
   }
+
+  serviceProvider: TSSTorusServiceProvider;
 
   get tKey(): TKeyTSS {
     if (this.tkey === null) {
