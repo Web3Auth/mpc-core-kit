@@ -46,7 +46,6 @@ const LoginCard: React.FC<LoginCardProps> = ({handleEmailPasswordLess, handleSoc
           pill
           socialLogins={socialLogins}
           showInput={false}
-          //   className="mt-6"
           inputExpandBtnProps={{
             pill: true,
             size: "xs",
@@ -58,19 +57,19 @@ const LoginCard: React.FC<LoginCardProps> = ({handleEmailPasswordLess, handleSoc
           primaryBtn="input"
           onSocialLoginClick={ handleSocial }
         >
-          <form onSubmit={handlePasswordlessLogin}>
+          <form onSubmit={handlePasswordlessLogin} className="mt-4">
             <TextField
               value={loginHint}
               onChange={(e) => setLoginHint(e.target.value)}
-              label="Email or Phone"
+              label="Email"
               pill={true}
               type="email"
               className="w-full"
               required
-              placeholder="E.g. +00-123455/name@example.com"
+              placeholder="E.g. name@example.com"
             />
             <Button type="submit" className="my-4" variant="primary" block>
-              Continue with Email or Phone
+              Continue with Email
             </Button>
           </form>
         </LoginForm>
