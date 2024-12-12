@@ -714,11 +714,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return p.getX().toBuffer("be", 32);
   }
 
-  public async precompute_secp256k1(): Promise<{
+  public async precompute_secp256k1(params?: { sessionSignatures?: string[] }): Promise<{
     client: Client;
     serverCoeffs: Record<string, string>;
     signatures: string[];
   }> {
+    const { sessionSignatures } = params || {};
     this.wasmLib = await this.loadTssWasm();
     // PreSetup
     const { tssShareIndex } = this.state;
@@ -767,7 +768,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.activeSessionNotFound();
     }
 
-    const signatures = await this.getSessionSignatures();
+    const signatures = sessionSignatures || (await this.getSessionSignatures());
     if (!signatures) {
       throw CoreKitError.signaturesNotPresent();
     }
@@ -1254,7 +1255,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       if (!postBoxKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw CoreKitError.userNotLoggedIn();
       }
-      const sessionSigs = await this.getSessionSignatures();
+      const sessionSigs = this.state.signatures;
       const payload: SessionData = {
         postBoxKey,
         postboxKeyNodeIndexes: postboxKeyNodeIndexes || [],
@@ -1475,7 +1476,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         throw error;
       }
       // Retry with new client if precomputed client failed, this is to handle the case when precomputed session might have expired
-      const { client: newClient, serverCoeffs: newServerCoeffs } = await this.precompute_secp256k1();
+      const { client: newClient, serverCoeffs: newServerCoeffs } = await this.precompute_secp256k1({ sessionSignatures: signatures });
       const result = await executeSign(newClient, newServerCoeffs, data, signatures);
 
       return result;
