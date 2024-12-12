@@ -35,7 +35,12 @@
     "react-router-dom": "^7.0.2",
     "tailwind-merge": "^2.5.2",
     "typescript": "^5.6.3",
-    "web3": "^4.13.0"
+    "web3": "^4.13.0",
+    "workbox-core": "^7.3.0",
+    "workbox-expiration": "^7.3.0",
+    "workbox-precaching": "^7.3.0",
+    "workbox-routing": "^7.3.0",
+    "workbox-strategies": "^7.3.0"
   },
   "scripts": {
     "start": "vite",
@@ -88,11 +93,11 @@
     "os-browserify": "^0.3.0",
     "path-browserify": "^1.0.1",
     "postcss": "^8.4.49",
-    "tailwindcss": "^3.4.16",
     "prettier-plugin-tailwindcss": "^0.5.14",
     "process": "^0.11.10",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",
+    "tailwindcss": "^3.4.16",
     "url": "^0.11.4"
   }
 }

@@ -245,11 +245,11 @@ function App() {
 
       // IMP START - Login
       const verifierConfig = {
-        aggregateVerifierIdentifier: "web-aggregate-core-kit",
+        aggregateVerifierIdentifier: "aggregate-sapphire",
         subVerifierDetailsArray: [
           {
             typeOfLogin: "jwt",
-            verifier: "web3-aggregate-passwordless",
+            verifier: "w3a-a0-email-passwordless",
             clientId: "QiEf8qZ9IoasbZsbHvjKZku4LdnRC1Ct",
             jwtParams: {
               // connection: "passwordless",
