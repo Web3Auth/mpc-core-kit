@@ -20,7 +20,7 @@ const HomePage = () => {
 
   return (
     <div className="flex-1 flex py-4 px-4 sm:py-6 sm:px-10">
-      <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 break-before-avoid">
+      <div className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 break-before-avoid w-full">
         {/* actions */}
         <div className="break-inside-avoid space-y-4 mb-4">
           <UserCard />
