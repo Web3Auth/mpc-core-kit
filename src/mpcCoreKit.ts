@@ -641,15 +641,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     return this.atomicSync(async () => {
-      if (this.state.remoteClient) {
-        if (shareType === this.state.tssShareIndex) {
-          await this.tkey.remoteCopyFactorPub({ newFactorPub: factorPub, tssIndex: shareType, remoteClient: this.state.remoteClient });
-        } else {
-          await this.tkey.remoteAddFactorPub({ newFactorPub: factorPub, newFactorTSSIndex: shareType, remoteClient: this.state.remoteClient });
-        }
-      } else {
-        await this.copyOrCreateShare(shareType, factorPub);
-      }
+      await this.copyOrCreateShare(shareType, factorPub);
       await this.backupMetadataShare(factorKey);
       await this.addFactorDescription({ factorKey, shareDescription, additionalMetadata, updateMetadata: false });
 
@@ -848,11 +840,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         throw CoreKitError.factorInUseCannotBeDeleted("Cannot delete current active factor");
       }
 
-      if (this.state.remoteClient) {
-        await this.tkey.remoteDeleteFactorPub({ factorPubToDelete: factorPub, remoteClient: this.state.remoteClient });
-      } else {
-        await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
-      }
+      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
       const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
       const allDesc = this.tKey.metadata.getShareDescription();
       const keyDesc = allDesc[factorPubHex];
