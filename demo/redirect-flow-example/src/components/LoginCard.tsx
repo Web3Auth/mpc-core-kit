@@ -6,20 +6,38 @@ import { Button } from "./Button";
 import { LoginForm } from "./LoginForm";
 import { useSocialLogins } from "./useSocialLogin";
 import { SocialLoginObj } from "./types";
+import { Dropdown } from "./DropDown";
+import { KeyType } from "@tkey/common-types";
+import { useCoreKit } from "../composibles/useCoreKit";
 
 interface LoginCardProps {
   handleEmailPasswordLess: () => void;
   handleSocialLogin: (item: SocialLoginObj) => void;
 }
 
-const LoginCard: React.FC<LoginCardProps> = ({handleEmailPasswordLess, handleSocialLogin}) => {
+const LoginCard: React.FC<LoginCardProps> = ({ handleEmailPasswordLess, handleSocialLogin }) => {
+  const { setKeyType } = useCoreKit();
   const [loginHint, setLoginHint] = React.useState<string>("");
+  const [defaultValue, setDefaultValue] = React.useState(localStorage.getItem("keyType") || KeyType.secp256k1);
+  const keyOptions = [
+    {
+      name: "Ethereum (secp256k1)",
+      value: KeyType.secp256k1,
+      icon: <img src={"https://cryptologos.cc/logos/ethereum-eth-logo.svg?v=040"} alt={"Ethereum"} width={20} height={20} className="h-5 w-5" />,
+    },
+    {
+      name: "Solana (ed25519)",
+      value: KeyType.ed25519,
+      icon: (
+        <img src={"https://solana.com/_next/static/media/solanaLogoMark.17260911.svg"} alt={"Solana"} width={20} height={20} className="h-5 w-5" />
+      ),
+    },
+  ];
 
   const socialLogins = useSocialLogins();
 
   const handlePasswordlessLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("loginHint", loginHint);
     // Handle passwordless login
     handleEmailPasswordLess();
   };
@@ -27,6 +45,12 @@ const LoginCard: React.FC<LoginCardProps> = ({handleEmailPasswordLess, handleSoc
   const handleSocial = (item: SocialLoginObj, index: number) => {
     // Handle social login
     handleSocialLogin(item);
+  };
+
+  const handleSwitchKey = (val: string | string[]) => {
+    const keyType = val as KeyType;
+    if (!keyType || !setKeyType) throw new Error("key type is undefined");
+    setKeyType(keyType);
   };
 
   return (
@@ -39,8 +63,26 @@ const LoginCard: React.FC<LoginCardProps> = ({handleEmailPasswordLess, handleSoc
           <div className="mb-6 flex justify-center items-center">
             <img className="h-11 w-auto" src="https://images.web3auth.io/web3auth-logo-w.svg" alt="" />
           </div>
-          <p className="text-2xl text-center font-bold text-app-gray-900 dark:text-app-white">Welcome to Web3Auth</p>
-          <p className="text-base text-center mb-5 text-app-gray-500 dark:text-app-gray-400">Login to continue</p>
+          <p className="text-2xl text-start pl-4 font-bold text-app-gray-900 dark:text-app-white">Welcome to Web3Auth</p>
+          <div className="flex flex-col gap-y-2 justify-around items-center mt-4">
+            <span className="flex flex-row justify-center items-center gap-x-2">
+              <p className="text-lg font-bold text-center text-app-gray-500 dark:text-app-gray-400">Your</p>
+              <Dropdown
+                options={keyOptions}
+                defaultValue={defaultValue}
+                classes={{
+                  container: "w-fit",
+                  inputContainer: "bg-app-primary-100 dark:bg-app-primary-500",
+                }}
+                inputSize="sm"
+                onChange={handleSwitchKey}
+              />
+            </span>
+          </div>
+          <div className="pl-4 flex flex-col gap-y-2 mb-4">
+            <p className="text-lg font-bold text-start text-app-gray-500 dark:text-app-gray-400">Wallet in one Click</p>
+            <p className="text-base text-center text-app-gray-500 dark:text-app-gray-400">Login to continue</p>
+          </div>
         </div>
         <LoginForm
           pill
@@ -55,7 +97,7 @@ const LoginCard: React.FC<LoginCardProps> = ({handleEmailPasswordLess, handleSoc
           expandLabel="View more"
           collapseLabel="View less"
           primaryBtn="input"
-          onSocialLoginClick={ handleSocial }
+          onSocialLoginClick={handleSocial}
         >
           <form onSubmit={handlePasswordlessLogin} className="mt-4">
             <TextField
