@@ -5,10 +5,11 @@ import { Card } from "../../Card";
 import { useCoreKit } from "../../../composibles/useCoreKit";
 import { BN } from "bn.js";
 import { COREKIT_STATUS } from "@web3auth/mpc-core-kit";
+import { KeyType } from "@tkey/common-types";
 
 const RecoveryOptionsCard: React.FC = () => {
   const navigate = useNavigate();
-  const { coreKitInstance, setCoreKitStatus, existingModules } = useCoreKit();
+  const { coreKitInstance, setCoreKitStatus, existingModules, setKeyType } = useCoreKit();
 
   const handleRecoveryOption = (option: string) => {
     navigate(`/verify-${option}`);
@@ -27,6 +28,7 @@ const RecoveryOptionsCard: React.FC = () => {
       input: { message: "KEY_NOT_FOUND" },
     });
     await coreKitInstance.logout();
+    setKeyType(KeyType.secp256k1);
     setCoreKitStatus(COREKIT_STATUS.NOT_INITIALIZED)
     navigate("/");
   }

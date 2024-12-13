@@ -51,6 +51,8 @@ const CreateMnemonicPhraseCard: React.FC = () => {
       setAddShareType("");
     } catch (error) {
       console.error(error);
+      setDrawerHeading(`Seed Phrase`);
+      setDrawerInfo(`Error Setting Seed phrase: ${(error as Error).message || "Failed"}`);
     } finally {
       setIsLoading(false);
     }
