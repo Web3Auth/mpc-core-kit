@@ -574,12 +574,30 @@ export type RemoteFrostSignParams = {
   signatures: string[];
   tssCommits: PointHex[];
   factorEnc: FactorEnc;
+  tssPubKeyHex: string;
+  curve: SupportedCurve;
+
   serverXCoords: number[];
   clientXCoord: number;
   serverCoefficients: string[];
   clientCoefficient: string;
-  tssPubKeyHex: string;
   serverURLs: string[];
-
-  curve: SupportedCurve;
 };
+
+export interface ICustomDklsSignParams {
+  sessionId: string;
+  signatures: string[];
+  tssCommits: PointHex[];
+  factorEnc: FactorEnc;
+  tssPubKeyHex: string;
+  curve: SupportedCurve;
+
+  participatingServerDKGIndexes: number[];
+  clientIndex: number;
+  tssNonce: string;
+  accountNonce: string;
+
+  endpoints: string[];
+  tssWSEndpoints: string[];
+  partyIndexes: number[];
+}
