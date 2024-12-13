@@ -4,18 +4,17 @@ import { Button } from "./Button";
 import { Card } from "./Card";
 import { Drawer } from "./Drawer";
 import { useCoreKit } from "../composibles/useCoreKit";
-import { COREKIT_STATUS, factorKeyCurve } from "@web3auth/mpc-core-kit";
 import { HiOutlineDuplicate } from "react-icons/hi";
 import { HiOutlineCheckCircle } from "react-icons/hi";
 import { Link } from "./Link";
+import useUnifiedRPC from "../composibles/useRpc";
 
 const UserCard: React.FC = () => {
-  const { web3, drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo } = useCoreKit();
-
+  const { drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo, coreKitInstance } = useCoreKit();
+  const { getAccount, account } = useUnifiedRPC();
   const [openConsole, setOpenConsole] = React.useState(false);
 
   const [isCopied, setIsCopied] = React.useState(false);
-  const [account, setAccount] = React.useState<string>("");
   const [imageError, setImageError] = React.useState(false);
   const [currentDrawerHeading, setCurrentDrawerHeading] = React.useState("");
   const [currentDrawerInfo, setCurrentDrawerInfo] = React.useState<any>(null);
@@ -36,18 +35,15 @@ const UserCard: React.FC = () => {
     }
   }, [drawerInfo]);
 
-  const getAccounts = async () => {
-    if (!web3) {
-      return;
-    }
-    const address = (await web3.eth.getAccounts())[0];
-    setAccount(address);
-    return address;
-  };
 
   React.useEffect(() => {
-    getAccounts();
-  }, [userInfo, web3]);
+    const getAccountRPC = async () => {
+      if (coreKitInstance.state.userInfo) {
+        await getAccount();
+      }
+    };
+    getAccountRPC();
+  }, [coreKitInstance]);
 
   const handleConsoleBtn = () => {
     setDrawerHeading("User Info Console");

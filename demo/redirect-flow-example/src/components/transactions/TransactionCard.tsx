@@ -3,40 +3,31 @@ import { useCoreKit } from "../../composibles/useCoreKit";
 import { Button } from "../Button";
 import { Card } from "../Card";
 import { TextField } from "../TextField";
+import useUnifiedRPC from "../../composibles/useRpc";
+import { KeyType } from "@tkey/common-types";
 
 const TransactionCard: React.FC = () => {
   const [amount, setAmount] = React.useState("0.0001");
-  const { web3, setDrawerHeading, setDrawerInfo } = useCoreKit();
+  const { setDrawerHeading, setDrawerInfo, coreKitInstance } = useCoreKit();
   const [isLoading, setIsLoading] = React.useState(false);
+  const { sendTransaction, account } = useUnifiedRPC();
 
-  const sendTransaction = async () => {
-    if (!web3) {
-      console.error("web3 not initialized yet");
-      return;
-    }
+  const sendWeb3AuthTx = async () => {
     setIsLoading(true);
-    const fromAddress = (await web3.eth.getAccounts())[0];
 
-    const destination = "0x2E464670992574A613f10F7682D5057fB507Cc21";
-    const value = web3.utils.toWei(amount, "ether"); // Convert amount to wei
-
-    // Submit transaction to the blockchain and wait for it to be mined
-    console.log("Sending transaction...");
     try {
-      const receipt = await web3.eth.sendTransaction({
-        from: fromAddress,
-        to: destination,
-        value: value,
-      });
-      console.log(receipt);
+      const toAddress = account;
+      if (!toAddress) {
+        console.error("No account found");
+        return;
+      }
+      const receipt = await sendTransaction(toAddress, amount);
       setDrawerHeading("Send Transaction Result");
-      const temp = JSON.stringify(
-        receipt,
-        (key, value) => (typeof value === "bigint" ? value.toString() : value) // return everything else unchanged
-      );
-      setDrawerInfo(`${temp}`);
+      setDrawerInfo(`${receipt}`);
     } catch (error) {
       console.error("Error sending transaction:", error);
+      setDrawerHeading(`Send Transaction Result`);
+      setDrawerInfo(`Error Sending Transaction: ${(error as Error).message || "Sending Transaction failed"}`);
     } finally {
       setIsLoading(false);
     }
@@ -49,14 +40,14 @@ const TransactionCard: React.FC = () => {
         <TextField
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          label="Amount (ETH)"
-          placeholder="Enter amount in ETH"
+          label={`Amount ${coreKitInstance?.keyType === KeyType.ed25519 ? "(SOL)" : "(ETH)"}`}
+          placeholder={`Enter amount in ${coreKitInstance?.keyType === KeyType.ed25519 ? "SOL" : "ETH"}`}
           className="mb-4 rounded-md"
           classes={{
             container: "flex flex-col justify-center items-center",
           }}
         />
-        <Button disabled={isLoading} loading={isLoading} className="w-full" variant="secondary" onClick={sendTransaction}>
+        <Button disabled={isLoading} loading={isLoading} className="w-full" variant="secondary" onClick={sendWeb3AuthTx}>
           Send Transaction
         </Button>
       </div>

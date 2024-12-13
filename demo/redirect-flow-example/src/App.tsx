@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Web3AuthMPCCoreKit,
   WEB3AUTH_NETWORK,
   COREKIT_STATUS,
   makeEthereumSigner,
@@ -11,9 +10,6 @@ import Web3 from "web3";
 import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { KeyType } from "@tkey/common-types";
-import { tssLib as tssLibDkls } from "@toruslabs/tss-dkls-lib";
-import { tssLib as tssLibFrost } from "@toruslabs/tss-frost-lib";
-import { tssLib as tssLibFrostBip340 } from "@toruslabs/tss-frost-lib-bip340";
 
 import bowser from "bowser";
 
@@ -35,7 +31,6 @@ export const generateSecretKey = (): string => {
   return base32.encode(randomBytes).toString().replace(/=/g, "");
 };
 
-type TssLib = typeof tssLibDkls | typeof tssLibFrost | typeof tssLibFrostBip340;
 const PASSKEYS_ALLOWED_MAP = [bowser.OS_MAP.iOS, bowser.OS_MAP.MacOS, bowser.OS_MAP.Android, bowser.OS_MAP.Windows];
 
 const getWindowsVersion = (osVersion: string) => {
@@ -102,25 +97,23 @@ const uiConsole = (...args: any[]): void => {
   console.log(...args);
 };
 
-const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
 
 export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
-  chainId: "0xaa36a7",
-  rpcTarget: "https://rpc.ankr.com/eth_sepolia",
-  displayName: "Ethereum Sepolia Testnet",
-  blockExplorerUrl: "https://sepolia.etherscan.io",
+  chainId: "0x66eee", // Arbitrum Sepolia chain ID
+  rpcTarget: "https://arbitrum-sepolia.blockpi.network/v1/rpc/private",
+  displayName: "Arbitrum Sepolia Testnet",
+  blockExplorerUrl: "https://sepolia.arbiscan.io", // Arbitrum Sepolia block explorer URL
   ticker: "ETH",
   tickerName: "Ethereum",
   decimals: 18,
 };
 
 function App() {
-  const { coreKitInstance, passkeyPlugin, setCoreKitInstance, coreKitStatus, setCoreKitStatus, provider, setProvider, setWeb3, setUserInfo, globalLoading, getShareDescriptions } = useCoreKit();
+  const { coreKitInstance, setCoreKitInstance, coreKitStatus, setCoreKitStatus, setProvider, setUserInfo, globalLoading, getShareDescriptions, provider, setWeb3 } = useCoreKit();
 
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-  const [selectedTssLib, setSelectedTssLib] = useState<TssLib>(tssLibDkls);
 
   async function setupProvider(chainConfig?: CustomChainConfig) {
     if (coreKitInstance.keyType !== KeyType.secp256k1) {
@@ -139,10 +132,9 @@ function App() {
     if (coreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
       await coreKitInstance.init({ rehydrate: true, handleRedirectResult: false });
       setCoreKitInstance(coreKitInstance);
-      await passkeyPlugin.initWithMpcCoreKit(coreKitInstance);
       setIsLoading(false);
     }
-    setupProviderPostLogin();
+    await setupProviderPostLogin();
 
     if (coreKitInstance.status === COREKIT_STATUS.REQUIRED_SHARE) {
       navigate("/recovery");
@@ -176,24 +168,10 @@ function App() {
   }, [coreKitStatus])
 
   useEffect(() => {
-    setIsLoading(globalLoading || false);
-  }, [globalLoading]);
-
-  useEffect(() => {
-    const instance = new Web3AuthMPCCoreKit({
-      web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
-      web3AuthNetwork: selectedNetwork,
-      uxMode: "popup",
-      manualSync: false,
-      storage: window.localStorage,
-      tssLib: selectedTssLib,
-      useDKG: false,
-    });
-    setCoreKitInstance(instance);
-    if (instance.status === COREKIT_STATUS.NOT_INITIALIZED) {
+    if (coreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
       init();
     }
-  }, [selectedTssLib]);
+  }, [coreKitInstance]);
 
   useEffect(() => {
     if (provider) {
@@ -286,7 +264,8 @@ function App() {
   }
   return (
     <div className="container bg-app-gray-100 dark:bg-app-gray-900">
-      {isLoading ? (
+      {/* {JSON.stringify(isLoading)} {coreKitInstance.status} */}
+      {isLoading || globalLoading ? (
         <>
           <div className="h-full flex-grow flex flex-col items-center justify-center">
             <Loader size={"lg"} showLogo={true} />
