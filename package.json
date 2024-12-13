@@ -64,6 +64,7 @@
     "@toruslabs/tss-client": "^3.3.0-alpha.0",
     "@toruslabs/tss-frost-client": "^1.0.0-alpha.0",
     "@toruslabs/tss-frost-common": "^1.0.1",
+    "@web3auth/auth": "^9.6.1",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
     "elliptic": "^6.5.7",

@@ -18,6 +18,7 @@ import { Client } from "@toruslabs/tss-client";
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
 import type { tssLib as TssFrostLibEd25519 } from "@toruslabs/tss-frost-lib";
 import type { tssLib as TssFrostLibBip340 } from "@toruslabs/tss-frost-lib-bip340";
+import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
@@ -336,6 +337,7 @@ export interface Web3AuthOptions {
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
 export interface IMPCContext {
+  stateEmitter: SafeEventEmitter;
   config: Web3AuthOptionsWithDefaults;
   status: COREKIT_STATUS;
   state: Web3AuthState;
@@ -520,3 +522,7 @@ export interface Secp256k1PrecomputedClient {
   serverCoeffs: Record<string, string>;
   signatures: string[];
 }
+
+export type StateEmitterEvents = {
+  LOGOUT: () => void;
+};

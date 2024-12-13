@@ -16,6 +16,7 @@ import type { WasmLib as DKLSWasmLib } from "@toruslabs/tss-dkls-lib";
 import { sign as signFrost } from "@toruslabs/tss-frost-client";
 import type { WasmLib as FrostWasmLibEd25519 } from "@toruslabs/tss-frost-lib";
 import type { WasmLib as FrostWasmLibBip340 } from "@toruslabs/tss-frost-lib-bip340";
+import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 import bowser from "bowser";
 import { ec as EC } from "elliptic";
@@ -48,6 +49,7 @@ import {
   Secp256k1PrecomputedClient,
   SessionData,
   SigType,
+  StateEmitterEvents,
   SubVerifierDetailsParams,
   TkeyLocalStoreData,
   TssLibType,
@@ -77,6 +79,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   public state: Web3AuthState = { accountIndex: 0 };
 
   public torusSp: TSSTorusServiceProvider | null = null;
+
+  public stateEmitter: SafeEventEmitter<StateEmitterEvents>;
 
   private options: Web3AuthOptionsWithDefaults;
 
@@ -136,7 +140,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);
-
+    this.stateEmitter = new SafeEventEmitter<StateEmitterEvents>();
     if (!options.disableSessionManager) {
       this.sessionManager = new SessionManager<SessionData>({
         sessionTime: options.sessionTime,
@@ -145,8 +149,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
     TorusUtils.setSessionTime(this.options.sessionTime);
   }
-
-  serviceProvider: TSSTorusServiceProvider;
 
   get tKey(): TKeyTSS {
     if (this.tkey === null) {
@@ -866,6 +868,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
     this.resetState();
     await this.init({ handleRedirectResult: false, rehydrate: false });
+    this.stateEmitter.emit("LOGOUT");
   }
 
   public getUserInfo(): UserInfo {
