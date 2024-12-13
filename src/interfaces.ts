@@ -475,44 +475,41 @@ export interface EthereumSigner {
 }
 
 type SupportedCurve = "secp256k1" | "ed25519";
-// remote signer interface
-export type RemoteDklsSignParams = {
-  factorEnc?: FactorEnc;
-  sessionId: string;
-  tssNonce: number;
-  accountNonce: string;
-  tssPubKeyHex: string;
 
-  nodeIndexes: number[];
-  tssCommits: PointHex[];
-
-  signatures: string[];
-
-  serverEndpoints: {
-    endpoints: string[];
-    tssWSEndpoints: string[];
-    partyIndexes: number[];
-  };
-
-  curve: SupportedCurve;
-};
-
-export type RemoteFrostSignParams = {
+export type ICustomFrostSignParams = {
   sessionId: string;
   signatures: string[];
   tssCommits: PointHex[];
   factorEnc: FactorEnc;
+  tssPubKeyHex: string;
+  curve: SupportedCurve;
+
   serverXCoords: number[];
   clientXCoord: number;
   serverCoefficients: string[];
   clientCoefficient: string;
-  tssPubKeyHex: string;
   serverURLs: string[];
-
-  curve: SupportedCurve;
 };
 
 export interface Secp256k1PrecomputedClient {
   client: Client;
   serverCoeffs: Record<string, string>;
+}
+
+export interface ICustomDklsSignParams {
+  sessionId: string;
+  signatures: string[];
+  tssCommits: PointHex[];
+  factorEnc: FactorEnc;
+  tssPubKeyHex: string;
+  curve: SupportedCurve;
+
+  participatingServerDKGIndexes: number[];
+  clientIndex: number;
+  tssNonce: string;
+  accountNonce: string;
+
+  endpoints: string[];
+  tssWSEndpoints: string[];
+  partyIndexes: number[];
 }
