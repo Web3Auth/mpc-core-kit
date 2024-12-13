@@ -14,7 +14,7 @@ import {
   makeEthereumSigner,
   SIG_TYPE,
 } from "@web3auth/mpc-core-kit";
-import { PasskeysPlugin } from "@web3auth/mpc-passkey-plugin";
+import { PasskeysPlugin, shouldSupportPasskey } from "@web3auth/mpc-passkey-plugin";
 import Web3 from "web3";
 import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
@@ -24,7 +24,6 @@ import { tssLib as tssLibDkls } from "@toruslabs/tss-dkls-lib";
 import{ tssLib as tssLibFrost } from "@toruslabs/tss-frost-lib";
 import{ tssLib as tssLibFrostBip340 } from "@toruslabs/tss-frost-lib-bip340";
 
-import bowser from "bowser";
 
 
 
@@ -33,65 +32,7 @@ import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
 
 type TssLib = typeof tssLibDkls | typeof tssLibFrost | typeof tssLibFrostBip340;
-const PASSKEYS_ALLOWED_MAP = [bowser.OS_MAP.iOS, bowser.OS_MAP.MacOS, bowser.OS_MAP.Android, bowser.OS_MAP.Windows];
 
-const getWindowsVersion = (osVersion: string) => {
-  const windowsVersionRegex = /NT (\d+\.\d+)/;
-  const match = osVersion.match(windowsVersionRegex);
-  if (match) return parseInt(match[1], 10);
-  return 0;
-};
-
-
-const checkIfOSIsSupported = (osName: string, osVersion: string) => {
-  if (!PASSKEYS_ALLOWED_MAP.includes(osName)) return false;
-  if (osName === bowser.OS_MAP.MacOS) return true;
-  switch (osName) {
-    case bowser.OS_MAP.iOS: {
-      const version = parseInt(osVersion.split(".")[0], 10);
-      return version >= 16;
-    }
-    case bowser.OS_MAP.Android: {
-      const version = parseInt(osVersion.split(".")[0], 10);
-      return version >= 9;
-    }
-    case bowser.OS_MAP.Windows: {
-      const version = getWindowsVersion(osVersion);
-      return version >= 10;
-    }
-    default:
-      return false;
-  }
-};
-
-export function shouldSupportPasskey(): { isBrowserSupported: boolean; isOsSupported: boolean; supportedBrowser?: Record<string, string> } {
-  const browser = bowser.getParser(navigator.userAgent);
-  const osDetails = browser.parseOS();
-  if (!osDetails) return { isBrowserSupported: false, isOsSupported: false };
-  const osName = osDetails.name || "";
-  const result = checkIfOSIsSupported(osName, osDetails.version || "");
-  if (!result) return { isBrowserSupported: false, isOsSupported: false };
-  const browserData: Record<string, Record<string, string>> = {
-    iOS: {
-      safari: ">=16",
-      chrome: ">=108",
-    },
-    macOS: {
-      safari: ">=16",
-      chrome: ">=108",
-      firefox: ">=122",
-    },
-    Android: {
-      chrome: ">=108",
-    },
-    Windows: {
-      edge: ">=108",
-      chrome: ">=108",
-    },
-  };
-  const isBrowserSupported = browser.satisfies({ ...browserData }) || false;
-  return { isBrowserSupported, isOsSupported: true, supportedBrowser: browserData[osName] };
-}
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
   if (el) {
@@ -200,7 +141,6 @@ function App() {
         });
       await pkeyPlugin.init();
       passkeyPlugin.current = pkeyPlugin;
-      debugger;
       if (window.location.hash.includes("#state")) {
         await newCoreKitInstance.handleRedirectResult();
       }
@@ -232,7 +172,7 @@ function App() {
       web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
       web3AuthNetwork: selectedNetwork,
       uxMode: "redirect",
-      manualSync: true,
+      manualSync: false,
       storage: window.localStorage,
       tssLib: selectedTssLib,
       useDKG: false,
@@ -291,6 +231,7 @@ function App() {
         await setupProvider();
       }
       setCoreKitStatus(coreKitInstance.current.status);
+      await coreKitInstance.current.commitChanges();
     } catch (error: unknown) {
       console.error(error);
     }
@@ -386,7 +327,6 @@ function App() {
       throw new Error("passkeyPlugin not found");
     }
     await coreKitInstance.current.logout();
-    await passkeyPlugin.current.logout(); // TODO: remove this after adding event emitter in mpc core kit
     uiConsole("Log out");
     setProvider(null);
     setCoreKitStatus(coreKitInstance.current.status);

@@ -344,7 +344,6 @@ export interface IMPCContext {
   torusSp: TSSTorusServiceProvider | null;
   updateState: (newState: Partial<Web3AuthState>) => void;
   getUserInfo: () => UserInfo;
-  logout: () => Promise<void>;
   setupTkey: (params?: {
     providedImportKey?: string;
     sfaLoginResponse?: TorusKey | TorusLoginResponse | TorusAggregateLoginResponse;
