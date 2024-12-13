@@ -3,9 +3,10 @@ import { Button } from "./Button";
 import { useCoreKit } from "../composibles/useCoreKit";
 import { useNavigate } from "react-router-dom";
 import { COREKIT_STATUS } from "@web3auth/mpc-core-kit";
+import { KeyType } from "@tkey/common-types";
 
 const Header: React.FC = () => {
-  const { coreKitInstance, setCoreKitStatus, userInfo, setUserInfo, setGlobalLoading } = useCoreKit();
+  const { coreKitInstance, setCoreKitStatus, userInfo, setUserInfo, setGlobalLoading, setKeyType } = useCoreKit();
   const [isLogin, setIsLogin] = React.useState(true);
   React.useEffect(() => {
     try {
@@ -26,6 +27,7 @@ const Header: React.FC = () => {
     setGlobalLoading(true);
     try {
       await coreKitInstance.logout();
+      setKeyType(KeyType.secp256k1);
       setCoreKitStatus(COREKIT_STATUS.NOT_INITIALIZED);
       setUserInfo(undefined);
       navigate("/");

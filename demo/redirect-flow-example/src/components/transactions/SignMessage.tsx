@@ -3,11 +3,13 @@ import { useCoreKit } from "../../composibles/useCoreKit";
 import { Button } from "../Button";
 import { Card } from "../Card";
 import { SIG_TYPE } from "@toruslabs/constants";
+import useUnifiedRPC from "../../composibles/useRpc";
 
 const SignPersonalMessageCard: React.FC = () => {
   const [message, setMessage] = React.useState("Hello World!");
-  const { coreKitInstance, setDrawerHeading, setDrawerInfo, web3 } = useCoreKit();
+  const { coreKitInstance, setDrawerHeading, setDrawerInfo } = useCoreKit();
   const [isLoading, setIsLoading] = React.useState(false);
+  const { signMessage: signMessageFunction } = useUnifiedRPC();
 
   const signMessage = async () => {
     setIsLoading(true);
@@ -17,25 +19,13 @@ const SignPersonalMessageCard: React.FC = () => {
     }
 
     try {
-      if (coreKitInstance.sigType === SIG_TYPE.ECDSA_SECP256K1) {
-        if (!web3) {
-          console.log("web3 not initialized yet");
-          return;
-        }
-        const fromAddress = (await web3.eth.getAccounts())[0];
-        const message = "hello";
-        const signedMessage = await web3.eth.personal.sign(message, fromAddress, "");
-        setDrawerHeading("Sign Personal Message");
-        setDrawerInfo(`Message has been signed successfully, ${signedMessage.toString()}`);
-      } else if (coreKitInstance.sigType === SIG_TYPE.ED25519 || coreKitInstance.sigType === SIG_TYPE.BIP340) {
-        const msg = Buffer.from("hello signer!");
-        const sig = await coreKitInstance.sign(msg);
-        console.log(sig.toString("hex"));
-        setDrawerHeading("Sign Personal Message");
-        setDrawerInfo(`Message has been signed successfully, ${sig.toString("hex")}`);
-      }
+      const signedMessage = await signMessageFunction(message);
+      setDrawerHeading(`Sign Personal Message ${coreKitInstance.sigType}`);
+      setDrawerInfo(`Message has been signed successfully, ${signedMessage.toString()}`);
     } catch (error) {
       console.error("Error signing message:", error);
+      setDrawerHeading(`Sign Personal Message ${coreKitInstance.sigType}`);
+      setDrawerInfo(`Error signing message: ${(error as Error).message || "Message signing failed"}`);
     } finally {
       setIsLoading(false);
     }

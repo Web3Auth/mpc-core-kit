@@ -68,6 +68,8 @@ const GetPasswordCard: React.FC = () => {
       setDrawerInfo("Security question has been set successfully");
     } catch (error) {
       console.error(error);
+      setDrawerHeading("Security Question");
+      setDrawerInfo(`Error Setting Security Question: ${(error as Error).message || "Failed"}`);
     } finally {
       setIsLoading(false);
     }

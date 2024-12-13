@@ -5,9 +5,10 @@ import { AddShareType, useCoreKit } from "../composibles/useCoreKit";
 import { BN } from "bn.js";
 import { COREKIT_STATUS } from "@web3auth/mpc-core-kit";
 import { useNavigate } from "react-router-dom";
+import { KeyType } from "@tkey/common-types";
 
 const MfaCard: React.FC = () => {
-  const { setAddShareType, coreKitInstance, setCoreKitStatus, existingModules } = useCoreKit();
+  const { setAddShareType, coreKitInstance, setCoreKitStatus, existingModules, setKeyType } = useCoreKit();
   const navigate = useNavigate();
 
   const addMfa = (addShareType: AddShareType) => {
@@ -28,6 +29,7 @@ const MfaCard: React.FC = () => {
       input: { message: "KEY_NOT_FOUND" },
     });
     await coreKitInstance.logout();
+    setKeyType(KeyType.secp256k1);
     setCoreKitStatus(COREKIT_STATUS.NOT_INITIALIZED)
     navigate("/");
     window.location.reload();

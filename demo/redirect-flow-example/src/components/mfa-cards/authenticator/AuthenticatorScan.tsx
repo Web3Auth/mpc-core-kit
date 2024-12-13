@@ -164,6 +164,8 @@ const AuthenticatorQRCodeCard: React.FC = () => {
       setDrawerInfo("Authenticator has been set successfully");
     } catch (error) {
       console.error(error);
+      setDrawerHeading(`Authenticator`);
+      setDrawerInfo(`Error Setting Authenticator: ${(error as Error).message || "Failed"}`);
     } finally {
       setIsLoading(false);
     }
