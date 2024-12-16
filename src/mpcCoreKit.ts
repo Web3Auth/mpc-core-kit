@@ -790,6 +790,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       this.wasmLib as DKLSWasmLib
     );
 
+    // Suppress client logs if logging is disabled.
+    client.log = (msg: string) => {
+      if (!this.enableLogging) return;
+      // eslint-disable-next-line no-console
+      console.log(msg);
+    };
+
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
       const serverIndex = participatingServerDKGIndexes[i];
