@@ -13,8 +13,7 @@ import type {
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
 import { TorusKey } from "@toruslabs/torus.js";
-import { Client } from "@toruslabs/tss-client";
-import { PointHex } from "@toruslabs/tss-client";
+import { Client, PointHex } from "@toruslabs/tss-client";
 // TODO: move the types to a base class for both dkls and frost in future
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
 import type { tssLib as TssFrostLibEd25519 } from "@toruslabs/tss-frost-lib";
@@ -569,7 +568,7 @@ export type RemoteDklsSignParams = {
   curve: SupportedCurve;
 };
 
-export type RemoteFrostSignParams = {
+export type ICustomFrostSignParams = {
   sessionId: string;
   signatures: string[];
   tssCommits: PointHex[];

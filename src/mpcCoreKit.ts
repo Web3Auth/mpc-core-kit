@@ -1,15 +1,4 @@
-import {
-  BNString,
-  EncryptedMessage,
-  FactorEnc,
-  KeyType,
-  ONE_KEY_DELETE_NONCE,
-  Point,
-  secp256k1,
-  SHARE_DELETED,
-  ShareStore,
-  StringifiedType,
-} from "@tkey/common-types";
+import { BNString, KeyType, ONE_KEY_DELETE_NONCE, Point, secp256k1, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
@@ -775,7 +764,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       nodeIndexesReturned: participatingServerDKGIndexes,
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
 
-    const factor = Point.fromSEC1(secp256k1, this.state.remoteClient.remoteFactorPub);
+    const factor = Point.fromSEC1(secp256k1, this.state.remoteClient?.remoteFactorPub);
     const factorEnc = this.tKey.getFactorEncs(factor);
 
     // Compute account nonce only supported for secp256k1
@@ -1234,7 +1223,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         factorKey: "",
         tssShareIndex: tssShareIndex as number,
         tssPubKey: Buffer.from(tssPubKey).toString("hex"),
-        signatures: this.signatures,
+        signatures: await this.getSessionSignatures(),
         userInfo,
         remoteClientState: this.state.remoteClient,
       };
@@ -1387,7 +1376,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
       // skip input share store if factor key is not present
       // tkey will be at state initalized
-      if (!factorKey) {
+      if (!result.factorKey) {
         return;
       }
 
@@ -1718,7 +1707,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       const factorPub = Point.fromSEC1(secp256k1, this.state.remoteClient.remoteFactorPub);
       const params: ICustomFrostSignParams = {
         sessionId: session,
-        signatures: this.signatures,
+        signatures: await this.getSessionSignatures(),
         tssCommits: this.tKey.getTSSCommits().map((commit) => pointToHex(commit)),
         factorEnc: this.tKey.getFactorEncs(factorPub),
         serverXCoords,
