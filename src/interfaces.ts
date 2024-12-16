@@ -354,6 +354,12 @@ export interface IMPCContext {
   setCustomSessionSigGenerator: (sessionSigGenerator: ISessionSigGenerator) => void;
 }
 
+export interface Secp256k1PrecomputedClient {
+  client: Client;
+  serverCoeffs: Record<string, string>;
+  signatures: string[];
+}
+
 export interface ICoreKit {
   /**
    * The tKey instance, if initialized.
@@ -461,6 +467,23 @@ export interface ICoreKit {
   commitChanges(): Promise<void>;
 
   /**
+   * Create a signature for the given data.
+   *
+   * Options:
+   * - hashed: The data is already hashed. Do not hash again. Only works for ecdsa-secp256k1.
+   * - secp256k1Precompute: Provide a precomputed client for faster signing. Only works for ecdsa-secp256k1.
+   * - keyTweak: Provide a bip340 key tweak. Only works for bip340.
+   */
+  sign(
+    data: Buffer,
+    opts?: {
+      hashed?: boolean;
+      secp256k1Precompute?: Secp256k1PrecomputedClient;
+      keyTweak?: BN;
+    }
+  ): Promise<Buffer>;
+
+  /**
    * WARNING: Use with caution. This will export the private signing key.
    *
    * Exports the private key scalar for the current account index.
@@ -514,12 +537,6 @@ export interface EthSig {
 export interface EthereumSigner {
   sign: (msgHash: Buffer) => Promise<EthSig>;
   getPublic: () => Promise<Buffer>;
-}
-
-export interface Secp256k1PrecomputedClient {
-  client: Client;
-  serverCoeffs: Record<string, string>;
-  signatures: string[];
 }
 
 export type StateEmitterEvents = {
