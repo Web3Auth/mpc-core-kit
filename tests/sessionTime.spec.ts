@@ -110,7 +110,7 @@ variable.forEach(async (testVariable) => {
         return;
       }
       
-      coreKitInstance.signatures.forEach((sig) => {
+      (await coreKitInstance.getSessionSignatures()).forEach((sig) => {
         const parsedSig = JSON.parse(sig);
         const parsedSigData = JSON.parse(atob(parsedSig.data));
 
