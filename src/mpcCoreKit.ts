@@ -994,7 +994,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
   public async commitChanges(): Promise<void> {
     this.checkReady();
-    if (!this.state.factorKey && !this.state.remoteClient.remoteClientToken) {
+    if (!this.state.factorKey && !this.state.remoteClient.metadataShare) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when committing changes.");
     }
 
@@ -1097,8 +1097,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
   }
 
-  async setupRemoteSigning(params: Omit<IRemoteClientState, "tssShareIndex" | "signatures">): Promise<void> {
-    const { remoteClientUrl, remoteFactorPub, metadataShare, remoteClientToken } = params;
+  async setupRemoteSigning(params: IRemoteClientState, rehydrate: boolean = false): Promise<void> {
+    const { remoteFactorPub, metadataShare } = params;
     const details = this.getKeyDetails().shareDescriptions[remoteFactorPub];
     if (!details) throw CoreKitError.default("factor description not found");
 
@@ -1108,12 +1108,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (!tssShareIndex) throw CoreKitError.default("tss share index not found");
 
     const remoteClient: IRemoteClientState = {
-      remoteClientUrl: remoteClientUrl.at(-1) === "/" ? remoteClientUrl.slice(0, -1) : remoteClientUrl,
       remoteFactorPub,
       metadataShare,
-      remoteClientToken,
       tssShareIndex,
-      signatures: this.state.signatures,
     };
 
     const sharestore = ShareStore.fromJSON(JSON.parse(metadataShare));
@@ -1124,8 +1121,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     // const tssPubKey = Point.fromTkeyPoint(this.tKey.getTSSPub()).toBufferSEC1(false);
     this.updateState({ tssShareIndex, tssPubKey, remoteClient });
     // // Finalize setup.
-    // setup provider
-    await this.createSessionRemoteClient();
+    // skip setup provider if rehydrate is true
+    if (!rehydrate) {
+      await this.createSessionRemoteClient();
+    }
   }
 
   public updateState(newState: Partial<Web3AuthState>): void {
@@ -1370,23 +1369,29 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     try {
       this.checkReady();
 
-      const factorKey = new BN(result.factorKey, "hex");
-      if (!factorKey && !result.remoteClientState?.remoteClientToken) {
-        throw CoreKitError.providedFactorKeyInvalid();
-      }
       const postBoxKey = result.postBoxKey || result.oAuthKey;
       if (!postBoxKey) {
         throw CoreKitError.default("postBoxKey or oAuthKey not present in session data");
       }
+
+      const factorKey = new BN(result.factorKey, "hex");
+      if (!factorKey && !result.remoteClientState?.metadataShare) {
+        throw CoreKitError.providedFactorKeyInvalid();
+      }
+
       this.torusSp.postboxKey = new BN(postBoxKey, "hex");
       this.torusSp.verifierName = result.userInfo.aggregateVerifier || result.userInfo.verifier;
       this.torusSp.verifierId = result.userInfo.verifierId;
 
-      const metadataShareStore = result.remoteClientState?.metadataShare
-        ? ShareStore.fromJSON(JSON.parse(result.remoteClientState?.metadataShare))
-        : await this.getFactorKeyMetadata(factorKey);
-
       await this.tKey.initialize({ neverInitializeNewKey: true });
+
+      // skip input share store if factor key is not present
+      // tkey will be at state initalized
+      if (!factorKey) {
+        return;
+      }
+
+      const metadataShareStore = await this.getFactorKeyMetadata(factorKey);
       await this.tKey.inputShareStoreSafe(metadataShareStore, true);
       await this.tKey.reconstructKey();
 
