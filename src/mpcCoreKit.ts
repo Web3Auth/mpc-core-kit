@@ -2,16 +2,7 @@ import { BNString, KeyType, ONE_KEY_DELETE_NONCE, Point, secp256k1, SHARE_DELETE
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import {
-  DELIMITERS,
-  factorKeyCurve,
-  getPubKeyPoint,
-  IRemoteClientState,
-  lagrangeInterpolation,
-  pointToHex,
-  TKeyTSS,
-  TSSTorusServiceProvider,
-} from "@tkey/tss";
+import { DELIMITERS, factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, pointToHex, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
@@ -69,7 +60,7 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { DefaultSessionSigGeneratorPlugin } from "./plugins/DefaultSessionSigGenerator";
-import { ICustomDklsSignParams, ICustomFrostSignParams } from "./plugins/IRemoteSigner";
+import { ICustomDklsSignParams, ICustomFrostSignParams, IRemoteClientState } from "./plugins/IRemoteSigner";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 import {
   deriveShareCoefficients,

@@ -1,10 +1,14 @@
 import { FactorEnc, Point, ShareDescriptionMap } from "@tkey/common-types";
-import { IRemoteClientState } from "@tkey/tss";
 import { PointHex } from "@toruslabs/tss-client";
 
 import { CreateFactorParams, WEB3AUTH_NETWORK_TYPE } from "../interfaces";
 
 type SupportedCurve = "secp256k1" | "ed25519";
+export interface IRemoteClientState {
+  remoteFactorPub: string;
+  metadataShare: string;
+  tssShareIndex: number;
+}
 
 export type ICustomFrostSignParams = {
   sessionId: string;
