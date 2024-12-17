@@ -1,4 +1,4 @@
-import { BNString, FactorEnc, KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { BNString, KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
 import { IRemoteClientState, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { WEB3AUTH_SIG_TYPE } from "@toruslabs/constants";
 import type {
@@ -13,7 +13,7 @@ import type {
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
 import { TorusKey } from "@toruslabs/torus.js";
-import { Client, PointHex } from "@toruslabs/tss-client";
+import { Client } from "@toruslabs/tss-client";
 // TODO: move the types to a base class for both dkls and frost in future
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
 import type { tssLib as TssFrostLibEd25519 } from "@toruslabs/tss-frost-lib";
@@ -22,6 +22,7 @@ import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { IRemoteSignerContext } from "./plugins/IRemoteSigner";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
@@ -337,7 +338,7 @@ export interface Web3AuthOptions {
 }
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
-export interface IMPCContext {
+export interface IMPCContext extends IRemoteSignerContext {
   stateEmitter: SafeEventEmitter;
   config: Web3AuthOptionsWithDefaults;
   status: COREKIT_STATUS;
@@ -544,59 +545,3 @@ export interface EthereumSigner {
 export type StateEmitterEvents = {
   LOGOUT: () => void;
 };
-
-type SupportedCurve = "secp256k1" | "ed25519";
-// remote signer interface
-export type RemoteDklsSignParams = {
-  factorEnc?: FactorEnc;
-  sessionId: string;
-  tssNonce: number;
-  accountNonce: string;
-  tssPubKeyHex: string;
-
-  nodeIndexes: number[];
-  tssCommits: PointHex[];
-
-  signatures: string[];
-
-  serverEndpoints: {
-    endpoints: string[];
-    tssWSEndpoints: string[];
-    partyIndexes: number[];
-  };
-
-  curve: SupportedCurve;
-};
-
-export type ICustomFrostSignParams = {
-  sessionId: string;
-  signatures: string[];
-  tssCommits: PointHex[];
-  factorEnc: FactorEnc;
-  tssPubKeyHex: string;
-  curve: SupportedCurve;
-
-  serverXCoords: number[];
-  clientXCoord: number;
-  serverCoefficients: string[];
-  clientCoefficient: string;
-  serverURLs: string[];
-};
-
-export interface ICustomDklsSignParams {
-  sessionId: string;
-  signatures: string[];
-  tssCommits: PointHex[];
-  factorEnc: FactorEnc;
-  tssPubKeyHex: string;
-  curve: SupportedCurve;
-
-  participatingServerDKGIndexes: number[];
-  clientIndex: number;
-  tssNonce: string;
-  accountNonce: string;
-
-  endpoints: string[];
-  tssWSEndpoints: string[];
-  partyIndexes: number[];
-}

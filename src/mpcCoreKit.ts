@@ -49,8 +49,6 @@ import {
   CreateFactorParams,
   EnableMFAParams,
   ICoreKit,
-  ICustomDklsSignParams,
-  ICustomFrostSignParams,
   IFactorKey,
   IMPCContext,
   InitParams,
@@ -71,6 +69,7 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { DefaultSessionSigGeneratorPlugin } from "./plugins/DefaultSessionSigGenerator";
+import { ICustomDklsSignParams, ICustomFrostSignParams } from "./plugins/IRemoteSigner";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 import {
   deriveShareCoefficients,
@@ -732,6 +731,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return ed25519().keyFromPublic(p).getPublic();
   }
 
+  /**
+   * Get public key in bip340 format.
+   *
+   * Throws an error if signature type is not bip340.
+   */
+  public getPubKeyBip340(): Buffer {
+    if (this._sigType !== "bip340") {
+      throw CoreKitError.default(`getPubKeyBip340 not supported for signature type ${this.sigType}`);
+    }
+
+    const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
+    return p.getX().toBuffer("be", 32);
+  }
+
   public async preSetupSigning(): Promise<ICustomDklsSignParams> {
     const { torusNodeTSSEndpoints } = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
@@ -742,7 +755,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
 
     const tssNonce = this.getTssNonce() || 0;
-
     const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
     const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
 
@@ -764,7 +776,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       nodeIndexesReturned: participatingServerDKGIndexes,
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
 
-    const factor = Point.fromSEC1(secp256k1, this.state.remoteClient?.remoteFactorPub);
+    const factor = this.state.remoteClient?.remoteFactorPub
+      ? Point.fromSEC1(secp256k1, this.state.remoteClient?.remoteFactorPub)
+      : Point.fromScalar(this.state.factorKey, secp256k1);
     const factorEnc = this.tKey.getFactorEncs(factor);
 
     // Compute account nonce only supported for secp256k1
@@ -1088,6 +1102,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
   async setupRemoteSigning(params: IRemoteClientState, rehydrate: boolean = false): Promise<void> {
     const { remoteFactorPub, metadataShare } = params;
+
+    // rehydrate session
+    if (rehydrate) {
+      this.updateState({ remoteClient: params });
+      const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
+        log.error("rehydrate session error", err);
+      });
+      if (sessionResult) {
+        await this.rehydrateSession(sessionResult);
+      }
+    }
+
     const details = this.getKeyDetails().shareDescriptions[remoteFactorPub];
     if (!details) throw CoreKitError.default("factor description not found");
 
@@ -1225,7 +1251,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         tssPubKey: Buffer.from(tssPubKey).toString("hex"),
         signatures: await this.getSessionSignatures(),
         userInfo,
-        remoteClientState: this.state.remoteClient,
       };
       await this.sessionManager.createSession(payload);
       // to accommodate async storage
@@ -1364,7 +1389,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       }
 
       const factorKey = new BN(result.factorKey, "hex");
-      if (!factorKey && !result.remoteClientState?.metadataShare) {
+      if (!result.factorKey && !this.state.remoteClient.metadataShare) {
         throw CoreKitError.providedFactorKeyInvalid();
       }
 
@@ -1374,13 +1399,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
       await this.tKey.initialize({ neverInitializeNewKey: true });
 
-      // skip input share store if factor key is not present
-      // tkey will be at state initalized
-      if (!result.factorKey) {
-        return;
-      }
+      const metadataShareStore = this.state.remoteClient?.metadataShare
+        ? ShareStore.fromJSON(JSON.parse(this.state.remoteClient.metadataShare))
+        : await this.getFactorKeyMetadata(factorKey);
 
-      const metadataShareStore = await this.getFactorKeyMetadata(factorKey);
       await this.tKey.inputShareStoreSafe(metadataShareStore, true);
       await this.tKey.reconstructKey();
 
@@ -1392,7 +1414,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         tssPubKey: this.tkey.getTSSPub().toSEC1(this.tKey.tssCurve, false),
         signatures: result.signatures,
         userInfo: result.userInfo,
-        remoteClient: result.remoteClientState,
       });
     } catch (err) {
       log.warn("failed to authorize session", err);
