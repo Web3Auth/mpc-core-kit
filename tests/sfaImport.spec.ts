@@ -4,8 +4,8 @@ import test from "node:test";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 
-import { AsyncStorage, MemoryStorage, TssLibType, TssShareType, WEB3AUTH_NETWORK } from "../src";
-import { criticalResetAccount, generateRandomEmail, loginWithSFA, newCoreKitLogInInstance } from "./setup";
+import {  MemoryStorage, TssLibType, TssShareType, WEB3AUTH_NETWORK } from "../src";
+import { generateRandomEmail, loginWithSFA, newCoreKitLogInInstance } from "./setup";
 
 type ImportKeyTestVariable = {
   manualSync?: boolean;
@@ -26,17 +26,9 @@ export const ImportSFATest = async (testVariable: ImportKeyTestVariable) => {
     });
   }
 
-  async function resetAccount(email: string) {
-    const kit = await newCoreKitInstance(email);
-    await criticalResetAccount(kit);
-    await kit.logout();
-    await new AsyncStorage(kit._storageKey, storageInstance).resetStore();
-  }
 
   test(`import sfa key and recover tss key : ${testVariable.manualSync}`, async function (t) {
-    const afterTest = async () => {
-        await resetAccount(testVariable.email);
-      };
+
     await t.test("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
       const sfaResult = await loginWithSFA({
         network: WEB3AUTH_NETWORK.DEVNET,
@@ -85,7 +77,6 @@ export const ImportSFATest = async (testVariable: ImportKeyTestVariable) => {
 
     });
 
-    await afterTest();
     t.afterEach(function () {
       return console.info("finished running recovery test");
     });
