@@ -898,10 +898,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       if (opts?.keyTweak) {
         throw CoreKitError.default("key tweaking not supported for ecdsa-secp256k1");
       }
-      if (this.state.remoteClient && !this.state.factorKey) {
-        const sig = await this.remoteSignSecp256k1(data, opts?.hashed);
-        return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
-      }
       const sig = await this.sign_ECDSA_secp256k1(data, opts?.hashed, opts?.secp256k1Precompute);
       return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
     } else if (this._sigType === "ed25519" || this._sigType === "bip340") {
