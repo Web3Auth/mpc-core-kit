@@ -30,6 +30,7 @@ import{ tssLib as tssLibFrostBip340 } from "@toruslabs/tss-frost-lib-bip340";
 import "./App.css";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
+import { ec as EC } from "elliptic";
 
 type TssLib = typeof tssLibDkls | typeof tssLibFrost | typeof tssLibFrostBip340;
 
@@ -423,16 +424,29 @@ function App() {
       uiConsole(sig.toString("hex"));
     }
   };
+
+  const signWithKeyTweak = async (): Promise<any> => {
+    if (coreKitInstance.current.sigType === SIG_TYPE.ECDSA_SECP256K1) {
+      throw new Error("Not supported for this signature type");
+    } else if (coreKitInstance.current.sigType === SIG_TYPE.ED25519 || coreKitInstance.current.sigType === SIG_TYPE.BIP340) {
+      const msg = Buffer.from("hello signer!");
+      const keyTweak = (() => {
+        const ec = new EC(coreKitInstance.current.keyType);
+        return ec.genKeyPair().getPrivate();
+      })();
+      const sig = await coreKitInstance.current.sign(msg, { keyTweak });
+      uiConsole(sig.toString("hex"));
+    }
+  };
+
   const signMessageWithPrecomputedTss = async (): Promise<any> => {
     if (coreKitInstance.current.keyType === "secp256k1") {
       const precomputedTssClient = await coreKitInstance.current.precompute_secp256k1();
       const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.current.sign(msg, false, precomputedTssClient);
+      const sig = await coreKitInstance.current.sign(msg, { secp256k1Precompute: precomputedTssClient });
       uiConsole(sig.toString("hex"));
-    } else if (coreKitInstance.current.keyType === "ed25519") {
-      const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.current.sign(msg);
-      uiConsole(sig.toString("hex"));
+    } else {
+      throw new Error("Not supported for this key type");
     }
   };
 
@@ -441,15 +455,13 @@ function App() {
       const [precomputedTssClient, precomputedTssClient2] = await Promise.all([coreKitInstance.current.precompute_secp256k1(), coreKitInstance.current.precompute_secp256k1()]);
 
       const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.current.sign(msg, false, precomputedTssClient);
+      const sig = await coreKitInstance.current.sign(msg, { secp256k1Precompute: precomputedTssClient });
       const msg2 = Buffer.from("hello signer2!");
 
-      const sig2 = await coreKitInstance.current.sign(msg2, false, precomputedTssClient2);
+      const sig2 = await coreKitInstance.current.sign(msg2, { secp256k1Precompute: precomputedTssClient2 });
       uiConsole("Sig1: ", sig.toString("hex"), "Sig2: ", sig2.toString("hex"));
-    } else if (coreKitInstance.current.keyType === "ed25519") {
-      const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.current.sign(msg);
-      uiConsole(sig.toString("hex"));
+    } else {
+      throw new Error("Not supported for this key type");
     }
   };
   const switchChainSepolia = async () => {
@@ -864,8 +876,12 @@ function App() {
           Sign Message
         </button>
 
+        <button onClick={signWithKeyTweak} className="card">
+          Sign with Key Tweak
+        </button>
+
         <button onClick={signMessageWithPrecomputedTss} className="card">
-          Sign Msgwith precomputed TSS
+          Sign with precomputed TSS
         </button>
 
         <button onClick={signMultipleMessagesWithPrecomputedTss} className="card">

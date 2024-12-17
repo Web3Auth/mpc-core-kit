@@ -3,6 +3,7 @@ import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
+import { TorusKey } from "@toruslabs/torus.js";
 
 import { IAsyncStorage, IStorage, parseToken, TssLibType, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 
@@ -139,7 +140,7 @@ export const loginWithSFA = async ({
   storageInstance: IStorage | IAsyncStorage;
   tssLib?: TssLibType;
   login?: LoginFunc;
-}) => {
+}): Promise<TorusKey> => {
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,

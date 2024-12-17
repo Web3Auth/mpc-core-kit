@@ -4,6 +4,7 @@
   "private": true,
   "dependencies": {
     "@tkey/common-types": "^15.1.0",
+    "@toruslabs/torus.js": "15.2.0-alpha.0",
     "@toruslabs/tss-dkls-lib": "^5.0.0-alpha.0",
     "@toruslabs/tss-frost-lib": "^2.0.0-alpha.0",
     "@toruslabs/tss-frost-lib-bip340": "^0.1.0-alpha.0",
@@ -14,9 +15,8 @@
     "@vitejs/plugin-react": "^4.3.2",
     "@web3auth/base": "^9.0.2",
     "@web3auth/ethereum-mpc-provider": "^9.3.0",
-    "@web3auth/mpc-core-kit": "4.1.6-alpha.0",
+    "@web3auth/mpc-core-kit": "file:../..",
     "@web3auth/mpc-passkey-plugin": "0.1.15-alpha.0",
-    "@toruslabs/torus.js": "15.2.0-alpha.0",
     "browserify-zlib": "^0.2.0",
     "copy-webpack-plugin": "^11.0.0",
     "html-webpack-plugin": "^5.5.3",

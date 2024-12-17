@@ -790,6 +790,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       this.wasmLib as DKLSWasmLib
     );
 
+    // Suppress client logs if logging is disabled.
+    client.log = (msg: string) => {
+      if (!this.enableLogging) return;
+      // eslint-disable-next-line no-console
+      console.log(msg);
+    };
+
     const serverCoeffs: Record<number, string> = {};
     for (let i = 0; i < participatingServerDKGIndexes.length; i++) {
       const serverIndex = participatingServerDKGIndexes[i];
@@ -807,13 +814,29 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     };
   }
 
-  public async sign(data: Buffer, hashed: boolean = false, secp256k1Precompute?: Secp256k1PrecomputedClient): Promise<Buffer> {
+  public async sign(
+    data: Buffer,
+    opts?: {
+      hashed?: boolean;
+      secp256k1Precompute?: Secp256k1PrecomputedClient;
+      keyTweak?: BN;
+    }
+  ): Promise<Buffer> {
     this.wasmLib = await this.loadTssWasm();
     if (this._sigType === "ecdsa-secp256k1") {
-      const sig = await this.sign_ECDSA_secp256k1(data, hashed, secp256k1Precompute);
+      if (opts?.keyTweak) {
+        throw CoreKitError.default("key tweaking not supported for ecdsa-secp256k1");
+      }
+      const sig = await this.sign_ECDSA_secp256k1(data, opts?.hashed, opts?.secp256k1Precompute);
       return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
     } else if (this._sigType === "ed25519" || this._sigType === "bip340") {
-      return this.sign_frost(data, hashed);
+      if (opts?.hashed) {
+        throw CoreKitError.default(`hashed data not supported for bip340`);
+      } else if (opts?.keyTweak && this._sigType !== "bip340") {
+        throw CoreKitError.default("key tweaking not supported for ed25519");
+      }
+
+      return this.sign_frost(data, opts?.keyTweak);
     }
     throw CoreKitError.default(`sign not supported for key type ${this.keyType}`);
   }
@@ -1486,11 +1509,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
   }
 
-  private async sign_frost(data: Buffer, hashed: boolean = false): Promise<Buffer> {
-    if (hashed) {
-      throw CoreKitError.default(`hashed data not supported for ${this._sigType}`);
-    }
-
+  private async sign_frost(data: Buffer, keyTweak?: BN): Promise<Buffer> {
     const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType, this._sigType);
     if (!nodeDetails.torusNodeTSSEndpoints) {
       throw CoreKitError.default("could not fetch tss node endpoints");
@@ -1518,7 +1537,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord, this.state.tssShareIndex);
 
     // Get pub key.
-    const tssPubKey = await this.getPubKey();
+    const tssPubKey = this.getPubKey();
     const tssPubKeyPoint = ec.keyFromPublic(tssPubKey).getPublic();
 
     // Get client key share and adjust by coefficient.
@@ -1549,7 +1568,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       clientShareAdjustedHex,
       pubKeyHex,
       data,
-      serverCoefficientsHex
+      serverCoefficientsHex,
+      keyTweak?.toString("hex")
     );
 
     log.info(`signature: ${signature}`);
