@@ -60,7 +60,7 @@ import {
   Web3AuthState,
 } from "./interfaces";
 import { DefaultSessionSigGeneratorPlugin } from "./plugins/DefaultSessionSigGenerator";
-import { ICustomDklsSignParams, ICustomFrostSignParams, IRemoteClientState } from "./plugins/IRemoteSigner";
+import { ICustomDklsSignParams, ICustomFrostSignParams, IRemoteClientState } from "./plugins/ICustomSigner";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 import {
   deriveShareCoefficients,
@@ -588,6 +588,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
     this.checkReady();
 
+    if (!this.state.factorKey) {
+      if (this.state.remoteClient?.remoteFactorPub) {
+        throw CoreKitError.notSupportedForRemoteFactor("Cannot enable MFA with remote factor.");
+      }
+      throw CoreKitError.factorKeyNotPresent("Current factorKey not present in state when enabling MFA.");
+    }
+
     const { postBoxKey } = this.state;
     const hashedFactorKey = getHashedPrivateKey(postBoxKey, this.options.hashedFactorNonce);
     if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
@@ -652,6 +659,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   // mutation function
   public async createFactor(createFactorParams: CreateFactorParams): Promise<string> {
     this.checkReady();
+
+    if (!this.state.factorKey) {
+      if (this.state.remoteClient?.remoteFactorPub) {
+        throw CoreKitError.notSupportedForRemoteFactor("Cannot create a factor with remote factor.");
+      }
+      throw CoreKitError.factorKeyNotPresent("Current factorKey not present in state when creating a factor.");
+    }
+
     const { shareType } = createFactorParams;
 
     let { factorKey, shareDescription, additionalMetadata } = createFactorParams;
@@ -905,7 +920,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
   // mutation function
   async deleteFactor(factorPub: Point, factorKey?: BNString): Promise<void> {
-    if (!this.state.factorKey && !this.state.remoteClient) {
+    if (!this.state.factorKey) {
+      if (this.state.remoteClient?.remoteFactorPub) throw CoreKitError.notSupportedForRemoteFactor("Cannot delete a remote factor.");
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
     }
     if (!this.tKey.metadata.factorPubs) {

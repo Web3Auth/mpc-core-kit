@@ -1,5 +1,5 @@
 import { BNString, KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
-import { IRemoteClientState, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
+import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { WEB3AUTH_SIG_TYPE } from "@toruslabs/constants";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -22,7 +22,7 @@ import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
-import { IRemoteSignerContext } from "./plugins/IRemoteSigner";
+import { IRemoteClientState, IRemoteSignerContext } from "./plugins/ICustomSigner";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
@@ -177,7 +177,6 @@ export interface JWTLoginParams {
    */
   prefetchTssPublicKeys?: number;
 }
-
 export interface Web3AuthState {
   postBoxKey?: string;
   signatures?: string[];
@@ -515,7 +514,6 @@ export interface SessionData {
   tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
-  remoteClientState?: IRemoteClientState;
 }
 
 export interface TkeyLocalStoreData {

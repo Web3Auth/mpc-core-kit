@@ -1,14 +1,10 @@
 import { FactorEnc, Point, ShareDescriptionMap } from "@tkey/common-types";
 import { PointHex } from "@toruslabs/tss-client";
+import { SafeEventEmitter } from "@web3auth/auth";
 
 import { CreateFactorParams, WEB3AUTH_NETWORK_TYPE } from "../interfaces";
 
-type SupportedCurve = "secp256k1" | "ed25519";
-export interface IRemoteClientState {
-  remoteFactorPub: string;
-  metadataShare: string;
-  tssShareIndex: number;
-}
+export type SupportedCurve = "secp256k1" | "ed25519";
 
 export type ICustomFrostSignParams = {
   sessionId: string;
@@ -50,7 +46,15 @@ export interface ICustomDKLSSign {
 export interface ICustomFrostSign {
   sign: (params: ICustomFrostSignParams, msgHash: Uint8Array) => Promise<Uint8Array>;
 }
+
+export interface IRemoteClientState {
+  remoteFactorPub: string;
+  metadataShare: string;
+  tssShareIndex: number;
+}
+
 export interface IRemoteSignerContext {
+  stateEmitter: SafeEventEmitter;
   setupRemoteSigning(params: Omit<IRemoteClientState, "tssShareIndex">, rehydrate?: boolean): Promise<void>;
   createFactor(createFactorParams: CreateFactorParams): Promise<string>;
   inputFactorKey(factorKey: string): Promise<void>;
