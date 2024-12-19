@@ -540,6 +540,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   public async inputFactorKey(factorKey: BNString): Promise<void> {
     const factorKeyBN = new BN(factorKey, "hex");
     this.checkReady();
+    const point = Point.fromScalar(factorKeyBN, secp256k1);
+    if (!this.getTssFactorPub().includes(point.toSEC1(secp256k1, true).toString("hex"))) {
+      throw CoreKitError.providedFactorKeyInvalid();
+    }
     try {
       // input tkey device share when required share > 0 ( or not reconstructed )
       // assumption tkey shares will not changed
@@ -649,9 +653,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
   public getTssFactorPub = (): string[] => {
     this.checkReady();
-    if (!this.state.factorKey) {
-      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when getting tss factor public key.");
-    }
     const factorPubsList = this.tKey.metadata.factorPubs[this.tKey.tssTag];
     return factorPubsList.map((factorPub) => factorPub.toSEC1(factorKeyCurve, true).toString("hex"));
   };
@@ -1210,7 +1211,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   }
 
   public getMetadataKey(): string {
-    return this.tkey.secp256k1Key.toString("hex");
+    return this.tkey.secp256k1Key.toString("hex").padStart(64, "0");
   }
 
   public getMetadataPublicKey(): string {
@@ -1342,22 +1343,25 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
 
     const hashedFactorKey = getHashedPrivateKey(this.state.postBoxKey, this.options.hashedFactorNonce);
-    this.state.factorKey = hashedFactorKey;
-    if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
-      // Initialize tkey with existing hashed share if available.
-      const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
-      try {
-        await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
-        await this.tKey.reconstructKey();
-        await this.finalizeTkey(hashedFactorKey);
-      } catch (err) {
-        log.error("error initializing tkey with hashed share", err);
-      }
-    } else {
-      const factorKeyMetadata = await this.tKey?.readMetadata<StringifiedType>(hashedFactorKey);
-      if (factorKeyMetadata.message === "SHARE_DELETED") {
-        // throw CoreKitError.hashedFactorDeleted();
-        log.warn("hashed factor deleted");
+    const point = Point.fromScalar(hashedFactorKey, secp256k1);
+    if (this.getTssFactorPub().includes(point.toSEC1(secp256k1, true).toString("hex"))) {
+      this.state.factorKey = hashedFactorKey;
+      if (await this.checkIfFactorKeyValid(hashedFactorKey)) {
+        // Initialize tkey with existing hashed share if available.
+        const factorKeyMetadata: ShareStore = await this.getFactorKeyMetadata(hashedFactorKey);
+        try {
+          await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
+          await this.tKey.reconstructKey();
+          await this.finalizeTkey(hashedFactorKey);
+        } catch (err) {
+          log.error("error initializing tkey with hashed share", err);
+        }
+      } else {
+        const factorKeyMetadata = await this.tKey?.readMetadata<StringifiedType>(hashedFactorKey);
+        if (factorKeyMetadata.message === "SHARE_DELETED") {
+          // throw CoreKitError.hashedFactorDeleted();
+          log.warn("hashed factor deleted");
+        }
       }
     }
   }

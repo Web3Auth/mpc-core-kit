@@ -2,7 +2,7 @@ import { FactorEnc, Point, ShareDescriptionMap } from "@tkey/common-types";
 import { PointHex } from "@toruslabs/tss-client";
 import { SafeEventEmitter } from "@web3auth/auth";
 
-import { CreateFactorParams, WEB3AUTH_NETWORK_TYPE } from "../interfaces";
+import { COREKIT_STATUS, CreateFactorParams, WEB3AUTH_NETWORK_TYPE } from "../interfaces";
 
 export type SupportedCurve = "secp256k1" | "ed25519";
 
@@ -54,6 +54,7 @@ export interface IRemoteClientState {
 }
 
 export interface IRemoteSignerContext {
+  status: COREKIT_STATUS;
   stateEmitter: SafeEventEmitter;
   setupRemoteSigning(params: Omit<IRemoteClientState, "tssShareIndex">, rehydrate?: boolean): Promise<void>;
   createFactor(createFactorParams: CreateFactorParams): Promise<string>;
