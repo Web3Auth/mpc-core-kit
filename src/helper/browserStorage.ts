@@ -21,7 +21,7 @@ export class MemoryStorage implements IStorage {
   }
 }
 
-export class AsyncStorage {
+export class AsyncStore {
   public storage: IAsyncStorage | IStorage;
 
   private _storeKey: string;
@@ -66,3 +66,6 @@ export class AsyncStorage {
     await this.storage.setItem(this._storeKey, JSON.stringify(store));
   }
 }
+
+// Deprecated
+export class AsyncStorage extends AsyncStore {}

@@ -339,6 +339,10 @@ class CoreKitError extends AbstractCoreKitError {
     return CoreKitError.fromCode(1214, extraMessage);
   }
 
+  public static notSupportedForRemoteFactor(extraMessage = ""): ICoreKitError {
+    return CoreKitError.fromCode(1215, extraMessage);
+  }
+
   // Initialization and session management
   public static commitChangesBeforeMFA(extraMessage = ""): ICoreKitError {
     return CoreKitError.fromCode(1301, extraMessage);
