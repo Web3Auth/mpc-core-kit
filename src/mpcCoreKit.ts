@@ -186,7 +186,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       const { tkey } = this;
       if (!tkey) return COREKIT_STATUS.NOT_INITIALIZED;
       if (!tkey.metadata) return COREKIT_STATUS.INITIALIZED;
-      if (!tkey.secp256k1Key || !this.state.factorKey) return COREKIT_STATUS.REQUIRED_SHARE;
+      if (!tkey.secp256k1Key || !(this.state.factorKey || this.state.remoteClient.remoteFactorPub)) return COREKIT_STATUS.REQUIRED_SHARE;
       return COREKIT_STATUS.LOGGED_IN;
     } catch (e) {}
     return COREKIT_STATUS.NOT_INITIALIZED;
