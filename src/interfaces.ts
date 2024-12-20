@@ -1,4 +1,4 @@
-import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { BNString, KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
 import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { WEB3AUTH_SIG_TYPE } from "@toruslabs/constants";
 import type {
@@ -22,6 +22,7 @@ import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { IRemoteClientState, IRemoteSignerContext } from "./plugins/ICustomSigner";
 import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
@@ -109,7 +110,7 @@ export interface EnableMFAParams {
   /**
    * A BN used for encrypting your Device/ Recovery TSS Key Share. You can generate it using `generateFactorKey()` function or use an existing one.
    */
-  factorKey?: BN;
+  factorKey?: BNString;
   /**
    * Setting the Description of Share - Security Questions, Device Share, Seed Phrase, Password Share, Social Share, Other. Default is Other.
    */
@@ -117,7 +118,7 @@ export interface EnableMFAParams {
   /**
    * Additional metadata information you want to be stored alongside this factor for easy identification.
    */
-  additionalMetadata?: Record<string, string>;
+  additionalMetadata?: Record<string, string | number>;
 }
 
 export interface CreateFactorParams extends EnableMFAParams {
@@ -176,7 +177,6 @@ export interface JWTLoginParams {
    */
   prefetchTssPublicKeys?: number;
 }
-
 export interface Web3AuthState {
   postBoxKey?: string;
   signatures?: string[];
@@ -186,6 +186,7 @@ export interface Web3AuthState {
   tssPubKey?: Buffer;
   accountIndex: number;
   factorKey?: BN;
+  remoteClient?: IRemoteClientState;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
@@ -336,7 +337,7 @@ export interface Web3AuthOptions {
 }
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
-export interface IMPCContext {
+export interface IMPCContext extends IRemoteSignerContext {
   stateEmitter: SafeEventEmitter;
   config: Web3AuthOptionsWithDefaults;
   status: COREKIT_STATUS;
