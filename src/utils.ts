@@ -192,7 +192,7 @@ export function sigToRSV(sig: Buffer) {
     throw new Error(`Invalid signature length: expected 65, got ${sig.length}`);
   }
 
-  return { r: sig.subarray(0, 32), s: sig.subarray(32, 64), v: sig[64] };
+  return { r: Buffer.from(sig.subarray(0, 32)), s: Buffer.from(sig.subarray(32, 64)), v: sig[64] };
 }
 
 export function makeEthereumSigner(kit: CoreKitSigner): EthereumSigner {
