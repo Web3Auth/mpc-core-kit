@@ -158,6 +158,8 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
 
       const browserFactor = await instance2.getDeviceFactor();
 
+      const factorBN = new BN(recoverFactor, "hex")
+
       // login with mfa factor
       await instance2.inputFactorKey(new BN(recoverFactor, "hex"));
       assert.strictEqual(instance2.status, COREKIT_STATUS.LOGGED_IN);
@@ -166,6 +168,15 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       // new instance
       const instance3 = await newInstance();
       assert.strictEqual(instance3.status, COREKIT_STATUS.REQUIRED_SHARE);
+
+
+
+      try {
+        await instance3.inputFactorKey(factorBN.subn(1));
+        throw Error("should not be able to input factor");
+      } catch (e) {
+        assert(e instanceof Error);
+      }
 
       await instance3.inputFactorKey(new BN(browserFactor, "hex"));
       assert.strictEqual(instance3.status, COREKIT_STATUS.LOGGED_IN);

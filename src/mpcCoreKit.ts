@@ -512,6 +512,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // input tkey device share when required share > 0 ( or not reconstructed )
       // assumption tkey shares will not changed
       if (!this.tKey.secp256k1Key) {
+        const factorKeyPrivate = factorKeyCurve.keyFromPrivate(factorKey.toBuffer());
+        const factorPubX = factorKeyPrivate.getPublic().getX().toString("hex").padStart(64, "0");
+        const factorEncExist = this.tkey.metadata.factorEncs?.[this.tkey.tssTag]?.[factorPubX];
+        if (!factorEncExist) {
+          throw CoreKitError.providedFactorKeyInvalid("Invalid FactorKey provided. Failed to input factor key.");
+        }
         const factorKeyMetadata = await this.getFactorKeyMetadata(factorKey);
         await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
       }
