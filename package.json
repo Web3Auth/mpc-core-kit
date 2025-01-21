@@ -80,6 +80,7 @@
     "@toruslabs/torus-scripts": "^6.1.2",
     "@toruslabs/tss-dkls-lib": "^5.0.0-alpha.0",
     "@toruslabs/tss-frost-lib": "^2.0.0-alpha.0",
+    "@toruslabs/tss-frost-lib-bip340": "^0.1.0-alpha.0",
     "@types/chai": "^4.3.16",
     "@types/elliptic": "^6.4.18",
     "@types/jsonwebtoken": "^9.0.7",

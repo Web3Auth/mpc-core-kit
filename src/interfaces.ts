@@ -22,8 +22,8 @@ import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
-import { IRemoteClientState, IRemoteSignerContext } from "./plugins/ICustomSigner";
-import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
+import { ISessionSigGenerator } from "./plugins/SessionSigGenerator/ISessionSigGenerator";
+import { IRemoteClientState } from "./plugins/Signer/ISigner";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
@@ -336,13 +336,45 @@ export interface Web3AuthOptions {
   useClientGeneratedTSSKey?: boolean;
 }
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
+export type SigType = WEB3AUTH_SIG_TYPE;
 
-export interface IMPCContext extends IRemoteSignerContext {
+export interface ISignerContext {
+  stateEmitter: SafeEventEmitter;
+  config: Web3AuthOptionsWithDefaults;
+  status: COREKIT_STATUS;
+  state: Web3AuthState;
+  tKey: TKeyTSS;
+  keyType: KeyType;
+  sigType: SigType;
+  verifier: string;
+  verifierId: string;
+  getTssNonce: () => number;
+  getSessionSignatures: () => Promise<string[]>;
+  getPubKey(): Buffer;
+  precomputeSecp256k1(params?: { sessionSignatures?: string[] }): Promise<{
+    client: Client;
+    serverCoeffs: Record<string, string>;
+    signatures: string[];
+  }>;
+  setupRemoteSigning(params: Omit<IRemoteClientState, "tssShareIndex">, rehydrate?: boolean): Promise<void>;
+  createFactor(createFactorParams: CreateFactorParams): Promise<string>;
+  inputFactorKey(factorKey: string): Promise<void>;
+  deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void>;
+  getKeyDetails(): Record<string, unknown> & { shareDescriptions: ShareDescriptionMap };
+  getMetadataKey(): string | undefined;
+  getMetadataPublicKey(): string | undefined;
+  getWeb3AuthNetwork(): WEB3AUTH_NETWORK_TYPE;
+}
+
+export interface IMPCContext {
   stateEmitter: SafeEventEmitter;
   config: Web3AuthOptionsWithDefaults;
   status: COREKIT_STATUS;
   state: Web3AuthState;
   torusSp: TSSTorusServiceProvider | null;
+  tKey: TKeyTSS;
+  keyType: KeyType;
+  sigType: SigType;
   updateState: (newState: Partial<Web3AuthState>) => void;
   getUserInfo: () => UserInfo;
   setupTkey: (params?: {
@@ -441,8 +473,7 @@ export interface ICoreKit {
    * associated metadata.
    * @param factorPub - The public key of the factor to delete.
    */
-  deleteFactor(factorPub: TkeyPoint): Promise<void>;
-
+  deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void>;
   /**
    * Logs out the user, terminating the session.
    */
@@ -519,8 +550,6 @@ export interface SessionData {
 export interface TkeyLocalStoreData {
   factorKey: string;
 }
-
-export type SigType = WEB3AUTH_SIG_TYPE;
 
 export interface CoreKitSigner {
   keyType: KeyType;

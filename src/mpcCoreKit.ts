@@ -2,18 +2,15 @@ import { BNString, KeyType, ONE_KEY_DELETE_NONCE, Point, secp256k1, SHARE_DELETE
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import { DELIMITERS, factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, pointToHex, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
+import { DELIMITERS, factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
-import { Ed25519Curve, Secp256k1Curve } from "@toruslabs/elliptic-wrapper";
 import { fetchLocalConfig } from "@toruslabs/fnd-base";
-import { keccak256 } from "@toruslabs/metadata-helpers";
 import { SessionManager } from "@toruslabs/session-manager";
 import { Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type { WasmLib as DKLSWasmLib } from "@toruslabs/tss-dkls-lib";
-import { sign as signFrost } from "@toruslabs/tss-frost-client";
 import type { WasmLib as FrostWasmLibEd25519 } from "@toruslabs/tss-frost-lib";
 import type { WasmLib as FrostWasmLibBip340 } from "@toruslabs/tss-frost-lib-bip340";
 import { SafeEventEmitter } from "@web3auth/auth";
@@ -43,6 +40,7 @@ import {
   IFactorKey,
   IMPCContext,
   InitParams,
+  ISignerContext,
   JWTLoginParams,
   MPCKeyDetails,
   OAuthLoginParams,
@@ -59,11 +57,10 @@ import {
   Web3AuthOptionsWithDefaults,
   Web3AuthState,
 } from "./interfaces";
-import { DefaultSessionSigGeneratorPlugin } from "./plugins/DefaultSessionSigGenerator";
-import { ICustomDklsSignParams, ICustomFrostSignParams, IRemoteClientState } from "./plugins/ICustomSigner";
-import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
+import { DefaultSessionSigGeneratorPlugin } from "./plugins/SessionSigGenerator/DefaultSessionSigGenerator";
+import { ISessionSigGenerator } from "./plugins/SessionSigGenerator/ISessionSigGenerator";
+import { IRemoteClientState, ISigner } from "./plugins/Signer/ISigner";
 import {
-  deriveShareCoefficients,
   ed25519,
   generateEd25519Seed,
   generateFactorKey,
@@ -73,11 +70,10 @@ import {
   getSessionId,
   log,
   parseToken,
-  sampleEndpoints,
   scalarBNToBufferSEC1,
 } from "./utils";
 
-export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
+export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext, ISignerContext {
   public state: Web3AuthState = { accountIndex: 0 };
 
   public torusSp: TSSTorusServiceProvider | null = null;
@@ -112,9 +108,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
   private sessionSigGenerator: ISessionSigGenerator;
 
-  private customDklsSign: (params: ICustomDklsSignParams, msgHash: Uint8Array) => Promise<{ v: number; r: Uint8Array; s: Uint8Array }>;
-
-  private customFrostSign: (params: ICustomFrostSignParams, data: Uint8Array) => Promise<Uint8Array>;
+  private signer: ISigner;
 
   constructor(options: Web3AuthOptions) {
     if (!options.web3AuthClientId) {
@@ -200,14 +194,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return this._sigType !== "ed25519";
   }
 
-  private get verifier(): string {
+  get verifier(): string {
     if (this.state.userInfo?.aggregateVerifier) {
       return this.state.userInfo.aggregateVerifier;
     }
     return this.state?.userInfo?.verifier ? this.state.userInfo.verifier : "";
   }
 
-  private get verifierId(): string {
+  get verifierId(): string {
     return this.state?.userInfo?.verifierId ? this.state.userInfo.verifierId : "";
   }
 
@@ -223,18 +217,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     this.sessionSigGenerator = sessionSigGenerator;
   }
 
+  public setCustomSigner(customSigner: ISigner) {
+    this.signer = customSigner;
+  }
+
   async getSessionSignatures(): Promise<string[]> {
     return this.sessionSigGenerator.getSessionSigs();
-  }
-
-  public setCustomDKLSSign(customDKLSSign: {
-    sign: (params: ICustomDklsSignParams, msgHash: Uint8Array) => Promise<{ v: number; r: Uint8Array; s: Uint8Array }>;
-  }) {
-    this.customDklsSign = customDKLSSign.sign;
-  }
-
-  public setCustomFrostSign(customFrostSign: { sign: (params: ICustomFrostSignParams, data: Uint8Array) => Promise<Uint8Array> }) {
-    this.customFrostSign = customFrostSign.sign;
   }
 
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
@@ -752,64 +740,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return p.getX().toBuffer("be", 32);
   }
 
-  public async preSetupSigning(): Promise<ICustomDklsSignParams> {
-    const { torusNodeTSSEndpoints } = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
-
-    const tssCommits = this.tKey.getTSSCommits();
-
-    if (!tssCommits[0] || !torusNodeTSSEndpoints) {
-      throw CoreKitError.tssPublicKeyOrEndpointsMissing();
-    }
-
-    const tssNonce = this.getTssNonce() || 0;
-    const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
-    const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
-
-    const parties = 4;
-    const clientIndex = parties - 1;
-
-    const { nodeIndexes } = await (this.tKey.serviceProvider as TSSTorusServiceProvider).getTSSPubKey(
-      this.tKey.tssTag,
-      this.tKey.metadata.tssNonces[this.tKey.tssTag]
-    );
-
-    if (parties - 1 > nodeIndexes.length) {
-      throw new Error(`Not enough nodes to perform TSS - parties :${parties}, nodeIndexes:${nodeIndexes.length}`);
-    }
-    const {
-      endpoints,
-      tssWSEndpoints,
-      partyIndexes,
-      nodeIndexesReturned: participatingServerDKGIndexes,
-    } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
-
-    const factor = this.state.remoteClient?.remoteFactorPub
-      ? Point.fromSEC1(secp256k1, this.state.remoteClient?.remoteFactorPub)
-      : Point.fromScalar(this.state.factorKey, secp256k1);
-    const factorEnc = this.tKey.getFactorEncs(factor);
-
-    // Compute account nonce only supported for secp256k1
-    const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
-
-    return {
-      endpoints,
-      tssWSEndpoints,
-      partyIndexes,
-      factorEnc,
-      sessionId,
-      tssCommits: tssCommits.map((commit) => commit.toPointHex()),
-      participatingServerDKGIndexes,
-      clientIndex,
-      tssNonce: tssNonce.toString(),
-      accountNonce: accountNonce.toString(),
-
-      signatures: this.state.signatures,
-      tssPubKeyHex: this.getPubKey().toString("hex"),
-      curve: this.keyType,
-    };
-  }
-
-  public async precompute_secp256k1(params?: { sessionSignatures?: string[] }): Promise<{
+  public async precomputeSecp256k1(params?: { sessionSignatures?: string[] }): Promise<{
     client: Client;
     serverCoeffs: Record<string, string>;
     signatures: string[];
@@ -905,7 +836,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       if (opts?.keyTweak) {
         throw CoreKitError.default("key tweaking not supported for ecdsa-secp256k1");
       }
-      const sig = await this.sign_ECDSA_secp256k1(data, opts?.hashed, opts?.secp256k1Precompute);
+      const sig = await this.signer.signECDSASecp256k1(data, opts?.hashed, opts?.secp256k1Precompute);
       return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
     } else if (this._sigType === "ed25519" || this._sigType === "bip340") {
       if (opts?.hashed) {
@@ -914,13 +845,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         throw CoreKitError.default("key tweaking not supported for ed25519");
       }
 
-      return this.sign_frost(data, opts?.keyTweak);
+      return this.signer.signFrost(data, opts?.keyTweak);
     }
     throw CoreKitError.default(`sign not supported for key type ${this.keyType}`);
   }
 
   // mutation function
-  async deleteFactor(factorPub: Point, factorKey?: BNString): Promise<void> {
+  public async deleteFactor(factorPub: Point, factorKey?: BNString): Promise<void> {
     if (!this.state.factorKey) {
       if (this.state.remoteClient?.remoteFactorPub) throw CoreKitError.notSupportedForRemoteFactor("Cannot delete a remote factor.");
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
@@ -1218,6 +1149,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return this.tkey.getKeyDetails().pubKey.toSEC1(secp256k1, true).toString("hex");
   }
 
+  public getTssNonce(): number {
+    if (!this.tKey.metadata.tssNonces || this.tKey.metadata.tssNonces[this.tKey.tssTag] === undefined) {
+      throw CoreKitError.tssNoncesMissing(`tssNonce not present for tag ${this.tKey.tssTag}`);
+    }
+    const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
+    return tssNonce;
+  }
+
   protected async atomicSync<T>(f: () => Promise<T>): Promise<T> {
     this.atomicCallStackCounter += 1;
 
@@ -1238,6 +1177,63 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         this.tkey.manualSync = this.options.manualSync;
       }
     }
+  }
+
+  private async preSetupSigning(): Promise<ICustomDklsSignParams> {
+    const { torusNodeTSSEndpoints } = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
+
+    const tssCommits = this.tKey.getTSSCommits();
+
+    if (!tssCommits[0] || !torusNodeTSSEndpoints) {
+      throw CoreKitError.tssPublicKeyOrEndpointsMissing();
+    }
+
+    const tssNonce = this.getTssNonce() || 0;
+    const vid = `${this.verifier}${DELIMITERS.Delimiter1}${this.verifierId}`;
+    const sessionId = `${vid}${DELIMITERS.Delimiter2}default${DELIMITERS.Delimiter3}${tssNonce}${DELIMITERS.Delimiter4}`;
+
+    const parties = 4;
+    const clientIndex = parties - 1;
+
+    const { nodeIndexes } = await (this.tKey.serviceProvider as TSSTorusServiceProvider).getTSSPubKey(
+      this.tKey.tssTag,
+      this.tKey.metadata.tssNonces[this.tKey.tssTag]
+    );
+
+    if (parties - 1 > nodeIndexes.length) {
+      throw new Error(`Not enough nodes to perform TSS - parties :${parties}, nodeIndexes:${nodeIndexes.length}`);
+    }
+    const {
+      endpoints,
+      tssWSEndpoints,
+      partyIndexes,
+      nodeIndexesReturned: participatingServerDKGIndexes,
+    } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
+
+    const factor = this.state.remoteClient?.remoteFactorPub
+      ? Point.fromSEC1(secp256k1, this.state.remoteClient?.remoteFactorPub)
+      : Point.fromScalar(this.state.factorKey, secp256k1);
+    const factorEnc = this.tKey.getFactorEncs(factor);
+
+    // Compute account nonce only supported for secp256k1
+    const accountNonce = this.tkey.computeAccountNonce(this.state.accountIndex);
+
+    return {
+      endpoints,
+      tssWSEndpoints,
+      partyIndexes,
+      factorEnc,
+      sessionId,
+      tssCommits: tssCommits.map((commit) => commit.toPointHex()),
+      participatingServerDKGIndexes,
+      clientIndex,
+      tssNonce: tssNonce.toString(),
+      accountNonce: accountNonce.toString(),
+
+      signatures: this.state.signatures,
+      tssPubKeyHex: this.getPubKey().toString("hex"),
+      curve: this.keyType,
+    };
   }
 
   private async createSessionRemoteClient() {
@@ -1273,14 +1269,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       { tag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPub, newTSSIndex },
       { authSignatures: this.state.signatures }
     );
-  }
-
-  private getTssNonce(): number {
-    if (!this.tKey.metadata.tssNonces || this.tKey.metadata.tssNonces[this.tKey.tssTag] === undefined) {
-      throw CoreKitError.tssNoncesMissing(`tssNonce not present for tag ${this.tKey.tssTag}`);
-    }
-    const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
-    return tssNonce;
   }
 
   // mutation function
@@ -1640,137 +1628,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
   private getAccountNonce() {
     return this.tkey.computeAccountNonce(this.state.accountIndex);
-  }
-
-  private async sign_ECDSA_secp256k1(data: Buffer, hashed: boolean = false, precomputedTssClient?: Secp256k1PrecomputedClient) {
-    const executeSign = async (client: Client, serverCoeffs: Record<string, string>, hashedData: Buffer, signatures: string[]) => {
-      const { r, s, recoveryParam } = await client.sign(hashedData.toString("base64"), true, "", "keccak256", {
-        signatures,
-      });
-      // skip await cleanup
-      client.cleanup({ signatures, server_coeffs: serverCoeffs });
-      return { v: recoveryParam, r: scalarBNToBufferSEC1(r), s: scalarBNToBufferSEC1(s) };
-    };
-    if (!hashed) {
-      data = keccak256(data);
-    }
-
-    // Custom Dkls Sign
-    if (this.customDklsSign) {
-      // PreSetup
-      const setupSigningParams = await this.preSetupSigning();
-      const result = await this.customDklsSign(setupSigningParams, data);
-      return result;
-    }
-
-    const isAlreadyPrecomputed = precomputedTssClient?.client && precomputedTssClient?.serverCoeffs;
-    const { client, serverCoeffs, signatures } = isAlreadyPrecomputed ? precomputedTssClient : await this.precompute_secp256k1();
-
-    if (!signatures) {
-      throw CoreKitError.signaturesNotPresent();
-    }
-
-    try {
-      return await executeSign(client, serverCoeffs, data, signatures);
-    } catch (error) {
-      if (!isAlreadyPrecomputed) {
-        throw error;
-      }
-      // Retry with new client if precomputed client failed, this is to handle the case when precomputed session might have expired
-      const { client: newClient, serverCoeffs: newServerCoeffs } = await this.precompute_secp256k1({ sessionSignatures: signatures });
-      const result = await executeSign(newClient, newServerCoeffs, data, signatures);
-
-      return result;
-    }
-  }
-
-  private async sign_frost(data: Buffer, keyTweak?: BN): Promise<Buffer> {
-    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType, this._sigType);
-    if (!nodeDetails.torusNodeTSSEndpoints) {
-      throw CoreKitError.default("could not fetch tss node endpoints");
-    }
-
-    // Endpoints must end with backslash, but URLs returned by
-    // `fetch-node-details` don't have it.
-    const serverEndpoints = nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
-
-    // Select endpoints and derive party indices.
-    const serverThreshold = Math.floor(serverEndpoints.length / 2) + 1;
-    const endpoints = sampleEndpoints(serverEndpoints, serverThreshold);
-    const serverXCoords = endpoints.map((x) => x.index);
-    const clientXCoord = Math.max(...endpoints.map((ep) => ep.index)) + 1;
-
-    // Derive share coefficients for flat hierarchy.
-    const ec = (() => {
-      if (this.keyType === KeyType.secp256k1) {
-        return new Secp256k1Curve();
-      } else if (this.keyType === KeyType.ed25519) {
-        return new Ed25519Curve();
-      }
-      throw CoreKitError.default(`key type ${this.keyType} not supported with FROST signing`);
-    })();
-    const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord, this.state.tssShareIndex);
-
-    // Get pub key.
-    const tssPubKey = this.getPubKey();
-    const tssPubKeyPoint = ec.keyFromPublic(tssPubKey).getPublic();
-
-    // Get client key share and adjust by coefficient.
-    if (this._sigType === "ed25519" && this.state.accountIndex !== 0) {
-      throw CoreKitError.default("Account index not supported for ed25519");
-    }
-
-    // Generate session identifier.
-    const tssNonce = this.getTssNonce();
-    const sessionNonce = generateSessionNonce();
-    const session = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, sessionNonce);
-
-    // Run signing protocol.
-    const serverURLs = endpoints.map((x) => x.url);
-    const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
-    const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
-    const authSignatures = await this.getSessionSignatures();
-
-    if (this.customFrostSign) {
-      const factorPub = Point.fromSEC1(secp256k1, this.state.remoteClient.remoteFactorPub);
-      const params: ICustomFrostSignParams = {
-        sessionId: session,
-        signatures: await this.getSessionSignatures(),
-        tssCommits: this.tKey.getTSSCommits().map((commit) => pointToHex(commit)),
-        factorEnc: this.tKey.getFactorEncs(factorPub),
-        serverXCoords,
-        clientXCoord,
-        serverCoefficients: serverCoefficients.map((sc) => sc.toString("hex")),
-        clientCoefficient: clientCoefficient.toString("hex"),
-        tssPubKeyHex: this.getPubKey().toString("hex"),
-        serverURLs,
-        curve: this.tkey.tssKeyType,
-      };
-      const result = await this.customFrostSign(params, data);
-      return Buffer.from(result);
-    }
-
-    // compute client share
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
-    const clientShareAdjusted = tssShare.mul(clientCoefficient).umod(ec.n);
-    const clientShareAdjustedHex = ec.scalarToBuffer(clientShareAdjusted, Buffer).toString("hex");
-
-    const signature = await signFrost(
-      this.wasmLib as FrostWasmLibEd25519 | FrostWasmLibBip340,
-      session,
-      authSignatures,
-      serverXCoords,
-      serverURLs,
-      clientXCoord,
-      clientShareAdjustedHex,
-      pubKeyHex,
-      data,
-      serverCoefficientsHex,
-      keyTweak?.toString("hex")
-    );
-
-    log.info(`signature: ${signature}`);
-    return Buffer.from(signature, "hex");
   }
 
   private async loadTssWasm() {

@@ -1,3 +1,3 @@
 export * from "./DefaultSessionSigGenerator";
-export * from "./ICustomSigner";
-export * from "./ISessionSigGenerator";
+export * from "./SessionSigGenerator/ISessionSigGenerator";
+export * from "./Signer/ISigner";
