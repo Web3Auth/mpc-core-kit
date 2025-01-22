@@ -6,22 +6,23 @@ import { Secp256k1PrecomputedClient } from "../../interfaces";
 
 export type SupportedCurve = "secp256k1" | "ed25519";
 
-export type IFrostSignParams = {
+export type IFrostSignConfig = {
   sessionId: string;
   signatures: string[];
   tssCommits: PointHex[];
-  factorEnc: FactorEnc;
+  clientShareHex?: string;
+  factorEnc?: FactorEnc;
   tssPubKeyHex: string;
   curve: SupportedCurve;
 
   serverXCoords: number[];
   clientXCoord: number;
-  serverCoefficients: string[];
+  serverCoefficientsHex: string[];
   clientCoefficient: string;
   serverURLs: string[];
 };
 
-export interface IDklsSignParams {
+export interface IDklsSignConfig {
   sessionId: string;
   signatures: string[];
   tssCommits: PointHex[];
@@ -39,15 +40,7 @@ export interface IDklsSignParams {
   partyIndexes: number[];
 }
 
-export interface IDKLSSigner {
-  sign: (params: IDklsSignParams, msgHash: Uint8Array) => Promise<{ v: number; r: Uint8Array; s: Uint8Array }>;
-}
-
-export interface IFrostSigner {
-  sign: (params: IFrostSignParams, msgHash: Uint8Array) => Promise<Uint8Array>;
-}
-
-export interface IRemoteClientState {
+export interface IRemoteFactor {
   remoteFactorPub: string;
   metadataShare: string;
   tssShareIndex: number;

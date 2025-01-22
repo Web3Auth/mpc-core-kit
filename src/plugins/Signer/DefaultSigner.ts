@@ -1,6 +1,3 @@
-import { KeyType } from "@tkey/common-types";
-import { Ed25519Curve, Secp256k1Curve } from "@toruslabs/elliptic-wrapper";
-import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { Client } from "@toruslabs/tss-client";
 import type { WasmLib as DKLSWasmLib } from "@toruslabs/tss-dkls-lib";
@@ -11,7 +8,7 @@ import BN from "bn.js";
 
 import CoreKitError from "../../helper/errors";
 import { ISignerContext, Secp256k1PrecomputedClient } from "../../interfaces";
-import { deriveShareCoefficients, generateSessionNonce, getSessionId, sampleEndpoints, scalarBNToBufferSEC1 } from "../../utils";
+import { scalarBNToBufferSEC1 } from "../../utils";
 import { ISigner } from "./ISigner";
 
 export class DefaultSignerPlugin implements ISigner {
@@ -66,52 +63,7 @@ export class DefaultSignerPlugin implements ISigner {
   }
 
   public async signFrost(data: Buffer, keyTweak?: BN): Promise<Buffer> {
-    const nodeDetails = fetchLocalConfig(this.context.config.web3AuthNetwork, this.context.keyType, this.context.sigType);
-    if (!nodeDetails.torusNodeTSSEndpoints) {
-      throw CoreKitError.default("could not fetch tss node endpoints");
-    }
-
-    // Endpoints must end with backslash, but URLs returned by
-    // `fetch-node-details` don't have it.
-    const serverEndpoints = nodeDetails.torusNodeTSSEndpoints.map((ep, i) => ({ index: nodeDetails.torusIndexes[i], url: `${ep}/` }));
-
-    // Select endpoints and derive party indices.
-    const serverThreshold = Math.floor(serverEndpoints.length / 2) + 1;
-    const endpoints = sampleEndpoints(serverEndpoints, serverThreshold);
-    const serverXCoords = endpoints.map((x) => x.index);
-    const clientXCoord = Math.max(...endpoints.map((ep) => ep.index)) + 1;
-
-    // Derive share coefficients for flat hierarchy.
-    const ec = (() => {
-      if (this.context.keyType === KeyType.secp256k1) {
-        return new Secp256k1Curve();
-      } else if (this.context.keyType === KeyType.ed25519) {
-        return new Ed25519Curve();
-      }
-      throw CoreKitError.default(`key type ${this.context.keyType} not supported with FROST signing`);
-    })();
-    const { serverCoefficients, clientCoefficient } = deriveShareCoefficients(ec, serverXCoords, clientXCoord, this.context.state.tssShareIndex);
-
-    // Get pub key.
-    const tssPubKey = this.context.getPubKey();
-    const tssPubKeyPoint = ec.keyFromPublic(tssPubKey).getPublic();
-
-    // Get client key share and adjust by coefficient.
-    if (this.context.sigType === "ed25519" && this.context.state.accountIndex !== 0) {
-      throw CoreKitError.default("Account index not supported for ed25519");
-    }
-
-    // Generate session identifier.
-    const tssNonce = this.context.getTssNonce();
-    const sessionNonce = generateSessionNonce();
-    const session = getSessionId(this.context.verifier, this.context.verifierId, this.context.tKey.tssTag, tssNonce, sessionNonce);
-
     // Run signing protocol.
-    const serverURLs = endpoints.map((x) => x.url);
-    const pubKeyHex = ec.pointToBuffer(tssPubKeyPoint, Buffer).toString("hex");
-    const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
-    const authSignatures = await this.context.getSessionSignatures();
-
     // if (this.customFrostSign) {
     //   const factorPub = Point.fromSEC1(secp256k1, this.state.remoteClient.remoteFactorPub);
     //   const params: ICustomFrostSignParams = {
@@ -132,19 +84,19 @@ export class DefaultSignerPlugin implements ISigner {
     // }
 
     // compute client share
-    const { tssShare } = await this.context.tKey.getTSSShare(this.context.state.factorKey);
-    const clientShareAdjusted = tssShare.mul(clientCoefficient).umod(ec.n);
-    const clientShareAdjustedHex = ec.scalarToBuffer(clientShareAdjusted, Buffer).toString("hex");
+    const { clientXCoord, tssPubKeyHex, serverURLs, clientShareHex, sessionId, signatures, serverXCoords, serverCoefficientsHex } =
+      await this.context.preSetupFrostSigningConfig();
+
     this.wasmLib = await this.loadTssWasm();
     const signature = await signFrost(
       this.wasmLib as FrostWasmLibEd25519 | FrostWasmLibBip340,
-      session,
-      authSignatures,
+      sessionId,
+      signatures,
       serverXCoords,
       serverURLs,
       clientXCoord,
-      clientShareAdjustedHex,
-      pubKeyHex,
+      clientShareHex,
+      tssPubKeyHex,
       data,
       serverCoefficientsHex,
       keyTweak?.toString("hex")

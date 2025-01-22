@@ -23,7 +23,7 @@ import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 import { ISessionSigGenerator } from "./plugins/SessionSigGenerator/ISessionSigGenerator";
-import { IRemoteClientState } from "./plugins/Signer/ISigner";
+import { IDklsSignConfig, IFrostSignConfig, IRemoteFactor } from "./plugins/Signer/ISigner";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
@@ -186,7 +186,7 @@ export interface Web3AuthState {
   tssPubKey?: Buffer;
   accountIndex: number;
   factorKey?: BN;
-  remoteClient?: IRemoteClientState;
+  remoteFactor?: IRemoteFactor;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
@@ -356,7 +356,8 @@ export interface ISignerContext {
     serverCoeffs: Record<string, string>;
     signatures: string[];
   }>;
-  setupRemoteSigning(params: Omit<IRemoteClientState, "tssShareIndex">, rehydrate?: boolean): Promise<void>;
+  preSetupDKLSSigningConfig(): Promise<IDklsSignConfig>;
+  preSetupFrostSigningConfig(): Promise<IFrostSignConfig>;
   createFactor(createFactorParams: CreateFactorParams): Promise<string>;
   inputFactorKey(factorKey: string): Promise<void>;
   deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void>;
