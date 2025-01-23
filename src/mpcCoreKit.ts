@@ -58,6 +58,7 @@ import {
   Web3AuthOptionsWithDefaults,
   Web3AuthState,
 } from "./interfaces";
+import { DefaultSignerPlugin } from "./plugins";
 import { DefaultSessionSigGeneratorPlugin } from "./plugins/SessionSigGenerator/DefaultSessionSigGenerator";
 import { ISessionSigGenerator } from "./plugins/SessionSigGenerator/ISessionSigGenerator";
 import { IDklsSignConfig, IFrostSignConfig, IRemoteFactor, ISigner } from "./plugins/Signer/ISigner";
@@ -140,6 +141,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext, ISignerContext
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
     if (options.disableSessionManager === undefined) options.disableSessionManager = false;
     this.sessionSigGenerator = new DefaultSessionSigGeneratorPlugin(this);
+    this.signer = new DefaultSignerPlugin(this);
     this.options = options as Web3AuthOptionsWithDefaults;
 
     this.currentStorage = new AsyncStorage(this._storageBaseKey, options.storage);

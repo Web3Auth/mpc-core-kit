@@ -23,7 +23,7 @@ import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 import { ISessionSigGenerator } from "./plugins/SessionSigGenerator/ISessionSigGenerator";
-import { IDklsSignConfig, IFrostSignConfig, IRemoteFactor } from "./plugins/Signer/ISigner";
+import { IDklsSignConfig, IFrostSignConfig, IRemoteFactor, ISigner } from "./plugins/Signer/ISigner";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
@@ -358,13 +358,26 @@ export interface ISignerContext {
   }>;
   preSetupDKLSSigningConfig(): Promise<IDklsSignConfig>;
   preSetupFrostSigningConfig(): Promise<IFrostSignConfig>;
-  createFactor(createFactorParams: CreateFactorParams): Promise<string>;
-  inputFactorKey(factorKey: string): Promise<void>;
-  deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void>;
-  getKeyDetails(): Record<string, unknown> & { shareDescriptions: ShareDescriptionMap };
-  getMetadataKey(): string | undefined;
-  getMetadataPublicKey(): string | undefined;
+  setCustomSigner(customSigner: ISigner, remoteFactor?: IRemoteFactor): Promise<void>;
+}
+
+export interface IFactorManagerContext {
+  stateEmitter: SafeEventEmitter;
+  config: Web3AuthOptionsWithDefaults;
+  status: COREKIT_STATUS;
+  state: Web3AuthState;
+  tKey: TKeyTSS;
+  keyType: KeyType;
+  sigType: SigType;
+  verifier: string;
+  verifierId: string;
   getWeb3AuthNetwork(): WEB3AUTH_NETWORK_TYPE;
+  createFactor(createFactorParams: CreateFactorParams): Promise<string>;
+  deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void>;
+  getMetadataKey(): string | undefined;
+  getKeyDetails(): Record<string, unknown> & {
+    shareDescriptions: ShareDescriptionMap;
+  };
 }
 
 export interface IMPCContext {

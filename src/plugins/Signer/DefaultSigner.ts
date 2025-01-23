@@ -33,14 +33,6 @@ export class DefaultSignerPlugin implements ISigner {
       data = keccak256(data);
     }
 
-    // // Custom Dkls Sign
-    // if (this.customDklsSign) {
-    //   // PreSetup
-    //   const setupSigningParams = await this.context.preSetupSigning();
-    //   const result = await this.customDklsSign(setupSigningParams, data);
-    //   return result;
-    // }
-
     const isAlreadyPrecomputed = precomputedTssClient?.client && precomputedTssClient?.serverCoeffs;
     const { client, serverCoeffs, signatures } = isAlreadyPrecomputed ? precomputedTssClient : await this.context.precomputeSecp256k1();
 
