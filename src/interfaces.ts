@@ -375,6 +375,7 @@ export interface IFactorManagerContext {
   createFactor(createFactorParams: CreateFactorParams): Promise<string>;
   deleteFactor(factorPub: TkeyPoint, factorKey?: BNString): Promise<void>;
   getMetadataKey(): string | undefined;
+  getMetadataPublicKey(): string;
   getKeyDetails(): Record<string, unknown> & {
     shareDescriptions: ShareDescriptionMap;
   };
