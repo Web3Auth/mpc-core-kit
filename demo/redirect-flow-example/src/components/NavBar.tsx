@@ -10,7 +10,7 @@ const Header: React.FC = () => {
   const [isLogin, setIsLogin] = React.useState(true);
   React.useEffect(() => {
     try {
-      if (userInfo) {
+      if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         setCoreKitStatus(COREKIT_STATUS.LOGGED_IN);
         setIsLogin(true);
       } else {
@@ -20,7 +20,7 @@ const Header: React.FC = () => {
       console.error(error);
       setIsLogin(false);
     }
-  }, [userInfo]);
+  }, [coreKitInstance.status]);
 
   const navigate = useNavigate();
   const logout = async () => {

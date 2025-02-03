@@ -520,8 +520,87 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public setTssWalletIndex(accountIndex: number) {
-    this.updateState({ tssPubKey: this.tKey.getTSSPub(accountIndex).toSEC1(this.tkey.tssCurve, false), accountIndex });
+  public async setTssWalletIndex(accountIndex: number, accountName?: string) {
+    const tssPubKey = this.tKey.getTSSPub(accountIndex).toSEC1(this.tkey.tssCurve, false);
+    // Retrieve the existing general store domain data
+    const generalStoreDomain = this.tkey.metadata.getGeneralStoreDomain("tssWalletIndex");
+    let tssWalletIndex: { [key: string]: { pubKey: string; name?: string } } = {};
+
+    if (generalStoreDomain) {
+      tssWalletIndex = JSON.parse(generalStoreDomain as string);
+    }
+
+    // Check if the account index is already present
+    if (!tssWalletIndex[accountIndex.toString()]) {
+      tssWalletIndex[accountIndex.toString()] = {
+        pubKey: tssPubKey.toString("hex"),
+        name: accountName || "",
+      };
+    }
+
+    this.tkey.metadata.setGeneralStoreDomain("tssWalletIndex", JSON.stringify(tssWalletIndex));
+    if (!this.tkey.manualSync) await this.tkey._syncShareMetadata();
+    this.updateState({ tssPubKey, accountIndex });
+  }
+
+  public getTssWalletIndices(): { index: number; address: string; name?: string }[] {
+    // Retrieve the existing general store domain data
+    const generalStoreDomain = this.tKey.metadata.getGeneralStoreDomain("tssWalletIndex");
+    let tssWalletIndex: { [key: string]: { pubKey: string; name?: string } } = {};
+
+    if (generalStoreDomain) {
+      tssWalletIndex = JSON.parse(generalStoreDomain as string);
+    }
+
+    // Convert the stored data into a list of indices, addresses, and names
+    const indicesAndAddresses = Object.keys(tssWalletIndex).map((index) => ({
+      index: parseInt(index, 10),
+      address: tssWalletIndex[index].pubKey,
+      name: tssWalletIndex[index].name,
+    }));
+
+    return indicesAndAddresses;
+  }
+
+  public async updateTssWalletIndex(accountIndex: number, accountName?: string) {
+    const tssPubKey = this.tKey.getTSSPub(accountIndex).toSEC1(this.tkey.tssCurve, false);
+    // Retrieve the existing general store domain data
+    const generalStoreDomain = this.tkey.metadata.getGeneralStoreDomain("tssWalletIndex");
+    let tssWalletIndex: { [key: string]: { pubKey: string; name?: string } } = {};
+
+    if (generalStoreDomain) {
+      tssWalletIndex = JSON.parse(generalStoreDomain as string);
+    }
+
+    // Update the account index
+    tssWalletIndex[accountIndex.toString()] = {
+      pubKey: tssPubKey.toString("hex"),
+      name: accountName,
+    };
+
+    this.tkey.metadata.setGeneralStoreDomain("tssWalletIndex", JSON.stringify(tssWalletIndex));
+    if (!this.tkey.manualSync) await this.tkey._syncShareMetadata();
+    this.updateState({ tssPubKey, accountIndex });
+  }
+
+  public async deleteTssWalletIndex(accountIndex: number) {
+    // Retrieve the existing general store domain data
+    const generalStoreDomain = this.tkey.metadata.getGeneralStoreDomain("tssWalletIndex");
+    let tssWalletIndex: { [key: string]: string } = {};
+
+    if (generalStoreDomain) {
+      tssWalletIndex = JSON.parse(generalStoreDomain as string);
+    }
+    // Check if the account index exists
+    if (!tssWalletIndex[accountIndex.toString()]) {
+      return `Account index ${accountIndex} not present`;
+    }
+
+    // Delete the account index
+    delete tssWalletIndex[accountIndex.toString()];
+
+    this.tkey.metadata.setGeneralStoreDomain("tssWalletIndex", JSON.stringify(tssWalletIndex));
+    if (!this.tkey.manualSync) await this.tkey._syncShareMetadata();
   }
 
   public getCurrentFactorKey(): IFactorKey {
@@ -1474,7 +1553,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const serverCoefficientsHex = serverCoefficients.map((c) => ec.scalarToBuffer(c, Buffer).toString("hex"));
     const authSignatures = await this.fetchSessionSignatures();
     const signature = await signFrost(
-      this.wasmLib as FrostWasmLibEd25519 | FrostWasmLibBip340,
+      this.wasmLib as FrostWasmLibEd25519,
       session,
       authSignatures,
       serverXCoords,
