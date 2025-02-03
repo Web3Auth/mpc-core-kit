@@ -1,27 +1,43 @@
 import * as React from "react";
 import { useCoreKit } from "../../composibles/useCoreKit";
 import { Button } from "../Button";
-import { Card } from "../Card";
+import { Card, cn } from "../Card";
 import { TextField } from "../TextField";
 import useUnifiedRPC from "../../composibles/useRpc";
 import { KeyType } from "@tkey/common-types";
 
 const TransactionCard: React.FC = () => {
   const [amount, setAmount] = React.useState("0.0001");
-  const { setDrawerHeading, setDrawerInfo, coreKitInstance } = useCoreKit();
+  const [toAddress, setToAddress] = React.useState("");
+  const { setDrawerHeading, setDrawerInfo, networkName } = useCoreKit();
   const [isLoading, setIsLoading] = React.useState(false);
   const { sendTransaction, account } = useUnifiedRPC();
+  const [faucetLink, setFaucetLink] = React.useState("");
+
+  React.useEffect(() => {
+    setToAddress(account);
+  }, [account]);
+
+  React.useEffect(() => {
+    if (networkName === "ETH") {
+      setFaucetLink("https://cloud.google.com/application/web3/faucet/ethereum/sepolia");
+    } else if (networkName === "SOL") {
+      setFaucetLink("https://faucet.solana.com/");
+    } else if (networkName === "BTC") {
+      setFaucetLink("https://coinfaucet.eu/en/btc-testnet/");
+    }
+  }, [networkName]);
 
   const sendWeb3AuthTx = async () => {
     setIsLoading(true);
 
     try {
-      const toAddress = account;
-      if (!toAddress) {
+      const sendAddress = toAddress || account;
+      if (!sendAddress) {
         console.error("No account found");
         return;
       }
-      const receipt = await sendTransaction(toAddress, amount);
+      const receipt = await sendTransaction(sendAddress, amount);
       setDrawerHeading("Send Transaction Result");
       setDrawerInfo(`${receipt}`);
     } catch (error) {
@@ -33,15 +49,34 @@ const TransactionCard: React.FC = () => {
     }
   };
 
+  const openFaucet = () => {
+    window.open(faucetLink, "blank");
+  }
+
   return (
     <Card className="px-8 py-6 w-full !rounded-2xl !shadow-modal !border-0 dark:!border-app-gray-800 dark:!shadow-dark">
       <div className="text-center">
-        <h3 className="font-semibold text-app-gray-900 dark:text-app-white mb-4">Send Transaction</h3>
+        <h3 className="font-semibold text-app-gray-900 dark:text-app-white mb-2">Send Transaction</h3>
+        <Button variant={"text"} 
+          className={cn("text-center w-full text-sm font-medium mb-2")}
+          onClick={openFaucet}>
+          Visit {networkName} Faucet
+        </Button>
+        <TextField
+          value={toAddress}
+          onChange={(e) => setToAddress(e.target.value)}
+          label={`To Address`}
+          placeholder={`Enter To Address`}
+          className="mb-4 rounded-md"
+          classes={{
+            container: "flex flex-col justify-center items-center",
+          }}
+        />
         <TextField
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          label={`Amount ${coreKitInstance?.keyType === KeyType.ed25519 ? "(SOL)" : "(ETH)"}`}
-          placeholder={`Enter amount in ${coreKitInstance?.keyType === KeyType.ed25519 ? "SOL" : "ETH"}`}
+          label={`Amount ${networkName}`}
+          placeholder={`Enter amount in ${networkName}`}
           className="mb-4 rounded-md"
           classes={{
             container: "flex flex-col justify-center items-center",

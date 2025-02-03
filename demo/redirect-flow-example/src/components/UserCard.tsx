@@ -8,6 +8,8 @@ import { HiOutlineDuplicate } from "react-icons/hi";
 import { HiOutlineCheckCircle } from "react-icons/hi";
 import { Link } from "./Link";
 import useUnifiedRPC from "../composibles/useRpc";
+import { Dropdown } from "./DropDown";
+import { TextField } from "./TextField";
 
 const UserCard: React.FC = () => {
   const { drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo, coreKitInstance } = useCoreKit();
@@ -18,7 +20,37 @@ const UserCard: React.FC = () => {
   const [imageError, setImageError] = React.useState(false);
   const [currentDrawerHeading, setCurrentDrawerHeading] = React.useState("");
   const [currentDrawerInfo, setCurrentDrawerInfo] = React.useState<any>(null);
+  const [walletAddresses, setWalletAddresses] = React.useState<{ index: number; address: string }[]>([]);
+  const [selectedWallet, setSelectedWallet] = React.useState<string>("");
+  const [newWalletName, setNewWalletName] = React.useState<string>("");
 
+  const fetchWalletAddresses = async () => {
+    const indices = await coreKitInstance.getTssWalletIndices();
+    indices.push({ address: account, index: 0 })
+    indices.sort((a, b) => a.index - b.index);
+    setWalletAddresses(indices);
+    if (indices.length > 0) {
+      setSelectedWallet(indices[1].address);
+    }
+  };
+
+  React.useEffect(() => {
+    if (account)
+      fetchWalletAddresses();
+  }, [account]);
+
+  const createNewWallet = async () => {
+    const indices = coreKitInstance.getTssWalletIndices();
+    const newIndex = indices[indices.length - 1].index + 1;
+    await coreKitInstance.setTssWalletIndex(newIndex);
+    await fetchWalletAddresses();
+  };
+
+  const switchTssWalletIndex = async () => {
+    console.log("1", coreKitInstance.getTssWalletIndices());
+    await coreKitInstance.setTssWalletIndex(1);
+    console.log("2", coreKitInstance.getTssWalletIndices());
+  };
   React.useEffect(() => {
     if (drawerHeading) {
       setCurrentDrawerHeading(drawerHeading);
@@ -34,7 +66,6 @@ const UserCard: React.FC = () => {
       setOpenConsole(true);
     }
   }, [drawerInfo]);
-
 
   React.useEffect(() => {
     const getAccountRPC = async () => {
@@ -55,6 +86,7 @@ const UserCard: React.FC = () => {
     setIsCopied(true);
     navigator.clipboard.writeText(account);
     setTimeout(() => {
+      switchTssWalletIndex();
       setIsCopied(false);
     }, 1000);
   };
@@ -101,27 +133,53 @@ const UserCard: React.FC = () => {
           </div>
           <div className="my-4 border-t border-app-gray-200 dark:border-app-gray-600"></div>
           <div className="space-y-2">
-            <Button
-              size="sm"
-              className="gap-2 w-full !border-app-gray-300 !text-app-gray-800 dark:!text-app-white"
-              variant="secondary"
-              onClick={handleCopyAddress}
-            >
-              {getTruncateString(account)}
-              <div className="relative">
-                {isCopied && (
-                  <div className="absolute bottom-[150%] left-1/2 -translate-x-1/2 bg-app-white dark:bg-app-gray-600 py-2 px-4 rounded-lg text-black text-sm text-center w-max shadow-md">
-                    Copied
-                    <div className="absolute border-8 border-b-0 border-r-transparent border-t-app-white dark:border-t-app-gray-600 border-l-transparent top-[100%] left-[calc(50%_-_8px)]"></div>
-                  </div>
-                )}
-                {isCopied ? (
-                  <HiOutlineCheckCircle className={`cursor-pointer ${isCopied ? "text-app-success" : "text-app-gray-800 dark:text-app-white"}`} />
-                ) : (
-                  <HiOutlineDuplicate className={`cursor-pointer ${isCopied ? "text-app-success" : "text-app-gray-800 dark:text-app-white"}`} />
-                )}
-              </div>
+            {
+              selectedWallet && (
+                <Dropdown
+                  options={walletAddresses.map((wallet) => ({ name: getTruncateString(wallet.address), value: wallet.address }))}
+                  defaultValue={selectedWallet}
+                  onChange={(val) => setSelectedWallet(val as string)}
+                  classes={{ container: "w-full" }}
+                />
+              )
+            }
+            <TextField
+              value={newWalletName}
+              onChange={(e) => setNewWalletName(e.target.value)}
+              label="New Wallet Name"
+              pill={true}
+              type="text"
+              className="w-full rounded-md"
+              placeholder="Enter wallet name"
+            />
+            <Button onClick={createNewWallet} className="my-4" variant="primary" block>
+              Create New Wallet {selectedWallet}
             </Button>
+            {
+              account && (
+                <Button
+                  size="sm"
+                  className="gap-2 w-full !border-app-gray-300 !text-app-gray-800 dark:!text-app-white"
+                  variant="secondary"
+                  onClick={handleCopyAddress}
+                >
+                  {getTruncateString(account)}
+                  <div className="relative">
+                    {isCopied && (
+                      <div className="absolute bottom-[150%] left-1/2 -translate-x-1/2 bg-app-white dark:bg-app-gray-600 py-2 px-4 rounded-lg text-black text-sm text-center w-max shadow-md">
+                        Copied
+                        <div className="absolute border-8 border-b-0 border-r-transparent border-t-app-white dark:border-t-app-gray-600 border-l-transparent top-[100%] left-[calc(50%_-_8px)]"></div>
+                      </div>
+                    )}
+                    {isCopied ? (
+                      <HiOutlineCheckCircle className={`cursor-pointer ${isCopied ? "text-app-success" : "text-app-gray-800 dark:text-app-white"}`} />
+                    ) : (
+                      <HiOutlineDuplicate className={`cursor-pointer ${isCopied ? "text-app-success" : "text-app-gray-800 dark:text-app-white"}`} />
+                    )}
+                  </div>
+                </Button>
+              )
+            }
           </div>
           <Drawer
             open={openConsole}
