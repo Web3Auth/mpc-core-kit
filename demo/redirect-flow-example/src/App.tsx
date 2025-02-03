@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  WEB3AUTH_NETWORK,
   COREKIT_STATUS,
   makeEthereumSigner,
   AggregateVerifierLoginParams,
@@ -101,7 +100,7 @@ const uiConsole = (...args: any[]): void => {
 export const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
   chainId: "0x66eee", // Arbitrum Sepolia chain ID
-  rpcTarget: "https://arbitrum-sepolia.blockpi.network/v1/rpc/private",
+  rpcTarget: "https://sepolia-rollup.arbitrum.io/rpc",
   displayName: "Arbitrum Sepolia Testnet",
   blockExplorerUrl: "https://sepolia.arbiscan.io", // Arbitrum Sepolia block explorer URL
   ticker: "ETH",
@@ -189,10 +188,15 @@ function App() {
         throw new Error("initiated to login");
       }
       const verifierConfig = {
+        aggregateVerifierIdentifier: "aggregate-sapphire",
         subVerifierDetails: {
           typeOfLogin: "google",
-          verifier: "w3-google-temp",
+          verifier: "w3-google-dev",
+          // verifier: "w3-google-temp",
           clientId: "759944447575-6rm643ia1i9ngmnme3eq5viiep5rp6s0.apps.googleusercontent.com",
+          jwtParams: {
+            verifierIdField: "email",
+          },
         },
       };
       // const verifierConfig = {

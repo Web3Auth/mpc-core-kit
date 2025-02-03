@@ -15,7 +15,7 @@ interface LoginCardProps {
   handleSocialLogin: (item: SocialLoginObj) => void;
 }
 
-const LoginCard: React.FC<LoginCardProps> = ({ handleEmailPasswordLess, handleSocialLogin }) => {
+const LoginCard: React.FC<LoginCardProps> = ({ handleEmailPasswordLess, handleSocialLogin }): React.ReactElement => {
   const { setKeyType } = useCoreKit();
   const [loginHint, setLoginHint] = React.useState<string>("");
   const [defaultValue, setDefaultValue] = React.useState(localStorage.getItem("keyType") || KeyType.secp256k1);
@@ -28,8 +28,19 @@ const LoginCard: React.FC<LoginCardProps> = ({ handleEmailPasswordLess, handleSo
     {
       name: "Solana (ed25519)",
       value: KeyType.ed25519,
+      icon: <img src={"https://solana.tor.us/img/icon-solana.fb290bef.svg"} alt={"Solana"} width={20} height={20} className="h-5 w-5" />,
+    },
+    {
+      name: "Bitcoin (secp256k1)",
+      value: "BTC",
       icon: (
-        <img src={"https://solana.com/_next/static/media/solanaLogoMark.17260911.svg"} alt={"Solana"} width={20} height={20} className="h-5 w-5" />
+        <img
+          src={"https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/Bitcoin.svg/128px-Bitcoin.svg.png"}
+          alt={"Bitcoin"}
+          width={20}
+          height={20}
+          className="h-5 w-5"
+        />
       ),
     },
   ];
