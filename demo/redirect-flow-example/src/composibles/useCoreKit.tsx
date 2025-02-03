@@ -1,7 +1,8 @@
 import { COREKIT_STATUS, CoreKitMode, makeEthereumSigner, UserInfo, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "@web3auth/mpc-core-kit";
-import { PasskeysPlugin } from "@web3auth/mpc-passkey-plugin";
+// import { PasskeysPlugin } from "@web3auth/mpc-passkey-plugin";
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { tssLib as tssLibDkls } from "@toruslabs/tss-dkls-lib";
+import { tssLib as tssLibFrostBip340 } from "@toruslabs/tss-frost-lib-bip340";
 import { tssLib as tssLibFrost } from "@toruslabs/tss-frost-lib";
 import Web3 from "web3";
 import { CustomChainConfig, IProvider } from "@web3auth/base";
@@ -11,14 +12,14 @@ import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { DEFAULT_CHAIN_CONFIG } from "../App";
 import { ShareDescription } from "../components/types";
 
-const selectedNetwork = WEB3AUTH_NETWORK.MAINNET;
+const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
 const initialWeb3AuthConfig = {
-  web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
+  web3AuthClientId: "BHgArYmWwSeq21czpcarYh0EVq2WWOzflX-NTK-tY1-1pauPzHKRRLgpABkmYiIV_og9jAvoIxQ8L3Smrwe04Lw",
   web3AuthNetwork: selectedNetwork,
   uxMode: "popup" as CoreKitMode,
   manualSync: false,
   storage: window.localStorage,
-  tssLib: localStorage.getItem("keyType") === KeyType.ed25519 ? tssLibFrost : tssLibDkls,
+  tssLib: localStorage.getItem("keyType") === KeyType.ed25519 ? tssLibFrost : localStorage.getItem("keyType") === "BTC" as KeyType ? tssLibFrostBip340 : tssLibDkls,
   useDKG: false,
 };
 
@@ -27,9 +28,9 @@ export type AddShareType = "phrase" | "authenticator" | "password" | "";
 // Define the types for your context values
 interface CoreKitContextType {
   coreKitInstance: Web3AuthMPCCoreKit;
-  passkeyPlugin: PasskeysPlugin;
+  // passkeyPlugin: PasskeysPlugin;
   setCoreKitInstance: (instance: Web3AuthMPCCoreKit) => void;
-  setPasskeyPlugin: (plugin: PasskeysPlugin) => void;
+  // setPasskeyPlugin: (plugin: PasskeysPlugin) => void;
   web3: Web3 | undefined;
   setWeb3: (web3: Web3 | undefined) => void;
   provider: IProvider | null;
@@ -52,16 +53,17 @@ interface CoreKitContextType {
   existingModules: string[];
   setKeyType: React.Dispatch<React.SetStateAction<KeyType>>;
   keyType: KeyType;
+  networkName: "ETH" | "SOL" | "BTC" | undefined;
 }
 
 // Create the context with default values
 const CoreKitContext = createContext<CoreKitContextType>({
   coreKitInstance: new Web3AuthMPCCoreKit(initialWeb3AuthConfig),
-  passkeyPlugin: new PasskeysPlugin({
-    baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1",
-  }),
+  // passkeyPlugin: new PasskeysPlugin({
+  //   baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1",
+  // }),
   setCoreKitInstance: () => { },
-  setPasskeyPlugin: () => { },
+  // setPasskeyPlugin?: () => { },
   web3: undefined,
   setWeb3: () => { },
   provider: null,
@@ -81,6 +83,7 @@ const CoreKitContext = createContext<CoreKitContextType>({
   inputBackupFactorKey: async (backupFactorKey: string) => Promise.resolve(),
   getShareDescriptions: () => { },
   shareDescriptions: null,
+  networkName: undefined,
   setKeyType: () => { },
   keyType: localStorage.getItem("keyType") as KeyType || KeyType.secp256k1,
   existingModules: [],
@@ -96,11 +99,11 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
   const [coreKitInstance, setCoreKitInstance] = useState<Web3AuthMPCCoreKit>(
     new Web3AuthMPCCoreKit(initialWeb3AuthConfig)
   );
-  const [passkeyPlugin, setPasskeyPlugin] = useState(
-    new PasskeysPlugin({
-      baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1",
-    })
-  );
+  // const [passkeyPlugin, setPasskeyPlugin] = useState(
+  //   new PasskeysPlugin({
+  //     baseURL: "https://testing-mpc-passkeys.web3auth.io/api/v1",
+  //   })
+  // );
   const [web3, setWeb3] = useState<Web3 | undefined>(undefined);
   const [provider, setProvider] = useState<IProvider | null>(null);
   const [addShareType, setAddShareType] = useState<AddShareType>("");
@@ -113,13 +116,17 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
   const [globalLoading, setGlobalLoading] = useState<boolean>(false);
   const [existingModules, setExistingModules] = React.useState<string[]>([]);
   const [keyType, setKeyType] = React.useState<KeyType>(localStorage.getItem("keyType") as KeyType || KeyType.secp256k1);
+  const [networkName, setNetworkName] = useState<"ETH" | "SOL" | "BTC">();
   
   useEffect(() => {
-    if (coreKitInstance.keyType === keyType) return;
     localStorage.setItem("keyType", keyType);
+    setNetworkName(keyType === KeyType.secp256k1 ? "ETH" 
+      : keyType === KeyType.ed25519 ? "SOL" 
+      : "BTC"
+    );
     setCoreKitInstance(new Web3AuthMPCCoreKit({
       ...initialWeb3AuthConfig,
-      tssLib: keyType === KeyType.secp256k1 ? tssLibDkls : tssLibFrost,
+      tssLib: keyType === KeyType.secp256k1 ? tssLibDkls : keyType === "BTC" as KeyType ? tssLibFrostBip340 : tssLibFrost,
     }));
   }, [keyType]);
 
@@ -186,8 +193,8 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
 
   return (
       <CoreKitContext.Provider value={{
-          coreKitInstance, passkeyPlugin,
-          setCoreKitInstance, setPasskeyPlugin,
+          coreKitInstance,
+          setCoreKitInstance,
           web3, setWeb3,
           provider, setProvider,
           addShareType, setAddShareType,
@@ -200,6 +207,7 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
           getShareDescriptions,
           shareDescriptions, existingModules,
           keyType, setKeyType,
+          networkName,
       }}>{children}</CoreKitContext.Provider>
   );
 };

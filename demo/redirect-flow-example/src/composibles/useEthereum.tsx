@@ -39,10 +39,17 @@ const useEthereumRPC = () => {
       await checkBalanceAndMint();
       if (!web3 || !ethereumAccount) throw new Error("Web3 or account is not set");
       const value = web3.utils.toWei(amount, "ether");
+        // Estimate gas limit
+      const gasLimit = await web3.eth.estimateGas({
+        from: ethereumAccount,
+        to: toAddress,
+        value,
+      });
       const receipt = await web3.eth.sendTransaction({
         from: ethereumAccount,
         to: toAddress,
         value,
+        gas: gasLimit, // Set a higher gas if needed
       });
       return JSON.stringify(receipt, (key, value) => (typeof value === "bigint" ? value.toString() : value));
     } catch (error) {
