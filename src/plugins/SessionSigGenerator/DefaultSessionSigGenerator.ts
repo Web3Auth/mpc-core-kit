@@ -1,4 +1,4 @@
-import { IMPCContext } from "../interfaces";
+import { IMPCContext } from "../../interfaces";
 import { ISessionSigGenerator } from "./ISessionSigGenerator";
 
 export class DefaultSessionSigGeneratorPlugin implements ISessionSigGenerator {
