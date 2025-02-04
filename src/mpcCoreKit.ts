@@ -39,6 +39,7 @@ import {
   EnableMFAParams,
   ICoreKit,
   IFactorKey,
+  IFactorManagerContext,
   IMPCContext,
   InitParams,
   ISignerContext,
@@ -77,7 +78,7 @@ import {
   scalarBNToBufferSEC1,
 } from "./utils";
 
-export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext, ISignerContext {
+export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext, ISignerContext, IFactorManagerContext {
   public state: Web3AuthState = { accountIndex: 0 };
 
   public torusSp: TSSTorusServiceProvider | null = null;
@@ -1132,7 +1133,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext, ISignerContext
   }
 
   public async preSetupDKLSSigningConfig(): Promise<IDklsSignConfig> {
-    if (!this.hasRemoteFactorInitialized || !this.state.factorKey) {
+    if (!this.hasRemoteFactorInitialized && !this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("Factor key or remote factor not present in state when pre-setting up DKLSSigning.");
     }
     const { torusNodeTSSEndpoints } = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
