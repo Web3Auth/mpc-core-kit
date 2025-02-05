@@ -80,8 +80,7 @@
   },
   "devDependencies": {
     "@mertasan/tailwindcss-variables": "^2.7.0",
-    "@playwright/test": "^1.49.1",
-    "artillery": "2.0.22",
+    "@playwright/test": "^1.50.1",
     "@tailwindcss/container-queries": "^0.1.1",
     "@tailwindcss/forms": "^0.5.9",
     "@types/chance": "^1.1.6",
@@ -92,6 +91,7 @@
     "@types/node": "^18.11.18",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
+    "artillery": "2.0.22",
     "assert": "^2.1.0",
     "bn.js": "^5.2.1",
     "browserify-zlib": "^0.2.0",
