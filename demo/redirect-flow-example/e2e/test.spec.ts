@@ -12,7 +12,6 @@ test('login with email password less and enable MFA using password', async ({ pa
   const fixedEmail = "kelg8.m3zdcal5slf4@inbox.testmail.app";
   const tag = fixedEmail.split("@")[0].split(".")[1];
   const timestamp= Math.floor(Date.now() / 1000);
-  console.log({testEmailAppApiKey});
   await page.goto('http://localhost:5173/');
   await page.getByRole('textbox', { name: 'E.g. name@example.com' }).click();
   await page.getByRole('textbox', { name: 'E.g. name@example.com' }).fill(fixedEmail);
@@ -23,7 +22,6 @@ test('login with email password less and enable MFA using password', async ({ pa
 
   await delay(4000);
   const ENDPOINT = `https://api.testmail.app/api/json?apikey=${testEmailAppApiKey}&namespace=kelg8&tag=${tag}&livequery=true&timestamp_from=${timestamp}`;
-  console.log({ENDPOINT});
   const res = await axios.get(`${ENDPOINT}`);
   const inbox = await res.data;
   // const verificationCodeMatch = inbox.emails[0].html.match(/<span[^>]*font-weight: 600[^>]*>(\d+)<\/span>/);
