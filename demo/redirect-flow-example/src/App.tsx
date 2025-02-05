@@ -4,13 +4,11 @@ import {
   makeEthereumSigner,
   AggregateVerifierLoginParams,
 } from "@web3auth/mpc-core-kit";
-
 import Web3 from "web3";
 import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { KeyType } from "@tkey/common-types";
 
-import bowser from "bowser";
 
 import "./App.css";
 import { LoginCard } from "./components/LoginCard";
@@ -115,12 +113,12 @@ function App() {
   const navigate = useNavigate();
 
   async function setupProvider(chainConfig?: CustomChainConfig) {
-    if (coreKitInstance.keyType !== KeyType.secp256k1) {
+    if (coreKitInstance.current.keyType !== KeyType.secp256k1) {
       console.warn(`Ethereum requires keytype ${KeyType.secp256k1}, skipping provider setup`);
       return;
     }
     let localProvider = new EthereumSigningProvider({ config: { chainConfig: chainConfig || DEFAULT_CHAIN_CONFIG } });
-    localProvider.setupProvider(makeEthereumSigner(coreKitInstance));
+    localProvider.setupProvider(makeEthereumSigner(coreKitInstance.current));
     setProvider(localProvider);
   }
 

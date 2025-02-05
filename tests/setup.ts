@@ -3,6 +3,7 @@ import { tssLib } from "@toruslabs/tss-dkls-lib";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
+import { TorusKey } from "@toruslabs/torus.js";
 
 import { IAsyncStorage, IStorage, parseToken, TssLibType, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 
@@ -91,6 +92,7 @@ export const newCoreKitLogInInstance = async ({
   email,
   storageInstance,
   importTssKey,
+  registerExistingSFAKey,
   login,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
@@ -99,6 +101,7 @@ export const newCoreKitLogInInstance = async ({
   storageInstance: IStorage | IAsyncStorage;
   tssLib?: TssLibType;
   importTssKey?: string;
+  registerExistingSFAKey?: boolean;
   login?: LoginFunc;
 }) => {
   const instance = new Web3AuthMPCCoreKit({
@@ -118,10 +121,54 @@ export const newCoreKitLogInInstance = async ({
     verifierId: parsedToken.email,
     idToken,
     importTssKey,
+    registerExistingSFAKey
   });
 
   return instance;
 };
+
+export const loginWithSFA = async ({
+  network,
+  manualSync,
+  email,
+  storageInstance,
+  login,
+}: {
+  network: WEB3AUTH_NETWORK_TYPE;
+  manualSync: boolean;
+  email: string;
+  storageInstance: IStorage | IAsyncStorage;
+  tssLib?: TssLibType;
+  login?: LoginFunc;
+}): Promise<TorusKey> => {
+  const instance = new Web3AuthMPCCoreKit({
+    web3AuthClientId: "torus-key-test",
+    web3AuthNetwork: network,
+    baseUrl: "http://localhost:3000",
+    uxMode: "nodejs",
+    tssLib: tssLib || tssLibDKLS,
+    storage: storageInstance,
+    manualSync,
+  });
+
+  const { idToken, parsedToken } = login ? await login(email) : await mockLogin(email);
+  await instance.init();
+  const nodeDetails = await instance.torusSp.customAuthInstance.nodeDetailManager.getNodeDetails({
+    verifier: "torus-test-health",
+    verifierId: parsedToken.email,
+  })
+  return await instance.torusSp.customAuthInstance.torus.retrieveShares({
+    idToken,
+    nodePubkeys: nodeDetails.torusNodePub,
+    verifier: "torus-test-health",
+    verifierParams: {
+      verifier_id: parsedToken.email,
+    },
+    endpoints: nodeDetails.torusNodeEndpoints,
+    indexes: nodeDetails.torusIndexes,
+  })
+
+}
 
 export class AsyncMemoryStorage implements IAsyncStorage {
   private _store: Record<string, string> = {};
@@ -138,3 +185,12 @@ export class AsyncMemoryStorage implements IAsyncStorage {
 export function bufferToElliptic(p: Buffer, ec = secp256k1): EllipticPoint {
   return ec.keyFromPublic(p).getPublic();
 }
+
+
+export function generateRandomEmail(): string {
+  const username = stringGen(10); 
+  const domain = stringGen(5); 
+  const tld = stringGen(3);     
+  return `${username}@${domain}.${tld}`;
+}
+

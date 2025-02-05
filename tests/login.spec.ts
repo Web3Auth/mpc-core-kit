@@ -157,7 +157,7 @@ variable.forEach((testVariable) => {
       const secp256k1 = new EC("secp256k1");
 
       // Sign hash.
-      const signature = sigToRSV(await coreKitInstance.sign(msgHash, true));
+      const signature = sigToRSV(await coreKitInstance.sign(msgHash, { hashed: true }));
       const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v) as EllipticPoint;
       const publicKeyPoint = bufferToElliptic(coreKitInstance.getPubKey());
       assert(pubkey.eq(publicKeyPoint));
@@ -186,7 +186,7 @@ variable.forEach((testVariable) => {
       const msg = "hello world 1";
       const msgBuffer = Buffer.from(msg);
       const msgHash = keccak256(msgBuffer);
-      const signature1 = sigToRSV(await coreKitInstance.sign(msgHash, true));
+      const signature1 = sigToRSV(await coreKitInstance.sign(msgHash, { hashed: true }));
 
       const pubkeyIndex0 = secp256k1.recoverPubKey(msgHash, signature1, signature1.v);
       const publicKeyPoint0 = bufferToElliptic(coreKitInstance.getPubKey());
@@ -198,7 +198,7 @@ variable.forEach((testVariable) => {
       const msgBuffer1 = Buffer.from(msg1);
       const msgHash1 = keccak256(msgBuffer1);
 
-      const signature2 = sigToRSV(await coreKitInstance.sign(msgHash1, true));
+      const signature2 = sigToRSV(await coreKitInstance.sign(msgHash1, { hashed: true }));
 
       const pubkeyIndex1 = secp256k1.recoverPubKey(msgHash1, signature2, signature2.v) as EllipticPoint;
       const publicKeyPoint1 = bufferToElliptic(coreKitInstance.getPubKey());
@@ -211,7 +211,7 @@ variable.forEach((testVariable) => {
       const msg2 = "hello world 3";
       const msgBuffer2 = Buffer.from(msg2);
       const msgHash2 = keccak256(msgBuffer2);
-      const signature3 = sigToRSV(await coreKitInstance.sign(msgHash2, true));
+      const signature3 = sigToRSV(await coreKitInstance.sign(msgHash2, { hashed: true }));
 
       const pubkeyIndex2 = secp256k1.recoverPubKey(msgHash2, signature3, signature3.v) as EllipticPoint;
       const publicKeyPoint2 = bufferToElliptic(coreKitInstance.getPubKey());

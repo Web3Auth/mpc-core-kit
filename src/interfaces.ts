@@ -1,5 +1,5 @@
 import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
-import { TKeyTSS } from "@tkey/tss";
+import { TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { WEB3AUTH_SIG_TYPE } from "@toruslabs/constants";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -7,17 +7,22 @@ import type {
   LoginWindowResponse,
   PasskeyExtraParams,
   SubVerifierDetails,
+  TorusAggregateLoginResponse,
+  TorusLoginResponse,
   TorusVerifierResponse,
   UX_MODE_TYPE,
 } from "@toruslabs/customauth";
+import { TorusKey } from "@toruslabs/torus.js";
 import { Client } from "@toruslabs/tss-client";
 // TODO: move the types to a base class for both dkls and frost in future
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
 import type { tssLib as TssFrostLibEd25519 } from "@toruslabs/tss-frost-lib";
 import type { tssLib as TssFrostLibBip340 } from "@toruslabs/tss-frost-lib-bip340";
+import { SafeEventEmitter } from "@web3auth/auth";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { ISessionSigGenerator } from "./plugins/ISessionSigGenerator";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
@@ -86,7 +91,18 @@ export type MPCKeyDetails = {
   tssPubKey?: TkeyPoint;
 };
 
-export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & { importTssKey?: string };
+export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & {
+  /**
+   * Key to import key into Tss during first time login.
+   */
+  importTssKey?: string;
+
+  /**
+   * For new users, use SFA key if user was registered with SFA before.
+   * Useful when you created the user with SFA before and now want to convert it to TSS.
+   */
+  registerExistingSFAKey?: boolean;
+};
 export type UserInfo = TorusVerifierResponse & LoginWindowResponse;
 
 export interface EnableMFAParams {
@@ -148,6 +164,12 @@ export interface JWTLoginParams {
   importTssKey?: string;
 
   /**
+   * For new users, use SFA key if user was registered with SFA before.
+   * Useful when you created the user with SFA before and now want to convert it to TSS.
+   */
+  registerExistingSFAKey?: boolean;
+
+  /**
    * Number of TSS public keys to prefetch. For the best performance, set it to
    * the number of factors you want to create. Set it to 0 for an existing user.
    * Default is 1, maximum is 3.
@@ -164,131 +186,6 @@ export interface Web3AuthState {
   tssPubKey?: Buffer;
   accountIndex: number;
   factorKey?: BN;
-}
-
-export interface ICoreKit {
-  /**
-   * The tKey instance, if initialized.
-   * TKey is the core module on which this wrapper SDK sits for easy integration.
-   **/
-  tKey: TKeyTSS | null;
-
-  /**
-   * Signatures generated from the OAuth Login.
-   **/
-  signatures: string[] | null;
-
-  /**
-   * Status of the current MPC Core Kit Instance
-   **/
-  status: COREKIT_STATUS;
-
-  /**
-   * The current sdk state.
-   */
-  state: Web3AuthState;
-
-  /**
-   * The current session id.
-   */
-  sessionId: string;
-
-  /**
-   * The function used to initailise the state of MPCCoreKit
-   * Also is useful to resume an existing session.
-   * @param initParams - Contains flag for handleRedirectResult. Default is true.
-   */
-  init(initParams?: InitParams): Promise<void>;
-
-  /**
-   * Login using OAuth flow and initialize all relevant components.
-   * @param loginParams - Parameters for OAuth-based Login.
-   */
-  loginWithOAuth(loginParams: OAuthLoginParams): Promise<void>;
-
-  /**
-   * Login using JWT Token and initialize all relevant components.
-   * @param loginParams - Parameters for JWT-based Login.
-   */
-  loginWithJWT(loginParams: JWTLoginParams): Promise<void>;
-
-  /**
-   * Enable MFA for the user. Deletes the Cloud factor and generates a new
-   * factor key and a backup factor key. Recommended for Non Custodial Flow.
-   * Stores the factor key in browser storage and returns the backup factor key.
-   *
-   * ** NOTE before enableMFA, you will need to commitChanges if manualSync is true.
-   *
-   * @param enableMFAParams - Parameters for recovery factor for MFA.
-   * @param recoveryFactor - Default is true. If false, recovery factor will NOT be created.
-   * @returns The backup factor key if if recoveryFacort is true else empty string.
-   */
-  enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor?: boolean): Promise<string>;
-
-  /**
-   * Second step for login where the user inputs their factor key.
-   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key
-   * Share. You can generate it using `generateFactorKey()` function or use an
-   * existing one.
-   */
-  inputFactorKey(factorKey: BN): Promise<void>;
-
-  /**
-   * Returns the current Factor Key and TssShareType in MPC Core Kit State
-   **/
-  getCurrentFactorKey(): IFactorKey;
-
-  /**
-   * Creates a new factor for authentication. Generates and returns a new factor
-   * key if no factor key is provided in `params`.
-   * @param createFactorParams - Parameters for creating a new factor.
-   * @returns The factor key.
-   */
-  createFactor(createFactorParams: CreateFactorParams): Promise<string>;
-
-  /**
-   * Deletes the factor identified by the given public key, including all
-   * associated metadata.
-   * @param factorPub - The public key of the factor to delete.
-   */
-  deleteFactor(factorPub: TkeyPoint): Promise<void>;
-
-  /**
-   * Logs out the user, terminating the session.
-   */
-  logout(): Promise<void>;
-
-  /**
-   * Get user information provided by the OAuth provider.
-   */
-  getUserInfo(): UserInfo;
-
-  /**
-   * Get information about how the keys of the user is managed according to the information in the metadata server.
-   */
-  getKeyDetails(): MPCKeyDetails;
-
-  /**
-   * Commit the changes made to the user's account when in manual sync mode.
-   */
-  commitChanges(): Promise<void>;
-
-  /**
-   * WARNING: Use with caution. This will export the private signing key.
-   *
-   * Exports the private key scalar for the current account index.
-   *
-   * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
-   */
-  _UNSAFE_exportTssKey(): Promise<string>;
-
-  /**
-   * WARNING: Use with caution. This will export the private signing key.
-   *
-   * Attempts to export the ed25519 private key seed. Only works if import key
-   * flow has been used.
-   */
-  _UNSAFE_exportTssEd25519Seed(): Promise<Buffer>;
 }
 
 export type WEB3AUTH_NETWORK_TYPE = (typeof WEB3AUTH_NETWORK)[keyof typeof WEB3AUTH_NETWORK];
@@ -437,8 +334,172 @@ export interface Web3AuthOptions {
    */
   useClientGeneratedTSSKey?: boolean;
 }
-
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
+
+export interface IMPCContext {
+  stateEmitter: SafeEventEmitter;
+  config: Web3AuthOptionsWithDefaults;
+  status: COREKIT_STATUS;
+  state: Web3AuthState;
+  torusSp: TSSTorusServiceProvider | null;
+  updateState: (newState: Partial<Web3AuthState>) => void;
+  getUserInfo: () => UserInfo;
+  setupTkey: (params?: {
+    providedImportKey?: string;
+    sfaLoginResponse?: TorusKey | TorusLoginResponse | TorusAggregateLoginResponse;
+    userInfo?: UserInfo;
+    importingSFAKey?: boolean;
+    persistSessionSigs?: boolean;
+  }) => Promise<void>;
+  setCustomSessionSigGenerator: (sessionSigGenerator: ISessionSigGenerator) => void;
+}
+
+export interface Secp256k1PrecomputedClient {
+  client: Client;
+  serverCoeffs: Record<string, string>;
+  signatures: string[];
+}
+
+export interface ICoreKit {
+  /**
+   * The tKey instance, if initialized.
+   * TKey is the core module on which this wrapper SDK sits for easy integration.
+   **/
+  tKey: TKeyTSS | null;
+
+  /**
+   * Status of the current MPC Core Kit Instance
+   **/
+  status: COREKIT_STATUS;
+
+  /**
+   * The current sdk state.
+   */
+  state: Web3AuthState;
+
+  /**
+   * The current session id.
+   */
+  sessionId: string;
+
+  /**
+   * The function used to initailise the state of MPCCoreKit
+   * Also is useful to resume an existing session.
+   * @param initParams - Contains flag for handleRedirectResult. Default is true.
+   */
+  init(initParams?: InitParams): Promise<void>;
+
+  /**
+   * Login using OAuth flow and initialize all relevant components.
+   * @param loginParams - Parameters for OAuth-based Login.
+   */
+  loginWithOAuth(loginParams: OAuthLoginParams): Promise<void>;
+
+  /**
+   * Login using JWT Token and initialize all relevant components.
+   * @param loginParams - Parameters for JWT-based Login.
+   */
+  loginWithJWT(loginParams: JWTLoginParams): Promise<void>;
+
+  /**
+   * Enable MFA for the user. Deletes the Cloud factor and generates a new
+   * factor key and a backup factor key. Recommended for Non Custodial Flow.
+   * Stores the factor key in browser storage and returns the backup factor key.
+   *
+   * ** NOTE before enableMFA, you will need to commitChanges if manualSync is true.
+   *
+   * @param enableMFAParams - Parameters for recovery factor for MFA.
+   * @param recoveryFactor - Default is true. If false, recovery factor will NOT be created.
+   * @returns The backup factor key if if recoveryFacort is true else empty string.
+   */
+  enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor?: boolean): Promise<string>;
+
+  /**
+   * Second step for login where the user inputs their factor key.
+   * @param factorKey - A BN used for encrypting your Device/ Recovery TSS Key
+   * Share. You can generate it using `generateFactorKey()` function or use an
+   * existing one.
+   */
+  inputFactorKey(factorKey: BN): Promise<void>;
+
+  /**
+   * Returns the current Factor Key and TssShareType in MPC Core Kit State
+   **/
+  getCurrentFactorKey(): IFactorKey;
+
+  /**
+   * Creates a new factor for authentication. Generates and returns a new factor
+   * key if no factor key is provided in `params`.
+   * @param createFactorParams - Parameters for creating a new factor.
+   * @returns The factor key.
+   */
+  createFactor(createFactorParams: CreateFactorParams): Promise<string>;
+
+  /**
+   * Deletes the factor identified by the given public key, including all
+   * associated metadata.
+   * @param factorPub - The public key of the factor to delete.
+   */
+  deleteFactor(factorPub: TkeyPoint): Promise<void>;
+
+  /**
+   * Logs out the user, terminating the session.
+   */
+  logout(): Promise<void>;
+
+  /**
+   * Get user information provided by the OAuth provider.
+   */
+  getUserInfo(): UserInfo;
+
+  /**
+   * Get information about how the keys of the user is managed according to the information in the metadata server.
+   */
+  getKeyDetails(): MPCKeyDetails;
+
+  getSessionSignatures(): Promise<string[]>;
+
+  setCustomSessionSigGenerator(sessionSigGenerator: ISessionSigGenerator): void;
+
+  /**
+   * Commit the changes made to the user's account when in manual sync mode.
+   */
+  commitChanges(): Promise<void>;
+
+  /**
+   * Create a signature for the given data.
+   *
+   * Options:
+   * - hashed: The data is already hashed. Do not hash again. Only works for ecdsa-secp256k1.
+   * - secp256k1Precompute: Provide a precomputed client for faster signing. Only works for ecdsa-secp256k1.
+   * - keyTweak: Provide a bip340 key tweak. Only works for bip340.
+   */
+  sign(
+    data: Buffer,
+    opts?: {
+      hashed?: boolean;
+      secp256k1Precompute?: Secp256k1PrecomputedClient;
+      keyTweak?: BN;
+    }
+  ): Promise<Buffer>;
+
+  /**
+   * WARNING: Use with caution. This will export the private signing key.
+   *
+   * Exports the private key scalar for the current account index.
+   *
+   * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
+   */
+  _UNSAFE_exportTssKey(): Promise<string>;
+
+  /**
+   * WARNING: Use with caution. This will export the private signing key.
+   *
+   * Attempts to export the ed25519 private key seed. Only works if import key
+   * flow has been used.
+   */
+  _UNSAFE_exportTssEd25519Seed(): Promise<Buffer>;
+}
 
 export interface SessionData {
   /**
@@ -463,7 +524,7 @@ export type SigType = WEB3AUTH_SIG_TYPE;
 export interface CoreKitSigner {
   keyType: KeyType;
   sigType: SigType;
-  sign(data: Buffer, hashed?: boolean): Promise<Buffer>;
+  sign(data: Buffer, opts?: { hashed?: boolean }): Promise<Buffer>;
   getPubKey(): Buffer;
 }
 
@@ -478,8 +539,6 @@ export interface EthereumSigner {
   getPublic: () => Promise<Buffer>;
 }
 
-export interface Secp256k1PrecomputedClient {
-  client: Client;
-  serverCoeffs: Record<string, string>;
-  signatures: string[];
-}
+export type StateEmitterEvents = {
+  LOGOUT: () => void;
+};

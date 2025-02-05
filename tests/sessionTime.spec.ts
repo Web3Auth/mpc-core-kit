@@ -57,25 +57,25 @@ const variable: TestVariable[] = [
   },
 ];
 
-const storageInstance = new MemoryStorage();
 variable.forEach(async (testVariable) => {
   const { web3AuthNetwork, uxMode, manualSync, email, web3ClientID: web3AuthClientId, sessionTime, disableSessionManager } = testVariable;
   
 
   await test(`#Variable SessionTime test :  ${JSON.stringify({ sessionTime: testVariable.sessionTime })} - disableSessionManager: ${disableSessionManager} client_id: ${web3AuthClientId}`, async (t) => {
-    const coreKitInstance = new Web3AuthMPCCoreKit({
-      web3AuthClientId,
-      web3AuthNetwork,
-      baseUrl: "http://localhost:3000",
-      uxMode,
-      tssLib,
-      storage: storageInstance,
-      manualSync,
-      sessionTime,
-      disableSessionManager,
-    });
+    let coreKitInstance : Web3AuthMPCCoreKit;
 
     async function beforeTest() {
+      coreKitInstance  = new Web3AuthMPCCoreKit({
+        web3AuthClientId,
+        web3AuthNetwork,
+        baseUrl: "http://localhost:3000",
+        uxMode,
+        tssLib,
+        storage: new MemoryStorage(),
+        manualSync,
+        sessionTime,
+        disableSessionManager,
+      });
       if (coreKitInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(coreKitInstance);
     }
 
@@ -110,7 +110,7 @@ variable.forEach(async (testVariable) => {
         return;
       }
       
-      coreKitInstance.signatures.forEach((sig) => {
+      (await coreKitInstance.getSessionSignatures()).forEach((sig) => {
         const parsedSig = JSON.parse(sig);
         const parsedSigData = JSON.parse(atob(parsedSig.data));
 
@@ -127,7 +127,5 @@ variable.forEach(async (testVariable) => {
         assert.notEqual(coreKitInstance.sessionId , undefined);
       }
     });
-
-
   });
 });

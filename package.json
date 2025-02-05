@@ -1,6 +1,6 @@
 {
   "name": "@web3auth/mpc-core-kit",
-  "version": "4.1.0-alpha.0",
+  "version": "4.1.7-alpha.0",
   "description": "MPC CoreKit SDK for web3Auth",
   "keywords": [
     "web3Auth/mpc-core-kit",
@@ -62,8 +62,9 @@
     "@toruslabs/torus.js": "15.2.0-alpha.0",
     "@toruslabs/session-manager": "^3.1.0",
     "@toruslabs/tss-client": "^3.3.0-alpha.0",
-    "@toruslabs/tss-frost-client": "^1.0.0-alpha.0",
-    "@toruslabs/tss-frost-common": "^1.0.1",
+    "@toruslabs/tss-frost-client": "^1.0.1-alpha.0",
+    "@toruslabs/tss-frost-common": "^1.0.2-alpha.0",
+    "@web3auth/auth": "^9.6.1",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
     "elliptic": "^6.5.7",
