@@ -11,7 +11,7 @@ import { KeyType } from "@tkey/common-types";
 import { useCoreKit } from "../composibles/useCoreKit";
 
 interface LoginCardProps {
-  handleEmailPasswordLess: () => void;
+  handleEmailPasswordLess: (loginHint: string) => void;
   handleSocialLogin: (item: SocialLoginObj) => void;
 }
 
@@ -50,7 +50,7 @@ const LoginCard: React.FC<LoginCardProps> = ({ handleEmailPasswordLess, handleSo
   const handlePasswordlessLogin = (e: React.FormEvent) => {
     e.preventDefault();
     // Handle passwordless login
-    handleEmailPasswordLess();
+    handleEmailPasswordLess(loginHint);
   };
 
   const handleSocial = (item: SocialLoginObj, index: number) => {

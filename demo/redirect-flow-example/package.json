@@ -18,7 +18,7 @@
     "@web3auth/base": "^9.0.2",
     "@web3auth/ethereum-mpc-provider": "^9.3.0",
     "@web3auth/mpc-core-kit": "file:../..",
-    "@web3auth/mpc-passkey-plugin": "0.1.15-alpha.0",
+    "bitcoinjs-lib": "^6.1.7",
     "browserify-zlib": "^0.2.0",
     "chance": "^1.1.12",
     "class-variance-authority": "^0.7.0",

@@ -4,11 +4,13 @@ import {
   makeEthereumSigner,
   AggregateVerifierLoginParams,
 } from "@web3auth/mpc-core-kit";
+
 import Web3 from "web3";
 import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { KeyType } from "@tkey/common-types";
 
+import bowser from "bowser";
 
 import "./App.css";
 import { LoginCard } from "./components/LoginCard";
@@ -113,12 +115,12 @@ function App() {
   const navigate = useNavigate();
 
   async function setupProvider(chainConfig?: CustomChainConfig) {
-    if (coreKitInstance.current.keyType !== KeyType.secp256k1) {
+    if (coreKitInstance.keyType !== KeyType.secp256k1) {
       console.warn(`Ethereum requires keytype ${KeyType.secp256k1}, skipping provider setup`);
       return;
     }
     let localProvider = new EthereumSigningProvider({ config: { chainConfig: chainConfig || DEFAULT_CHAIN_CONFIG } });
-    localProvider.setupProvider(makeEthereumSigner(coreKitInstance.current));
+    localProvider.setupProvider(makeEthereumSigner(coreKitInstance));
     setProvider(localProvider);
   }
 
@@ -127,7 +129,7 @@ function App() {
     // Example config to handle redirect result manually
     setIsLoading(true);
     if (coreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
-      await coreKitInstance.init({ rehydrate: true, handleRedirectResult: false });
+      await coreKitInstance.init({ rehydrate: true, handleRedirectResult: true });
       setCoreKitInstance(coreKitInstance);
       setIsLoading(false);
     }
@@ -186,7 +188,6 @@ function App() {
         throw new Error("initiated to login");
       }
       const verifierConfig = {
-        aggregateVerifierIdentifier: "aggregate-sapphire",
         subVerifierDetails: {
           typeOfLogin: "google",
           verifier: "w3-google-dev",
@@ -221,7 +222,7 @@ function App() {
     }
   };
 
-  const loginWithAuth0EmailPasswordless = async () => {
+  const loginWithAuth0EmailPasswordless = async (loginHint: string) => {
     try {
       setIsLoading(true);
       if (!coreKitInstance) {
@@ -229,23 +230,33 @@ function App() {
       }
 
       // IMP START - Login
+      // const verifierConfig = {
+      //   subVerifierDetails: 
+      //     {
+      //       typeOfLogin: "jwt",
+      //       verifier: "w3a-a0-email-passwordless",
+      //       clientId: "QiEf8qZ9IoasbZsbHvjKZku4LdnRC1Ct",
+      //       jwtParams: {
+      //         // connection: "passwordless",
+      //         domain: "https://web3auth.au.auth0.com",
+      //         verifierIdField: "email",
+      //       },
+      //     },
+      // };
       const verifierConfig = {
-        aggregateVerifierIdentifier: "aggregate-sapphire",
-        subVerifierDetailsArray: [
+        subVerifierDetails: 
           {
-            typeOfLogin: "jwt",
-            verifier: "w3a-a0-email-passwordless",
-            clientId: "QiEf8qZ9IoasbZsbHvjKZku4LdnRC1Ct",
+            typeOfLogin: "email_passwordless",
+            verifier: "w3a-email-passwordless-demo",
+            clientId: "BHgArYmWwSeq21czpcarYh0EVq2WWOzflX-NTK-tY1-1pauPzHKRRLgpABkmYiIV_og9jAvoIxQ8L3Smrwe04Lw",
             jwtParams: {
-              // connection: "passwordless",
-              domain: "https://web3auth.au.auth0.com",
-              verifierIdField: "email",
-            },
+              // connection: "password
+              login_hint: loginHint.trim(),
+            }
           },
-        ],
-      } as AggregateVerifierLoginParams;
+      };
 
-      await coreKitInstance.loginWithOAuth(verifierConfig);
+      await coreKitInstance.loginWithOAuth(verifierConfig as any);
       // IMP END - Login
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await coreKitInstance.commitChanges(); // Needed for new accounts

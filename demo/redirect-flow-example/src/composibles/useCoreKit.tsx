@@ -14,10 +14,12 @@ import { ShareDescription } from "../components/types";
 
 const selectedNetwork = WEB3AUTH_NETWORK.DEVNET;
 const initialWeb3AuthConfig = {
+  // "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
+  // "BHgArYmWwSeq21czpcarYh0EVq2WWOzflX-NTK-tY1-1pauPzHKRRLgpABkmYiIV_og9jAvoIxQ8L3Smrwe04Lw"
   web3AuthClientId: "BHgArYmWwSeq21czpcarYh0EVq2WWOzflX-NTK-tY1-1pauPzHKRRLgpABkmYiIV_og9jAvoIxQ8L3Smrwe04Lw",
   web3AuthNetwork: selectedNetwork,
   uxMode: "popup" as CoreKitMode,
-  manualSync: false,
+  manualSync: true,
   storage: window.localStorage,
   tssLib: localStorage.getItem("keyType") === KeyType.ed25519 ? tssLibFrost : localStorage.getItem("keyType") === "BTC" as KeyType ? tssLibFrostBip340 : tssLibDkls,
   useDKG: false,
