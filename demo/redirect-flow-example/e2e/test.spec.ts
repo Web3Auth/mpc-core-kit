@@ -57,7 +57,6 @@ test('MFA login with password and email-passwordless and sign message', async ({
   // wait for mailbox to receive email
   await delay(4000);
   const ENDPOINT = `https://api.testmail.app/api/json?apikey=${testEmailAppApiKey}&namespace=kelg8&tag=${tag}&livequery=true&timestamp_from=${timestamp}`;
-  console.log({ENDPOINT});
   const res = await axios.get(`${ENDPOINT}`);
   const inbox = await res.data;
   const verificationCode = inbox.emails[0].html.match(/<span[^>]*style\s*=\s*["'][^"']*font-size\s*:\s*40px[^"']*["'][^>]*>\s*(\d+)\s*<\/span>/i)[1];
@@ -104,7 +103,6 @@ test('login with email password-less,enable recovery phrase logout and recover u
 
   await delay(4000);
   const ENDPOINT = `https://api.testmail.app/api/json?apikey=${testEmailAppApiKey}&namespace=kelg8&tag=${tag}&livequery=true&timestamp_from=${timestamp}`;
-  console.log({ENDPOINT});
   const res = await axios.get(`${ENDPOINT}`);
   const inbox = await res.data;
   // const verificationCodeMatch = inbox.emails[0].html.match(/<span[^>]*font-weight: 600[^>]*>(\d+)<\/span>/);
@@ -137,7 +135,6 @@ test('login with email password-less,enable recovery phrase logout and recover u
   const page2Promise = page.waitForEvent('popup');
   const page2 = await page2Promise;
   await delay(4000);
-  console.log({ENDPOINT});
   const res2 = await axios.get(`${ENDPOINT}`);
   const inbox2 = await res2.data;
   // const verificationCodeMatch = inbox.emails[0].html.match(/<span[^>]*font-weight: 600[^>]*>(\d+)<\/span>/);
