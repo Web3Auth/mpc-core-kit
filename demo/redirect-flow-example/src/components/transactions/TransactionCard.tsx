@@ -27,7 +27,7 @@ const TransactionCard: React.FC = () => {
       setAmount("0.001");
     } else if (networkName === "BTC") {
       setFaucetLink("https://coinfaucet.eu/en/btc-testnet/");
-      setAmount("0.000001");
+      setAmount("0.00008");
     }
   }, [networkName]);
 

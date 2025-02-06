@@ -6,7 +6,7 @@ import * as bitcoinjs from "bitcoinjs-lib";
 import axios from "axios";
 import { useCoreKit } from "./useCoreKit";
 import { createBitcoinJsSigner, createBitcoinJsSignerBip340 } from "./BitcoinSigner";
-import { COREKIT_STATUS } from "@web3auth/mpc-core-kit";
+import { COREKIT_STATUS } from "@guru_test/mpc-core-kit";
 
 bitcoinjs.initEccLib(ecc);
 const ECPair = ECPairFactory(ecc);
@@ -87,7 +87,7 @@ const useBtcRPC = () => {
 
       const utxo = utxos[0];
       const fee = await estimateFee();
-      const sendAmount = amountInSatoshis || utxo.value - fee;
+      const sendAmount = Math.floor(amountInSatoshis * 100000000) || utxo.value - fee;
       const xOnlyPubKey = signer.publicKey.subarray(1, 33);
 
 
