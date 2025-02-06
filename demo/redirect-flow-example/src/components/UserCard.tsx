@@ -12,9 +12,10 @@ import { Dropdown } from "./DropDown";
 import { TextField } from "./TextField";
 
 const UserCard: React.FC = () => {
-  const { drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo, coreKitInstance } = useCoreKit();
-  const { getAccount, account } = useUnifiedRPC();
+  const { drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo, coreKitInstance, networkName } = useCoreKit();
+  const { getAccount, account, getBalance } = useUnifiedRPC();
   const [openConsole, setOpenConsole] = React.useState(false);
+  const [ balance, setBalance ] = React.useState<string>("");
 
   const [isCopied, setIsCopied] = React.useState(false);
   const [imageError, setImageError] = React.useState(false);
@@ -35,8 +36,14 @@ const UserCard: React.FC = () => {
   };
 
   React.useEffect(() => {
-    if (account)
-      fetchWalletAddresses();
+    const init = async () => {
+      if (account) {
+        fetchWalletAddresses();
+        const balance = await getBalance();
+        setBalance(`${balance} ${networkName}`);
+      }
+    }
+    init();
   }, [account]);
 
   const createNewWallet = async () => {
@@ -131,6 +138,7 @@ const UserCard: React.FC = () => {
           <div>
             <h3 className="font-bold text-app-gray-800 dark:text-app-white mb-2">{userInfo.name}</h3>
             <p className="text-xs text-app-gray-400 mb-1">{userInfo.email ? userInfo.email : userInfo.name}</p>
+            <p className="text-xs text-app-gray-400 mb-1">{balance ? balance : 0}</p>
             <button className="leading-none" onClick={handleConsoleBtn}>
               <Link className="text-xs text-app-primary-600">View User Info</Link>
             </button>

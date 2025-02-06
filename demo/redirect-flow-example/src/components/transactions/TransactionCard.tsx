@@ -21,10 +21,13 @@ const TransactionCard: React.FC = () => {
   React.useEffect(() => {
     if (networkName === "ETH") {
       setFaucetLink("https://cloud.google.com/application/web3/faucet/ethereum/sepolia");
+      setAmount("0.001");
     } else if (networkName === "SOL") {
       setFaucetLink("https://faucet.solana.com/");
+      setAmount("0.001");
     } else if (networkName === "BTC") {
       setFaucetLink("https://coinfaucet.eu/en/btc-testnet/");
+      setAmount("1000");
     }
   }, [networkName]);
 
