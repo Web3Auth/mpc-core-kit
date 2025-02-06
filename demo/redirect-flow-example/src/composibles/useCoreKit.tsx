@@ -1,4 +1,4 @@
-import { COREKIT_STATUS, CoreKitMode, makeEthereumSigner, UserInfo, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "@web3auth/mpc-core-kit";
+import { COREKIT_STATUS, CoreKitMode, makeEthereumSigner, UserInfo, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "@guru_test/mpc-core-kit";
 // import { PasskeysPlugin } from "@web3auth/mpc-passkey-plugin";
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { tssLib as tssLibDkls } from "@toruslabs/tss-dkls-lib";
@@ -56,6 +56,7 @@ interface CoreKitContextType {
   setKeyType: React.Dispatch<React.SetStateAction<KeyType>>;
   keyType: KeyType;
   networkName: "ETH" | "SOL" | "BTC" | undefined;
+  coin: "ETH" | "SOL" | "SATS" | undefined;
 }
 
 // Create the context with default values
@@ -86,6 +87,7 @@ const CoreKitContext = createContext<CoreKitContextType>({
   getShareDescriptions: () => { },
   shareDescriptions: null,
   networkName: undefined,
+  coin: undefined,
   setKeyType: () => { },
   keyType: localStorage.getItem("keyType") as KeyType || KeyType.secp256k1,
   existingModules: [],
@@ -119,12 +121,17 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
   const [existingModules, setExistingModules] = React.useState<string[]>([]);
   const [keyType, setKeyType] = React.useState<KeyType>(localStorage.getItem("keyType") as KeyType || KeyType.secp256k1);
   const [networkName, setNetworkName] = useState<"ETH" | "SOL" | "BTC">();
+  const [coin, setCoin] = useState<"ETH" | "SOL" | "SATS">();
   
   useEffect(() => {
     localStorage.setItem("keyType", keyType);
     setNetworkName(keyType === KeyType.secp256k1 ? "ETH" 
       : keyType === KeyType.ed25519 ? "SOL" 
       : "BTC"
+    );
+    setCoin(keyType === KeyType.secp256k1 ? "ETH" 
+      : keyType === KeyType.ed25519 ? "SOL" 
+      : "SATS"
     );
     setCoreKitInstance(new Web3AuthMPCCoreKit({
       ...initialWeb3AuthConfig,
@@ -209,7 +216,7 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
           getShareDescriptions,
           shareDescriptions, existingModules,
           keyType, setKeyType,
-          networkName,
+          networkName, coin,
       }}>{children}</CoreKitContext.Provider>
   );
 };

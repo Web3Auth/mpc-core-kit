@@ -12,7 +12,7 @@ import { Dropdown } from "./DropDown";
 import { TextField } from "./TextField";
 
 const UserCard: React.FC = () => {
-  const { drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo, coreKitInstance, networkName } = useCoreKit();
+  const { drawerHeading, setDrawerHeading, drawerInfo, setDrawerInfo, userInfo, coreKitInstance, coin } = useCoreKit();
   const { getAccount, account, getBalance } = useUnifiedRPC();
   const [openConsole, setOpenConsole] = React.useState(false);
   const [ balance, setBalance ] = React.useState<string>("");
@@ -28,7 +28,7 @@ const UserCard: React.FC = () => {
   const fetchWalletAddresses = async () => {
     const indices = await coreKitInstance.getTssWalletIndices();
     indices.push({ address: account, index: 0 })
-    indices.sort((a, b) => a.index - b.index);
+    indices.sort((a: { index: number }, b: { index: number }) => a.index - b.index);
     setWalletAddresses(indices);
     if (indices.length > 0) {
       setSelectedWallet(indices[1].address);
@@ -40,7 +40,7 @@ const UserCard: React.FC = () => {
       if (account) {
         fetchWalletAddresses();
         const balance = await getBalance();
-        setBalance(`${balance} ${networkName}`);
+        setBalance(`${balance} ${coin}`);
       }
     }
     init();

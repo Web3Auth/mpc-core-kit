@@ -9,7 +9,7 @@ import { KeyType } from "@tkey/common-types";
 const TransactionCard: React.FC = () => {
   const [amount, setAmount] = React.useState("0.0001");
   const [toAddress, setToAddress] = React.useState("");
-  const { setDrawerHeading, setDrawerInfo, networkName } = useCoreKit();
+  const { setDrawerHeading, setDrawerInfo, networkName, coin } = useCoreKit();
   const [isLoading, setIsLoading] = React.useState(false);
   const { sendTransaction, account } = useUnifiedRPC();
   const [faucetLink, setFaucetLink] = React.useState("");
@@ -27,7 +27,7 @@ const TransactionCard: React.FC = () => {
       setAmount("0.001");
     } else if (networkName === "BTC") {
       setFaucetLink("https://coinfaucet.eu/en/btc-testnet/");
-      setAmount("1000");
+      setAmount("0.000001");
     }
   }, [networkName]);
 
@@ -78,8 +78,8 @@ const TransactionCard: React.FC = () => {
         <TextField
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          label={`Amount ${networkName}`}
-          placeholder={`Enter amount in ${networkName}`}
+          label={`Amount in ${coin}`}
+          placeholder={`Enter amount in ${coin}`}
           className="mb-4 rounded-md"
           classes={{
             container: "flex flex-col justify-center items-center",
