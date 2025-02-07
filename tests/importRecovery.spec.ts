@@ -6,6 +6,7 @@ import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 
 import { AsyncStorage, MemoryStorage, TssLibType, TssShareType, WEB3AUTH_NETWORK } from "../src";
 import { bufferToElliptic, criticalResetAccount, newCoreKitLogInInstance } from "./setup";
+import { getKeyCurve } from "@toruslabs/torus.js";
 
 type ImportKeyTestVariable = {
   manualSync?: boolean;
@@ -81,7 +82,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       const tssPubkey = bufferToElliptic(coreKitInstance3.getPubKey());
 
       const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey();
-      const tssCurve = coreKitInstance3.tKey.tssCurve;
+      const tssCurve = getKeyCurve(coreKitInstance.keyType);
       const exportedPub = tssCurve.keyFromPrivate(exportedTssKey3).getPublic();
       assert(tssPubkey.eq(exportedPub));
 

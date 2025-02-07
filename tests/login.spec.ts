@@ -33,9 +33,7 @@ const checkLogin = async (coreKitInstance: Web3AuthMPCCoreKit, accountIndex = 0)
   assert.strictEqual(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
   assert.strictEqual(keyDetails.requiredFactors, 0);
   const factorkey = coreKitInstance.getCurrentFactorKey();
-  await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
-    accountIndex,
-  });
+  await coreKitInstance.getTssShare(new BN(factorkey.factorKey, "hex"), accountIndex );
 };
 
 const storageInstance = new MemoryStorage();
@@ -97,9 +95,7 @@ variable.forEach((testVariable) => {
 
       checkPubKey = bufferToElliptic(coreKitInstance.getPubKey());
       const factorkey = coreKitInstance.getCurrentFactorKey();
-      const { tssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
-        threshold: 0,
-      });
+      const { tssShare } = await coreKitInstance.getTssShare(new BN(factorkey.factorKey, "hex"));
       checkTssShare = tssShare;
 
       if (manualSync) {
@@ -137,7 +133,7 @@ variable.forEach((testVariable) => {
       await checkLogin(coreKitInstance);
       const newPubKey = bufferToElliptic(coreKitInstance.getPubKey());
       const factorkey = coreKitInstance.getCurrentFactorKey();
-      const { tssShare: newTssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"));
+      const { tssShare: newTssShare } = await coreKitInstance.getTssShare(new BN(factorkey.factorKey, "hex"));
       assert(checkPubKey.eq(newPubKey));
       assert(checkTssShare.eq(newTssShare));
     });

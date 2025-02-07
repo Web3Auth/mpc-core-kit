@@ -333,6 +333,15 @@ export interface Web3AuthOptions {
    * only scalar will be exported, scalar can be used for signing outside of this sdk but not for importing the key in other wallets.
    */
   useClientGeneratedTSSKey?: boolean;
+
+  /**
+   * @defaultValue `false`
+   * Set this flag to true to use the legacy flag for signing
+   * legacy flag do not support multicurve mode
+   * legacy ed25519 customAuth is only supported in legacy mode
+   * Note: This option is set to false by default.
+   */
+  legacyFlag?: boolean;
 }
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 

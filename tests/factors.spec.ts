@@ -9,6 +9,7 @@ import BN from "bn.js";
 
 import { COREKIT_STATUS, IAsyncStorage, IStorage, MemoryStorage, TssLibType, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { AsyncMemoryStorage, bufferToElliptic, criticalResetAccount, mockLogin } from "./setup";
+import { getKeyCurve } from "@toruslabs/torus.js";
 
 type FactorTestVariable = {
   manualSync?: boolean;
@@ -21,9 +22,9 @@ function getPubKeys(kit: Web3AuthMPCCoreKit, indices: number[]): EllipticPoint[]
   if (!kit.supportsAccountIndex) {
     indices = indices.filter((i) => i === 0);
   }
+  const tssCurve = getKeyCurve(kit.keyType)
   const pubKeys = indices.map((i) => {
-    kit.setTssWalletIndex(i);
-    return bufferToElliptic(kit.getPubKey());
+    return kit.getPubKeyPoint( i).toEllipticPoint(tssCurve);
   });
   return pubKeys;
 }

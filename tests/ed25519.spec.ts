@@ -8,6 +8,7 @@ import BN from "bn.js";
 
 import { AsyncStorage, COREKIT_STATUS, ed25519, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { bufferToElliptic, criticalResetAccount, mockLogin, mockLogin2 } from "./setup";
+import { getKeyCurve } from "@toruslabs/torus.js";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -30,9 +31,7 @@ const checkLogin = async (coreKitInstance: Web3AuthMPCCoreKit, accountIndex = 0)
   assert.strictEqual(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
   assert.strictEqual(keyDetails.requiredFactors, 0);
   const factorkey = coreKitInstance.getCurrentFactorKey();
-  await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
-    accountIndex,
-  });
+  await coreKitInstance.getTssShare(new BN(factorkey.factorKey, "hex") ,accountIndex);
 };
 
 const storageInstance = new MemoryStorage();
@@ -48,6 +47,7 @@ variable.forEach((testVariable) => {
       tssLib,
       storage: storageInstance,
       manualSync,
+      legacyFlag: true,
     });
 
   async function resetAccount() {
@@ -84,11 +84,10 @@ variable.forEach((testVariable) => {
       // get key details
       await checkLogin(coreKitInstance);
 
-      checkPubKey = bufferToElliptic(coreKitInstance.getPubKey(), coreKitInstance.tKey.tssCurve);
+      const tssCurve = getKeyCurve(coreKitInstance.keyType)
+      checkPubKey = bufferToElliptic(coreKitInstance.getPubKey(), tssCurve);
       const factorkey = coreKitInstance.getCurrentFactorKey();
-      const { tssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"), {
-        threshold: 0,
-      });
+      const { tssShare } = await coreKitInstance.getTssShare(new BN(factorkey.factorKey, "hex"));
       checkTssShare = tssShare;
 
       if (manualSync) {
@@ -124,9 +123,10 @@ variable.forEach((testVariable) => {
 
       // get key details
       await checkLogin(coreKitInstance);
-      const newPubKey = bufferToElliptic(coreKitInstance.getPubKey(), coreKitInstance.tKey.tssCurve);
+      const tssCurve = getKeyCurve(coreKitInstance.keyType)
+      const newPubKey = bufferToElliptic(coreKitInstance.getPubKey(), tssCurve);
       const factorkey = coreKitInstance.getCurrentFactorKey();
-      const { tssShare: newTssShare } = await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"));
+      const { tssShare: newTssShare } = await coreKitInstance.getTssShare(new BN(factorkey.factorKey, "hex"));
       assert(checkPubKey.eq(newPubKey));
       assert(checkTssShare.eq(newTssShare));
     });

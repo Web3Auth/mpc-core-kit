@@ -75,6 +75,7 @@ variable.forEach(async (testVariable) => {
         manualSync,
         sessionTime,
         disableSessionManager,
+        legacyFlag: false,
       });
       if (coreKitInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(coreKitInstance);
     }
@@ -96,6 +97,7 @@ variable.forEach(async (testVariable) => {
         }
       });
 
+      console.log(coreKitInstance.keyType)
       await coreKitInstance.loginWithJWT({
         verifier: "torus-test-health",
         verifierId: parsedToken.email,

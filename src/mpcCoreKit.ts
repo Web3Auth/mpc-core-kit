@@ -2,7 +2,7 @@ import { BNString, KeyType, ONE_KEY_DELETE_NONCE, Point, secp256k1, SHARE_DELETE
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
-import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
+import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSS_TAG_DEFAULT, TSSTorusServiceProvider } from "@tkey/tss";
 import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
@@ -10,7 +10,7 @@ import { Ed25519Curve, Secp256k1Curve } from "@toruslabs/elliptic-wrapper";
 import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { SessionManager } from "@toruslabs/session-manager";
-import { Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
+import { getKeyCurve, Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
 import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
 import type { WasmLib as DKLSWasmLib } from "@toruslabs/tss-dkls-lib";
 import { sign as signFrost } from "@toruslabs/tss-frost-client";
@@ -136,6 +136,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
     if (options.disableSessionManager === undefined) options.disableSessionManager = false;
+    if (!options.legacyFlag) options.legacyFlag = false;
+
     this.sessionSigGenerator = new DefaultSessionSigGeneratorPlugin(this);
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -221,6 +223,27 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return this.sessionSigGenerator.getSessionSigs();
   }
 
+  public setTkeyType(tkeyType: KeyType) {
+    // check tkeyType is supported by tssLib
+    this._keyType = tkeyType;
+  }
+
+  public getTssShare(factorkey: BN, accountIndex?: number) {
+    return this.tkey.getTSSShare(factorkey, {
+      tssTag: TSS_TAG_DEFAULT,
+      keyType: this.keyType,
+      accountIndex: accountIndex === undefined ? this.state.accountIndex : accountIndex,
+    });
+  }
+
+  public getTssData(args: { skipThrow: boolean } = { skipThrow: false }) {
+    const result = this.tkey.metadata.getTssData(this.keyType, TSS_TAG_DEFAULT);
+    if (!result && !args.skipThrow) {
+      throw CoreKitError.noMetadataFound();
+    }
+    return result;
+  }
+
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
   // TssShareType.DEVICE and TssShareType.RECOVERY
   // if the factors key provided is the same type recovery will not works
@@ -234,7 +257,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     const tssIndexesBN: BN[] = [];
     for (let i = 0; i < factorKey.length; i++) {
       const factorKeyBNInput = new BN(factorKey[i], "hex");
-      const { tssIndex, tssShare } = await this.tKey.getTSSShare(factorKeyBNInput);
+      const { tssIndex, tssShare } = await this.getTssShare(factorKeyBNInput);
       if (tssIndexes.includes(tssIndex)) {
         // reset instance before throw error
         await this.init();
@@ -245,7 +268,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       tssShares.push(tssShare);
     }
 
-    const finalKey = lagrangeInterpolation(this.tkey.tssCurve, tssShares, tssIndexesBN);
+    const tssCurve = getKeyCurve(this.keyType);
+    const finalKey = lagrangeInterpolation(tssCurve, tssShares, tssIndexesBN);
     // reset instance after recovery completed
     await this.init();
     return finalKey.toString("hex", 64);
@@ -261,6 +285,14 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.invalidConfig("DKG is not supported for ed25519 signature type");
     }
 
+    // multicurve only support for secp256k1 torus/ sss
+    let keyType = KeyType.secp256k1;
+    if (this.options.legacyFlag) {
+      // check for added supported keyType
+      // if keyType is ed25519,
+      keyType = this.keyType;
+    }
+
     this.torusSp = new TSSTorusServiceProvider({
       customAuthArgs: {
         web3AuthClientId: this.options.web3AuthClientId,
@@ -270,7 +302,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         redirectPathName: this.options.redirectPathName,
         locationReplaceOnRedirect: true,
         serverTimeOffset: this.options.serverTimeOffset,
-        keyType: this.keyType,
+        keyType,
         useDkg: this.options.useDKG,
       },
     });
@@ -290,7 +322,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       modules: {
         shareSerialization: shareSerializationModule,
       },
-      tssKeyType: this.keyType,
+      legacyMetadataFlag: this.options.legacyFlag,
     });
 
     if (this.isRedirectMode) {
@@ -424,7 +456,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       // prefetch tss pub keys.
       const prefetchTssPubs = [];
       for (let i = 0; i < prefetchTssPublicKeys; i++) {
-        prefetchTssPubs.push(this.torusSp.getTSSPubKey(this.tkey.tssTag, i));
+        prefetchTssPubs.push(this.torusSp.getTSSPubKey(this.tkey.tssTag, i, this.keyType));
       }
 
       // get postbox key.
@@ -546,7 +578,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   }
 
   public setTssWalletIndex(accountIndex: number) {
-    this.updateState({ tssPubKey: this.tKey.getTSSPub(accountIndex).toSEC1(this.tkey.tssCurve, false), accountIndex });
+    this.updateState({ tssPubKey: this.getPubKey(false, accountIndex), accountIndex });
   }
 
   public getCurrentFactorKey(): IFactorKey {
@@ -628,7 +660,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when getting tss factor public key.");
     }
-    const factorPubsList = this.tKey.metadata.factorPubs[this.tKey.tssTag];
+    const tssData = this.getTssData();
+    const factorPubsList = tssData.factorPubs;
     return factorPubsList.map((factorPub) => factorPub.toSEC1(factorKeyCurve, true).toString("hex"));
   };
 
@@ -675,17 +708,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   /**
    * Get public key point in SEC1 format.
    */
-  public getPubKey(): Buffer {
-    const { tssPubKey } = this.state;
-    return Buffer.from(tssPubKey);
+  public getPubKey(compressed: boolean = true, accountIndex?: number): Buffer {
+    const tssPubKey = this.getPubKeyPoint(accountIndex);
+    const tssCurve = getKeyCurve(this.keyType);
+    return tssPubKey.toSEC1(tssCurve, compressed);
   }
 
   /**
    * Get public key point.
    */
-  public getPubKeyPoint(): Point {
-    const { tssPubKey } = this.state;
-    return Point.fromSEC1(this.tkey.tssCurve, tssPubKey.toString("hex"));
+  public getPubKeyPoint(accountIndex?: number): Point {
+    const tssPubKey = this.tkey.getTSSPub(this.keyType, TSS_TAG_DEFAULT, accountIndex === undefined ? this.state.accountIndex : accountIndex);
+    return tssPubKey;
   }
 
   /**
@@ -698,7 +732,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.default(`getPubKeyEd25519 not supported for signature type ${this.sigType}`);
     }
 
-    const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
+    const tssCurve = getKeyCurve(this.keyType);
+    const p = this.getPubKeyPoint().toEllipticPoint(tssCurve);
     return ed25519().keyFromPublic(p).getPublic();
   }
 
@@ -712,7 +747,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.default(`getPubKeyBip340 not supported for signature type ${this.sigType}`);
     }
 
-    const p = this.tkey.tssCurve.keyFromPublic(this.getPubKey()).getPublic();
+    const tssCurve = getKeyCurve(this.keyType);
+    const p = this.getPubKeyPoint().toEllipticPoint(tssCurve);
     return p.getX().toBuffer("be", 32);
   }
 
@@ -732,9 +768,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when signing.");
     }
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
-      accountIndex: 0,
-    });
+    const { tssShare } = await this.getTssShare(this.state.factorKey, 0);
     const tssNonce = this.getTssNonce();
 
     if (!tssPubKey || !torusNodeTSSEndpoints) {
@@ -749,7 +783,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     const clientIndex = parties - 1;
     // 1. setup
     // generate endpoints for servers
-    const { nodeIndexes } = await this.torusSp.getTSSPubKey(this.tKey.tssTag, this.tKey.metadata.tssNonces[this.tKey.tssTag]);
+    const tssData = this.getTssData();
+    const { nodeIndexes } = await this.torusSp.getTSSPubKey(this.tKey.tssTag, tssData.tssNonce, this.keyType);
     const {
       endpoints,
       tssWSEndpoints,
@@ -846,12 +881,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
     }
-    if (!this.tKey.metadata.factorPubs) {
+    const tssData = this.getTssData();
+    if (!tssData.factorPubs) {
       throw CoreKitError.factorPubsMissing();
     }
 
     await this.atomicSync(async () => {
-      const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
+      const remainingFactors = tssData.factorPubs.length || 0;
       if (remainingFactors <= 1) {
         throw CoreKitError.cannotDeleteLastFactor("Cannot delete last factor");
       }
@@ -862,9 +898,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       }
 
       const authSignatures = await this.getSessionSignatures();
-      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures });
+      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures, tssTag: TSS_TAG_DEFAULT });
       const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
-      const allDesc = this.tKey.metadata.getShareDescription();
+      const allDesc = this.tkey.metadata.getShareDescription();
       const keyDesc = allDesc[factorPubHex];
       if (keyDesc) {
         await Promise.all(keyDesc.map(async (desc) => this.tKey?.metadata.deleteShareDescription(factorPubHex, desc)));
@@ -903,10 +939,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
   public getKeyDetails(): MPCKeyDetails {
     this.checkReady();
+    const tssData = this.getTssData({ skipThrow: true });
     const tkeyDetails = this.tKey.getKeyDetails();
-    const tssPubKey = this.state.tssPubKey ? Point.fromSEC1(this.tkey.tssCurve, this.state.tssPubKey.toString("hex")) : undefined;
+    const tssCurve = getKeyCurve(this.keyType);
+    // TODO: fix me, should remove tssPubKey from state
+    const tssPubKey = this.state.tssPubKey ? Point.fromSEC1(tssCurve, this.state.tssPubKey.toString("hex")) : undefined;
 
-    const factors = this.tKey.metadata.factorPubs ? this.tKey.metadata.factorPubs[this.tKey.tssTag] : [];
+    const factors = tssData?.factorPubs ? tssData.factorPubs : [];
     const keyDetails: MPCKeyDetails = {
       // use tkey's for now
       requiredFactors: tkeyDetails.requiredShares,
@@ -992,10 +1031,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     const exportTssKey0 = await this.tKey._UNSAFE_exportTssKey({
       factorKey: this.state.factorKey,
       authSignatures: this.state.signatures,
+      keyType: this.keyType,
+      tssTag: TSS_TAG_DEFAULT,
     });
 
     const accountNonce = this.getAccountNonce();
-    const tssKey = exportTssKey0.add(accountNonce).umod(this.tKey.tssCurve.n);
+    const tssCurve = getKeyCurve(this.keyType);
+    const tssKey = exportTssKey0.add(accountNonce).umod(tssCurve.n);
 
     return tssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
   }
@@ -1017,6 +1059,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       const exportEd25519Seed = await this.tKey._UNSAFE_exportTssEd25519Seed({
         factorKey: this.state.factorKey,
         authSignatures: this.state.signatures,
+        tssTag: TSS_TAG_DEFAULT,
       });
 
       return exportEd25519Seed;
@@ -1107,22 +1150,24 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
   }
 
-  private async importTssKey(tssKey: string, factorPub: Point, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
-    if (!this.state.signatures) {
-      throw CoreKitError.signaturesNotPresent("Signatures not present in state when importing tss key.");
-    }
+  // private async importTssKey(tssKey: string, factorPub: Point, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
+  //   if (!this.state.signatures) {
+  //     throw CoreKitError.signaturesNotPresent("Signatures not present in state when importing tss key.");
+  //   }
 
-    await this.tKey.importTssKey(
-      { tag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPub, newTSSIndex },
-      { authSignatures: this.state.signatures }
-    );
-  }
+  //   const keyType = this._keyType
+  //   await this.tKey.importTssKey(
+  //     { tssTag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPubs: [factorPub], newTSSIndexes: [newTSSIndex], tssKeyType: keyType },
+  //     { authSignatures: this.state.signatures }
+  //   );
+  // }
 
   private getTssNonce(): number {
-    if (!this.tKey.metadata.tssNonces || this.tKey.metadata.tssNonces[this.tKey.tssTag] === undefined) {
+    const tssData = this.getTssData();
+    if (tssData.tssNonce === undefined) {
       throw CoreKitError.tssNoncesMissing(`tssNonce not present for tag ${this.tKey.tssTag}`);
     }
-    const tssNonce = this.tKey.metadata.tssNonces[this.tKey.tssTag];
+    const { tssNonce } = tssData;
     return tssNonce;
   }
 
@@ -1141,15 +1186,37 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       }
       const deviceTSSIndex = TssShareType.DEVICE;
       const factorPub = getPubKeyPoint(factorKey, factorKeyCurve);
-      if (!importTssKey) {
-        const ec = new EC(this.keyType);
-        const deviceTSSShare = ec.genKeyPair().getPrivate();
-        await this.tKey.initialize({ factorPub, deviceTSSShare, deviceTSSIndex });
-      } else {
-        await this.tKey.initialize({ skipTssInit: true });
-        await this.tKey.reconstructKey();
-        await this.importTssKey(importTssKey, factorPub, deviceTSSIndex);
-      }
+
+      const ec = new EC(this.keyType);
+      const deviceTSSShare = ec.genKeyPair().getPrivate();
+      await this.tKey.initialize();
+
+      // if both keyType library is avaiable, initialize secp256k1 first as secp256k1 is initialize offline
+
+      // check if key is in the tsslib and keytype exists
+      await this.tKey.initializeTss({
+        importKey: importTssKey ? Buffer.from(importTssKey, "hex") : undefined,
+        factorPub,
+        deviceTSSShare,
+        deviceTSSIndex,
+        tssKeyType: this._keyType,
+        serverOpts: {
+          // selectedServers: [],
+          authSignatures: this.state.signatures,
+        },
+      });
+
+      //TODO resolve this
+      // if both key type available
+      // if () {
+      //   await this.tKey.initializeTss({
+      //     importKey: importTssKey? Buffer.from(importTssKey) : undefined, tssKeyType: this._keyType,
+      //     serverOpts: {
+      //       // selectedServers: [],
+      //       authSignatures: this.state.signatures
+      //     }
+      //   });
+      // }
 
       // Finalize initialization.
       await this.tKey.reconstructKey();
@@ -1212,8 +1279,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       this.state.accountIndex = 0;
     }
     // Read tss meta data.
-    const { tssIndex: tssShareIndex } = await this.tKey.getTSSShare(factorKey);
-    const tssPubKey = this.tKey.getTSSPub().toSEC1(this.tkey.tssCurve, false);
+    const { tssIndex: tssShareIndex } = await this.getTssShare(factorKey);
+    const tssCurve = getKeyCurve(this._keyType);
+    const tssPubKey = this.tKey.getTSSPub(this.keyType, TSS_TAG_DEFAULT).toSEC1(tssCurve, false);
 
     this.updateState({ tssShareIndex, tssPubKey, factorKey });
 
@@ -1246,12 +1314,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       await this.tKey.inputShareStoreSafe(factorKeyMetadata, true);
       await this.tKey.reconstructKey();
 
+      const tssCurve = getKeyCurve(this._keyType);
+
       this.updateState({
         factorKey: new BN(result.factorKey, "hex"),
         postBoxKey,
         postboxKeyNodeIndexes: result.postboxKeyNodeIndexes || [],
         tssShareIndex: result.tssShareIndex,
-        tssPubKey: this.tkey.getTSSPub().toSEC1(this.tKey.tssCurve, false),
+        // still need tssPubkey on the state?
+        // should compute from tkey as we support the account index
+        tssPubKey: this.tkey.getTSSPub(this.keyType, TSS_TAG_DEFAULT).toSEC1(tssCurve, false),
         signatures: result.signatures,
         userInfo: result.userInfo,
       });
@@ -1275,9 +1347,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       if (!this.state.factorKey) {
         throw CoreKitError.factorKeyNotPresent("factorKey not present in state when creating session.");
       }
-      const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey, {
-        accountIndex: this.state.accountIndex,
-      });
+      const { tssShare } = await this.getTssShare(this.state.factorKey);
       if (!postBoxKey || !factorKey || !tssShare || !tssPubKey || !userInfo) {
         throw CoreKitError.userNotLoggedIn();
       }
@@ -1334,10 +1404,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
    */
   private async copyOrCreateShare(newFactorTSSIndex: number, newFactorPub: Point) {
     this.checkReady();
-    if (!this.tKey.metadata.factorPubs || !Array.isArray(this.tKey.metadata.factorPubs[this.tKey.tssTag])) {
+    const tssData = this.getTssData();
+    if (!tssData.factorPubs || !Array.isArray(tssData.factorPubs)) {
       throw CoreKitError.factorPubsMissing("'factorPubs' is missing in the metadata. Failed to copy factor public key.");
     }
-    if (!this.tKey.metadata.factorEncs || typeof this.tKey.metadata.factorEncs[this.tKey.tssTag] !== "object") {
+    if (!tssData.factorEncs || typeof tssData.factorEncs !== "object") {
       throw CoreKitError.factorEncsMissing("'factorEncs' is missing in the metadata. Failed to copy factor public key.");
     }
     if (!this.state.factorKey) {
@@ -1346,7 +1417,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (VALID_SHARE_INDICES.indexOf(newFactorTSSIndex) === -1) {
       throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${newFactorTSSIndex}). Valid share types are ${VALID_SHARE_INDICES}.`);
     }
-    if (this.tKey.metadata.factorPubs[this.tKey.tssTag].length >= MAX_FACTORS) {
+    if (tssData.factorPubs.length >= MAX_FACTORS) {
       throw CoreKitError.maximumFactorsReached(`The maximum number of allowable factors (${MAX_FACTORS}) has been reached.`);
     }
     const authSignatures = await this.getSessionSignatures();
@@ -1357,6 +1428,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       newFactorPub,
       newTSSIndex: newFactorTSSIndex,
       refreshShares: this.state.tssShareIndex !== newFactorTSSIndex, // Refresh shares if we have a new factor key index.
+      tssTag: TSS_TAG_DEFAULT,
     });
   }
 
@@ -1410,7 +1482,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       additionalMetadata = {};
     }
 
-    const { tssIndex } = await this.tKey.getTSSShare(factorKey);
+    const { tssIndex } = await this.getTssShare(factorKey);
     const factorPoint = getPubKeyPoint(factorKey, factorKeyCurve);
     const factorPub = factorPoint.toSEC1(factorKeyCurve, true).toString("hex");
 
@@ -1544,7 +1616,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (this._sigType === "ed25519" && this.state.accountIndex !== 0) {
       throw CoreKitError.default("Account index not supported for ed25519");
     }
-    const { tssShare } = await this.tKey.getTSSShare(this.state.factorKey);
+    const { tssShare } = await this.getTssShare(this.state.factorKey);
     const clientShareAdjusted = tssShare.mul(clientCoefficient).umod(ec.n);
     const clientShareAdjustedHex = ec.scalarToBuffer(clientShareAdjusted, Buffer).toString("hex");
 

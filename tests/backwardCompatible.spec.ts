@@ -33,7 +33,7 @@ const checkLogin = async (coreKitInstance: Web3AuthMPCCoreKit) => {
   assert.strictEqual(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
   assert.strictEqual(keyDetails.requiredFactors, 0);
   const factorkey = coreKitInstance.getCurrentFactorKey();
-  await coreKitInstance.tKey.getTSSShare(new BN(factorkey.factorKey, "hex"));
+  await coreKitInstance.getTssShare(new BN(factorkey.factorKey, "hex"));
 };
 
 variable.forEach((testVariable) => {
@@ -49,6 +49,7 @@ variable.forEach((testVariable) => {
       tssLib,
       storage: storageInstance,
       manualSync,
+      legacyFlag: true,
     });
 
   const coreKitInstance = newCoreKitInstance();
@@ -69,6 +70,8 @@ variable.forEach((testVariable) => {
         idToken,
       });
 
+      // console.log(coreKitInstance.tKey.metadata)
+      // console.log(coreKitInstance.state);
       // get key details
       await checkLogin(coreKitInstance);
 
