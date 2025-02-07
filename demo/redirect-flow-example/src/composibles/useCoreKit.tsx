@@ -56,7 +56,7 @@ interface CoreKitContextType {
   setKeyType: React.Dispatch<React.SetStateAction<KeyType>>;
   keyType: KeyType;
   networkName: "ETH" | "SOL" | "BTC" | undefined;
-  coin: "ETH" | "SOL" | "SATS" | undefined;
+  coin: "ETH" | "SOL" | "tBTC" | undefined;
 }
 
 // Create the context with default values
@@ -121,7 +121,7 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
   const [existingModules, setExistingModules] = React.useState<string[]>([]);
   const [keyType, setKeyType] = React.useState<KeyType>(localStorage.getItem("keyType") as KeyType || KeyType.secp256k1);
   const [networkName, setNetworkName] = useState<"ETH" | "SOL" | "BTC">();
-  const [coin, setCoin] = useState<"ETH" | "SOL" | "SATS">();
+  const [coin, setCoin] = useState<"ETH" | "SOL" | "tBTC">();
   
   useEffect(() => {
     localStorage.setItem("keyType", keyType);
@@ -131,7 +131,7 @@ export const CoreKitProvider: React.FC<CoreKitProviderProps> = ({ children }) =>
     );
     setCoin(keyType === KeyType.secp256k1 ? "ETH" 
       : keyType === KeyType.ed25519 ? "SOL" 
-      : "SATS"
+      : "tBTC"
     );
     setCoreKitInstance(new Web3AuthMPCCoreKit({
       ...initialWeb3AuthConfig,
