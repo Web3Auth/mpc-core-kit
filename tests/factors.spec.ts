@@ -8,14 +8,17 @@ import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 
 import { COREKIT_STATUS, IAsyncStorage, IStorage, MemoryStorage, TssLibType, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
-import { AsyncMemoryStorage, bufferToElliptic, criticalResetAccount, mockLogin } from "./setup";
+import { AsyncMemoryStorage, criticalResetAccount, mockLogin } from "./setup";
 import { getKeyCurve } from "@toruslabs/torus.js";
+import { randomId } from "@toruslabs/customauth";
+import log  from "loglevel";
 
 type FactorTestVariable = {
   manualSync?: boolean;
   storage?: IAsyncStorage | IStorage;
   email: string;
   tssLib?: TssLibType;
+  resetAccount? : false
 };
 
 function getPubKeys(kit: Web3AuthMPCCoreKit, indices: number[]): EllipticPoint[] {
@@ -53,7 +56,12 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
   };
 
   async function beforeTest() {
+    if (testVariable.resetAccount === false) {
+      log.debug("skipping reset account");
+      return ;
+    }
     const resetInstance = await newInstance();
+
     await criticalResetAccount(resetInstance);
     await resetInstance.logout();
   }
@@ -182,6 +190,7 @@ const variable: FactorTestVariable[] = [
   { manualSync: false, storage: new AsyncMemoryStorage(), email: "testmail1015" },
 
   { manualSync: true, storage: new MemoryStorage(), email: "testmail1012ed25519", tssLib: tssLibFROST },
+  { manualSync: true, storage: new MemoryStorage(), email: randomId() , tssLib: tssLibFROST , resetAccount: false},
 ];
 
 variable.forEach(async (testVariable) => {

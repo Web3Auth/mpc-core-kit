@@ -828,8 +828,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     // Suppress client logs if logging is disabled.
     client.log = (msg: string) => {
       if (!this.enableLogging) return;
-      // eslint-disable-next-line no-console
-      console.log(msg);
+      log.debug(msg);
     };
 
     const serverCoeffs: Record<number, string> = {};
@@ -1193,9 +1192,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
       // if both keyType library is avaiable, initialize secp256k1 first as secp256k1 is initialize offline
 
+      const importTssBuf = importTssKey ? Buffer.from(importTssKey, "hex") : undefined;
       // check if key is in the tsslib and keytype exists
       await this.tKey.initializeTss({
-        importKey: importTssKey ? Buffer.from(importTssKey, "hex") : undefined,
+        importKey: importTssBuf,
         factorPub,
         deviceTSSShare,
         deviceTSSIndex,
