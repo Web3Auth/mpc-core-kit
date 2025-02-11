@@ -46,7 +46,7 @@ variable.forEach((testVariable) => {
       web3AuthNetwork,
       baseUrl: "http://localhost:3000",
       uxMode,
-      tssLib,
+      tssLibs: [tssLib],
       storage: storageInstance,
       manualSync,
     });
@@ -63,7 +63,7 @@ variable.forEach((testVariable) => {
         web3AuthNetwork,
         baseUrl: "http://localhost:3000",
         uxMode,
-        tssLib,
+        tssLibs: [tssLib],
         storage: storageInstance,
         manualSync,
       });

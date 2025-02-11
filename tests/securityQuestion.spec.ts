@@ -132,7 +132,7 @@ variable.forEach(async (testVariable) => {
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
-      tssLib,
+      tssLibs: [tssLib],
       storage: storageInstance,
       manualSync: testVariable.manualSync,
     });

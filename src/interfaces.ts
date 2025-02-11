@@ -95,7 +95,9 @@ export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLogi
   /**
    * Key to import key into Tss during first time login.
    */
-  importTssKey?: string;
+  importTssKey?: {
+    [K in KeyType]: string;
+  };
 
   /**
    * For new users, use SFA key if user was registered with SFA before.
@@ -161,7 +163,9 @@ export interface JWTLoginParams {
   /**
    * Key to import key into Tss during first time login.
    */
-  importTssKey?: string;
+  importTssKey?: {
+    [K in KeyType]?: string;
+  };
 
   /**
    * For new users, use SFA key if user was registered with SFA before.
@@ -201,7 +205,7 @@ export interface Web3AuthOptions {
   /**
    * The threshold signing library to use.
    */
-  tssLib: TssLibType;
+  tssLibs: TssLibType[];
 
   /**
    * @defaultValue `false`
@@ -354,7 +358,7 @@ export interface IMPCContext {
   updateState: (newState: Partial<Web3AuthState>) => void;
   getUserInfo: () => UserInfo;
   setupTkey: (params?: {
-    providedImportKey?: string;
+    providedImportKey?: { [key in KeyType]?: string };
     sfaLoginResponse?: TorusKey | TorusLoginResponse | TorusAggregateLoginResponse;
     userInfo?: UserInfo;
     importingSFAKey?: boolean;

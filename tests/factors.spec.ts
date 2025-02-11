@@ -34,13 +34,14 @@ function getPubKeys(kit: Web3AuthMPCCoreKit, indices: number[]): EllipticPoint[]
 
 export const FactorManipulationTest = async (testVariable: FactorTestVariable) => {
   const { email, tssLib } = testVariable;
+  const tsslibs = tssLib ? [tssLib] : [tssLibDKLS];
   const newInstance = async () => {
     const instance = new Web3AuthMPCCoreKit({
       web3AuthClientId: "torus-key-test",
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
-      tssLib: tssLib || tssLibDKLS,
+      tssLibs: tsslibs,
       storage: testVariable.storage,
       manualSync: testVariable.manualSync,
     });

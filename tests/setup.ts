@@ -99,13 +99,14 @@ export const newCoreKitLogInInstance = async ({
   importTssKey?: string;
   registerExistingSFAKey?: boolean;
   login?: LoginFunc;
-}) => {
+  }) => {
+  const tssLibs = [tssLib || tssLibDKLS];
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
-    tssLib: tssLib || tssLibDKLS,
+    tssLibs: tssLibs,
     storage: storageInstance,
     manualSync,
   });
@@ -116,7 +117,7 @@ export const newCoreKitLogInInstance = async ({
     verifier: "torus-test-health",
     verifierId: parsedToken.email,
     idToken,
-    importTssKey,
+    importTssKey: importTssKey ? { [tssLibs[0].keyType] : importTssKey} : undefined,
     registerExistingSFAKey
   });
 
@@ -136,13 +137,16 @@ export const loginWithSFA = async ({
   storageInstance: IStorage | IAsyncStorage;
   tssLib?: TssLibType;
   login?: LoginFunc;
-}): Promise<TorusKey> => {
+  }): Promise<TorusKey> => {
+  
+  const tssLibs = [tssLib || tssLibDKLS]
+  
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
-    tssLib: tssLib || tssLibDKLS,
+    tssLibs: tssLibs,
     storage: storageInstance,
     manualSync,
   });
