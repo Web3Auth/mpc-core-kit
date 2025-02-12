@@ -36,7 +36,7 @@ describe("multiCurveTest", () => {
           web3AuthNetwork,
           baseUrl: "http://localhost:3000",
           uxMode: "nodejs",
-          tssLibs : [dklslib, frostLib, frostBip340lib],
+          supportedKeyTypes: [KeyType.secp256k1, KeyType.ed25519],
           storage: storageInstance,
           manualSync,
         });
@@ -46,6 +46,7 @@ describe("multiCurveTest", () => {
         const message = "message to sign";
 
         const hash = keccak_256(message);
+        instance.addTssLibs([dklslib]);
         const result = await instance.signECDSA(Buffer.from(hash), {hashed: true})
         const {r, s } = sigToRSV(result);
 
@@ -55,12 +56,14 @@ describe("multiCurveTest", () => {
         }, bytesToHex(hash), bytesToHex(instance.getPubKey(KeyType.secp256k1,  false)))
         expect(validsecp256k1).eq(true);
 
+        instance.addTssLibs([frostBip340lib]);
         const result2 = await instance.signBip340( Buffer.from(utf8ToBytes(message)), {hashed: false})
         
         const validb340 = bip340.verify(bytesToHex(result2), bytesToHex(utf8ToBytes(message)), bytesToHex(instance.getPubKeyBip340()));
         expect(validb340).eq(true);
 
 
+        instance.addTssLibs([frostLib]);
         const result3 = await instance.signEd25519(Buffer.from(message), { hashed: false })
         const valided25519 = ed25519.verify(bytesToHex(result3), bytesToHex(Buffer.from(message)), bytesToHex( new Uint8Array(instance.getPubKeyEd25519()) ) )
         expect(valided25519).eq(true);
