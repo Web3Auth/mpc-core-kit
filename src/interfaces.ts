@@ -87,8 +87,7 @@ export type MPCKeyDetails = {
   requiredFactors: number;
   totalFactors: number;
   shareDescriptions: ShareDescriptionMap;
-  keyType: KeyType;
-  tssPubKey?: TkeyPoint;
+  supportedKeyType: KeyType[];
 };
 
 export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & {
@@ -187,7 +186,6 @@ export interface Web3AuthState {
   postboxKeyNodeIndexes?: number[];
   userInfo?: UserInfo;
   tssShareIndex?: number;
-  tssPubKey?: Buffer;
   accountIndex: number;
   factorKey?: BN;
 }
@@ -487,14 +485,14 @@ export interface ICoreKit {
    * - secp256k1Precompute: Provide a precomputed client for faster signing. Only works for ecdsa-secp256k1.
    * - keyTweak: Provide a bip340 key tweak. Only works for bip340.
    */
-  sign(
-    data: Buffer,
-    opts?: {
-      hashed?: boolean;
-      secp256k1Precompute?: Secp256k1PrecomputedClient;
-      keyTweak?: BN;
-    }
-  ): Promise<Buffer>;
+  // sign(
+  //   data: Buffer,
+  //   opts?: {
+  //     hashed?: boolean;
+  //     secp256k1Precompute?: Secp256k1PrecomputedClient;
+  //     keyTweak?: BN;
+  //   }
+  // ): Promise<Buffer>;
 
   /**
    * WARNING: Use with caution. This will export the private signing key.
@@ -503,7 +501,7 @@ export interface ICoreKit {
    *
    * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
    */
-  _UNSAFE_exportTssKey(): Promise<string>;
+  _UNSAFE_exportTssKey(keyType: KeyType): Promise<string>;
 
   /**
    * WARNING: Use with caution. This will export the private signing key.
@@ -523,7 +521,6 @@ export interface SessionData {
   postboxKeyNodeIndexes?: number[];
   factorKey: string;
   tssShareIndex: number;
-  tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
 }

@@ -45,32 +45,23 @@ describe("multiCurveTest", () => {
     const testAllSigning = async (instance: Web3AuthMPCCoreKit) => {
         const message = "message to sign";
 
-
-        instance.setTkeyType(KeyType.secp256k1)
-        instance.setSigType("ecdsa-secp256k1")
-
         const hash = keccak_256(message);
-        const result = await instance.sign(Buffer.from(hash), {hashed: true})
-        
+        const result = await instance.signECDSA(Buffer.from(hash), {hashed: true})
         const {r, s } = sigToRSV(result);
 
-        // new secp256k1.Signature()
         const validsecp256k1 = secp256k1.verify({
             r: bytesToNumberBE(r),
             s: bytesToNumberBE(s),
-        }, bytesToHex(hash), bytesToHex(instance.getPubKey(false)))
+        }, bytesToHex(hash), bytesToHex(instance.getPubKey(KeyType.secp256k1,  false)))
         expect(validsecp256k1).eq(true);
 
-        instance.setSigType("bip340");
-        const result2 = await instance.sign( Buffer.from(utf8ToBytes(message)), {hashed: false})
+        const result2 = await instance.signBip340( Buffer.from(utf8ToBytes(message)), {hashed: false})
         
         const validb340 = bip340.verify(bytesToHex(result2), bytesToHex(utf8ToBytes(message)), bytesToHex(instance.getPubKeyBip340()));
         expect(validb340).eq(true);
 
 
-        instance.setSigType("ed25519")
-        instance.setTkeyType(KeyType.ed25519)
-        const result3 = await instance.sign(Buffer.from(message), { hashed: false })
+        const result3 = await instance.signEd25519(Buffer.from(message), { hashed: false })
         const valided25519 = ed25519.verify(bytesToHex(result3), bytesToHex(Buffer.from(message)), bytesToHex( new Uint8Array(instance.getPubKeyEd25519()) ) )
         expect(valided25519).eq(true);
 
