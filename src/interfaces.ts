@@ -201,9 +201,9 @@ export interface Web3AuthOptions {
   web3AuthClientId: string;
 
   /**
-   * The threshold signing library to use.
+   * The supported curve key type.
    */
-  tssLibs: TssLibType[];
+  supportedKeyTypes: KeyType[];
 
   /**
    * @defaultValue `false`

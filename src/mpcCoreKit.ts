@@ -97,7 +97,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
   private ready = false;
 
-  private _tssLibs: TssLibType[];
+  private _tssLibs: TssLibType[] = [];
 
   private wasmLib: {
     [SIG_TYPE.ECDSA_SECP256K1]?: DKLSWasmLib;
@@ -118,12 +118,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.clientIdInvalid();
     }
 
-    options.tssLibs.forEach((tssLibItem) => {
-      this.supportedCurveKeyTypes.add(tssLibItem.keyType as KeyType);
-      this.supportedSigTypes.add(tssLibItem.sigType as SigType);
-    });
-
-    this._tssLibs = options.tssLibs;
+    if (options.supportedKeyTypes.length === 0) {
+      throw CoreKitError.invalidConfig("No supported key types provided");
+    }
+    this.supportedCurveKeyTypes = new Set(options.supportedKeyTypes);
 
     if (!options.legacyFlag) {
       options.legacyFlag = false;
@@ -213,6 +211,30 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   // private get useClientGeneratedTSSKey(): boolean {
   //   return this._sigType === "ed25519" && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
   // }
+
+  /**
+   * The threshold signing library to use.
+   */
+  public addTssLibs(tssLibs: TssLibType[], force = false) {
+    for (const tssLib of tssLibs) {
+      if (!this.supportedCurveKeyTypes.has(tssLib.keyType as KeyType)) {
+        throw CoreKitError.invalidConfig(
+          `Tsslib key type: ${tssLib.keyType} is not supported, please reconfigure corekit with supported curves keytype`
+        );
+      }
+      if (this.supportedSigTypes.has(tssLib.sigType as WEB3AUTH_SIG_TYPE)) {
+        if (force) {
+          this._tssLibs = this._tssLibs.filter((t) => t.sigType !== tssLib.sigType);
+          this._tssLibs.push(tssLib);
+        } else {
+          log.warn(`Tsslib sig type: ${tssLib.sigType} is already exists, library is not appended`);
+        }
+        continue;
+      }
+      this.supportedSigTypes.add(tssLib.sigType as WEB3AUTH_SIG_TYPE);
+      this._tssLibs.push(tssLib);
+    }
+  }
 
   public setCustomSessionSigGenerator(sessionSigGenerator: ISessionSigGenerator) {
     this.sessionSigGenerator = sessionSigGenerator;
@@ -858,6 +880,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   }
 
   public async signECDSA(data: Uint8Array, opts: { hashed?: boolean; secp256k1Precompute?: Secp256k1PrecomputedClient }) {
+    if (!this.supportedCurveKeyTypes.has(KeyType.secp256k1)) {
+      throw CoreKitError.default(`secp256k1 KeyTYpe is not supported, please configure secp256k1 curve key type `);
+    }
+    if (!this.supportedSigTypes.has(SIG_TYPE.ECDSA_SECP256K1)) {
+      throw CoreKitError.default(`ECDSA_SECP256K1 is not supported, please configure tssLib with ECDSA_SECP256K1 signature type `);
+    }
     const { hashed = false, secp256k1Precompute } = opts || {};
 
     // TODO: replace buffer to uint8array
@@ -866,6 +894,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   }
 
   public async signBip340(data: Uint8Array, opts?: { hashed?: boolean; keyTweak?: BN }) {
+    if (!this.supportedCurveKeyTypes.has(KeyType.secp256k1)) {
+      throw CoreKitError.default(`secp256k1 KeyTYpe is not supported, please configure secp256k1 curve key type `);
+    }
+    if (!this.supportedSigTypes.has(SIG_TYPE.BIP340)) {
+      throw CoreKitError.default(`BIP340 is not supported, please configure tssLib with BIP340 signature type `);
+    }
+
     if (opts?.hashed) {
       throw CoreKitError.default(`hashed data not supported for bip340`);
     }
@@ -878,6 +913,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   }
 
   public async signEd25519(data: Uint8Array, opts?: { hashed?: boolean }) {
+    if (!this.supportedCurveKeyTypes.has(KeyType.ed25519)) {
+      throw CoreKitError.default(`ed25519 KeyTYpe is not supported, please configure ed25519 curve key type `);
+    }
+    if (!this.supportedSigTypes.has(SIG_TYPE.ED25519)) {
+      throw CoreKitError.default(`ed25519 is not supported, please configure tssLib with ed25519 signature type `);
+    }
+
     if (opts?.hashed) {
       throw CoreKitError.default(`hashed data not supported for bip340`);
     }
@@ -888,34 +930,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
     return this.sign_frost({ data: Buffer.from(data), keyType: KeyType.ed25519, sigType: SIG_TYPE.ED25519, frostlib });
   }
-  // public async sign(
-  //   data: Buffer,
-  //   opts?: {
-  //     hashed?: boolean;
-  //     secp256k1Precompute?: Secp256k1PrecomputedClient;
-  //     keyTweak?: BN;
-  //   }
-  // ): Promise<Buffer> {
-  //   // this.wasmLib = await this.loadTssWasm();
-  //   if (this._sigType === "ecdsa-secp256k1") {
-  //     if (opts?.keyTweak) {
-  //       throw CoreKitError.default("key tweaking not supported for ecdsa-secp256k1");
-  //     }
-  //     const sig = await this.sign_ECDSA_secp256k1(data, opts?.hashed, opts?.secp256k1Precompute);
-  //     return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
-  //   } else if (this._sigType === "ed25519" || this._sigType === "bip340") {
-  //     if (opts?.hashed) {
-  //       throw CoreKitError.default(`hashed data not supported for bip340`);
-  //     } else if (opts?.keyTweak && this._sigType !== "bip340") {
-  //       throw CoreKitError.default("key tweaking not supported for ed25519");
-  //     }
-
-  //     return this.sign_frost(data, opts?.keyTweak);
-  //   }
-  //   throw CoreKitError.default(`sign not supported for key type ${this.keyType}`);
-  // }
 
   // mutation function
+
   async deleteFactor(factorPub: Point, factorKey?: BNString): Promise<void> {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
