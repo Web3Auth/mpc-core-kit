@@ -9,7 +9,6 @@ import { bufferToElliptic, criticalResetAccount, newCoreKitLogInInstance } from 
 import { getKeyCurve } from "@toruslabs/torus.js";
 import { KeyType, Point } from "@tkey/common-types";
 import { MockStorageLayer } from "@tkey/storage-layer-torus";
-import { BN } from "bn.js";
 
 type ImportKeyTestVariable = {
   manualSync?: boolean;
@@ -22,8 +21,8 @@ type ImportKeyTestVariable = {
 const storageInstance = new MemoryStorage();
 
 // use mockStorageLayer, hence resetAccount is not required.
-const mockStorageLayer = new MockStorageLayer();
 export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
+  const mockStorageLayer = new MockStorageLayer();
   async function newCoreKitInstance(email: string, importTssKey?: string) {
     return newCoreKitLogInInstance({
       network: WEB3AUTH_NETWORK.DEVNET,
@@ -37,7 +36,7 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
     });
   }
 
-  describe(`import recover tss key : ${testVariable.manualSync}, testVariable: ${testVariable}`, async function (t) {
+  describe(`import recover tss key manual sync: ${testVariable.manualSync}, testVariable: ${JSON.stringify(testVariable)}`, async function (t) {
     it("#recover Tss key using 2 factors key, import tss key to new oauth login", async function () {
       const coreKitInstance = await newCoreKitInstance(testVariable.email);
 
@@ -88,8 +87,6 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
       const exportedTssKey3 = await coreKitInstance3._UNSAFE_exportTssKey(keyType);
       const tssCurve = getKeyCurve(keyType);
       const exportedPub = tssCurve.keyFromPrivate(exportedTssKey3).getPublic();
-      console.log(exportedPub.encodeCompressed("hex"))
-      console.log(tssPubkey.encodeCompressed("hex"))
       assert(tssPubkey.eq(exportedPub));
 
       // Check exported key corresponds to pub key for account index > 0.
@@ -105,9 +102,9 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 };
 
 const variable: ImportKeyTestVariable[] = [
-  // { manualSync: false, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
-  // { manualSync: true, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
-  { manualSync: false, email: "emailexport_ed25519", importKeyEmail: "emailimport_ed25519", tssLib: tssLibFROST },
+  { manualSync: false, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
+  { manualSync: true, email: "emailexport", importKeyEmail: "emailimport", tssLib: tssLibDKLS },
+  // { manualSync: false, email: "emailexport_ed25519--1", importKeyEmail: "emailimport_ed25519--1", tssLib: tssLibFROST },
 ];
 
 variable.forEach(async (testVariable) => {
