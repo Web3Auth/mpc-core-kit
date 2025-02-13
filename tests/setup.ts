@@ -1,11 +1,11 @@
-import { EllipticPoint, secp256k1 } from "@tkey/common-types";
-import { tssLib } from "@toruslabs/tss-dkls-lib";
+import { EllipticPoint, KeyType, secp256k1 } from "@tkey/common-types";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { TorusKey } from "@toruslabs/torus.js";
 
 import { IAsyncStorage, IStorage, parseToken, TssLibType, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { MockStorageLayer } from "@tkey/storage-layer-torus";
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -90,6 +90,9 @@ export const newCoreKitLogInInstance = async ({
   importTssKey,
   registerExistingSFAKey,
   login,
+  mockStorageLayer,
+  tssLib,
+  legacyFlag,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
   manualSync: boolean;
@@ -99,25 +102,39 @@ export const newCoreKitLogInInstance = async ({
   importTssKey?: string;
   registerExistingSFAKey?: boolean;
   login?: LoginFunc;
+  mockStorageLayer?: MockStorageLayer;
+  legacyFlag?: boolean;
   }) => {
-  const tssLibs = [tssLib || tssLibDKLS];
+  const localTsslib = tssLib ?? tssLibDKLS;
+  // console.log("localTssLib", localTsslib)
+
+  
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
-    tssLibs: tssLibs,
+    supportedKeyTypes: [localTsslib.keyType as KeyType],
     storage: storageInstance,
     manualSync,
+    legacyFlag,
   });
+  instance.addTssLibs([localTsslib])
 
   const { idToken, parsedToken } = login ? await login(email) : await mockLogin(email);
   await instance.init();
+
+  // console.log("legacy Flag", legacyFlag)
+  if (mockStorageLayer) {
+    instance.tKey.storageLayer = mockStorageLayer
+  }
+
+  const finalImportKey = importTssKey ? { [localTsslib.keyType]: importTssKey } : undefined;
   await instance.loginWithJWT({
     verifier: "torus-test-health",
     verifierId: parsedToken.email,
     idToken,
-    importTssKey: importTssKey ? { [tssLibs[0].keyType] : importTssKey} : undefined,
+    importTssKey: finalImportKey,
     registerExistingSFAKey
   });
 
@@ -130,6 +147,9 @@ export const loginWithSFA = async ({
   email,
   storageInstance,
   login,
+  tssLib,
+  legacyFlag,
+  mockStorageLayer,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
   manualSync: boolean;
@@ -137,22 +157,31 @@ export const loginWithSFA = async ({
   storageInstance: IStorage | IAsyncStorage;
   tssLib?: TssLibType;
   login?: LoginFunc;
+  legacyFlag?: boolean;
+  mockStorageLayer?: MockStorageLayer;
   }): Promise<TorusKey> => {
   
-  const tssLibs = [tssLib || tssLibDKLS]
+  const localTssLib = tssLib ?? tssLibDKLS
   
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
-    tssLibs: tssLibs,
+    supportedKeyTypes: [localTssLib.keyType as KeyType],
     storage: storageInstance,
     manualSync,
+    legacyFlag,
   });
 
   const { idToken, parsedToken } = login ? await login(email) : await mockLogin(email);
   await instance.init();
+
+  // mock storate layer
+  if (mockStorageLayer) {
+    instance.tKey.storageLayer = mockStorageLayer
+  }
+
   const nodeDetails = await instance.torusSp.customAuthInstance.nodeDetailManager.getNodeDetails({
     verifier: "torus-test-health",
     verifierId: parsedToken.email,
@@ -188,7 +217,7 @@ export function bufferToElliptic(p: Buffer, ec = secp256k1): EllipticPoint {
 
 
 export function generateRandomEmail(): string {
-  const username = stringGen(10); 
+  const username = stringGen(100); 
   const domain = stringGen(5); 
   const tld = stringGen(3);     
   return `${username}@${domain}.${tld}`;

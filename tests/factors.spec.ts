@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import { EllipticPoint, Point } from "@tkey/common-types";
+import { EllipticPoint, KeyType, Point } from "@tkey/common-types";
 import { factorKeyCurve } from "@tkey/tss";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
@@ -22,26 +22,28 @@ type FactorTestVariable = {
 };
 
 function getPubKeys(kit: Web3AuthMPCCoreKit, indices: number[]): EllipticPoint[] {
-  if (!kit.supportsAccountIndex) {
+  const keyType = kit.getSupportedCurveKeyTypes()[0];
+  if (keyType !== KeyType.ed25519) {
     indices = indices.filter((i) => i === 0);
   }
-  const tssCurve = getKeyCurve(kit.keyType)
+  const tssCurve = getKeyCurve(keyType)
   const pubKeys = indices.map((i) => {
-    return kit.getPubKeyPoint( i).toEllipticPoint(tssCurve);
+    return kit.getPubKeyPoint(keyType,  i).toEllipticPoint(tssCurve);
   });
   return pubKeys;
 }
 
 export const FactorManipulationTest = async (testVariable: FactorTestVariable) => {
   const { email, tssLib } = testVariable;
-  const tsslibs = tssLib ? [tssLib] : [tssLibDKLS];
+  const localTssLib = tssLib ?? tssLibDKLS;
+  const keyType = localTssLib.keyType as KeyType;
   const newInstance = async () => {
     const instance = new Web3AuthMPCCoreKit({
       web3AuthClientId: "torus-key-test",
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
-      tssLibs: tsslibs,
+      supportedKeyTypes: [keyType],
       storage: testVariable.storage,
       manualSync: testVariable.manualSync,
     });
@@ -74,7 +76,7 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       const coreKitInstance = await newInstance();
       assert.equal(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
 
-      if (coreKitInstance.supportsAccountIndex) {
+      if (keyType !== KeyType.ed25519) {
         coreKitInstance.setTssWalletIndex(1);
       }
       const tssPubKeys = getPubKeys(coreKitInstance, [0, 1, 99]);
@@ -91,7 +93,7 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
         shareType: TssShareType.DEVICE,
       });
 
-      if (coreKitInstance.supportsAccountIndex) {
+      if (keyType!== KeyType.ed25519) {
         coreKitInstance.setTssWalletIndex(2);
       }
       const factorKey2 = await coreKitInstance.createFactor({
@@ -115,14 +117,14 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       // try inputFactor ( set as active factor )
 
       // delete factor
-      if (coreKitInstance.supportsAccountIndex) {
+      if (keyType!== KeyType.ed25519) {
         instance2.setTssWalletIndex(0);
       }
       const pt = Point.fromScalar(new BN(factorKey1, "hex"), factorKeyCurve);
       await instance2.deleteFactor(pt);
 
       // delete factor
-      if (coreKitInstance.supportsAccountIndex) {
+      if (keyType!== KeyType.ed25519) {
         instance2.setTssWalletIndex(1);
       }
       const pt2 = Point.fromScalar(new BN(factorKey2, "hex"), factorKeyCurve);
@@ -150,7 +152,7 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       const instance = await newInstance();
       assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
 
-      if (instance.supportsAccountIndex) {
+      if (keyType!== KeyType.ed25519) {
         instance.setTssWalletIndex(1);
       }
       const recoverFactor = await instance.enableMFA({});

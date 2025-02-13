@@ -211,5 +211,37 @@ export function makeEthereumSigner(kit: CoreKitSigner): EthereumSigner {
   };
 }
 
+// export function makeBip340Signer(kit: CoreKitSigner): EthereumSigner {
+//   if (kit.keyType !== KeyType.secp256k1) {
+//     throw new Error(`Invalid key type: expected secp256k1, got ${kit.keyType}`);
+//   }
+//   return {
+//     sign: async (msgHash: Buffer) => {
+//       const sig = await kit.sign(msgHash, { hashed: true });
+//       return sigToRSV(sig);
+//     },
+//     getPublic: async () => {
+//       const pk = Point.fromSEC1(secp256k1, kit.getPubKey().toString("hex"));
+//       return pk.toSEC1(secp256k1).subarray(1);
+//     },
+//   };
+// }
+
+export function makeEd25519Signer(kit: CoreKitSigner): EthereumSigner {
+  if (kit.keyType !== KeyType.secp256k1) {
+    throw new Error(`Invalid key type: expected secp256k1, got ${kit.keyType}`);
+  }
+  return {
+    sign: async (msgHash: Buffer) => {
+      const sig = await kit.sign(msgHash, { hashed: true });
+      return sigToRSV(sig);
+    },
+    getPublic: async () => {
+      const pk = Point.fromSEC1(secp256k1, kit.getPubKey().toString("hex"));
+      return pk.toSEC1(secp256k1).subarray(1);
+    },
+  };
+}
+
 export const log = loglevel.getLogger("mpc-core-kit");
 log.disableAll();

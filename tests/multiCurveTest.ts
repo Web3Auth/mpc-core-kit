@@ -93,7 +93,6 @@ describe("multiCurveTest", () => {
 
 
         const recoverFactor = await instance.enableMFA({})
-        console.log(recoverFactor);
 
         await testAllSigning(instance);
         
