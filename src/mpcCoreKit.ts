@@ -255,7 +255,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   public getTssShare(args: { keyType: KeyType; factorkey: BN; accountIndex?: number }) {
     const { keyType, factorkey, accountIndex } = args;
     return this.tkey.getTSSShare(factorkey, {
-      tssTag: TSS_TAG_DEFAULT,
       keyType,
       accountIndex: accountIndex === undefined ? this.state.accountIndex : accountIndex,
     });
@@ -764,7 +763,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
    * Get public key point.
    */
   public getPubKeyPoint(keyType: KeyType, accountIndex?: number): Point {
-    const tssPubKey = this.tkey.getTSSPub(keyType, TSS_TAG_DEFAULT, accountIndex === undefined ? this.state.accountIndex : accountIndex);
+    const tssPubKey = this.tkey.getTSSPub(keyType, accountIndex === undefined ? this.state.accountIndex : accountIndex);
     return tssPubKey;
   }
 
@@ -967,7 +966,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       }
 
       const authSignatures = await this.getSessionSignatures();
-      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures, tssTag: TSS_TAG_DEFAULT });
+      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures });
       const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
       const allDesc = this.tkey.metadata.getShareDescription();
       const keyDesc = allDesc[factorPubHex];
@@ -1097,7 +1096,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       factorKey: this.state.factorKey,
       authSignatures: this.state.signatures,
       keyType,
-      tssTag: TSS_TAG_DEFAULT,
     });
 
     const accountNonce = this.getAccountNonce();
@@ -1124,7 +1122,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       const exportEd25519Seed = await this.tKey._UNSAFE_exportTssEd25519Seed({
         factorKey: this.state.factorKey,
         authSignatures: this.state.signatures,
-        tssTag: TSS_TAG_DEFAULT,
       });
 
       return exportEd25519Seed;
@@ -1538,7 +1535,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       newFactorPub,
       newTSSIndex: newFactorTSSIndex,
       refreshShares: this.state.tssShareIndex !== newFactorTSSIndex, // Refresh shares if we have a new factor key index.
-      tssTag: TSS_TAG_DEFAULT,
     });
   }
 
