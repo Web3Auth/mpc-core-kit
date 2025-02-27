@@ -122,7 +122,7 @@ variable.forEach((testVariable) => {
       const msg = "hello world";
       const msgBuffer = Buffer.from(msg);
       const msgHash = keccak256(msgBuffer);
-      const signature = sigToRSV(await coreKitInstance.signECDSA(msgHash, { hashed: true } ));
+      const signature = sigToRSV(await coreKitInstance.sign_ECDSA_secp256k1(msgHash, { hashed: true } ));
 
       const secp256k1 = new EC("secp256k1");
       const pubkey = secp256k1.recoverPubKey(msgHash, signature, signature.v) as EllipticPoint;

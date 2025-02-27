@@ -890,7 +890,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     };
   }
 
-  public async signECDSA(data: Uint8Array, opts?: { hashed?: boolean; secp256k1Precompute?: Secp256k1PrecomputedClient }) {
+  public async sign_ECDSA_secp256k1(data: Uint8Array, opts?: { hashed?: boolean; secp256k1Precompute?: Secp256k1PrecomputedClient }) {
     if (!this.supportedCurveKeyTypes.has(KeyType.secp256k1)) {
       throw CoreKitError.default(`secp256k1 KeyTYpe is not supported, please configure secp256k1 curve key type `);
     }
@@ -899,8 +899,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
     const { hashed = false, secp256k1Precompute } = opts || {};
 
-    // TODO: replace buffer to uint8array
-    const sig = await this.sign_ECDSA_secp256k1(Buffer.from(data), hashed, secp256k1Precompute);
+    const sig = await this._sign_ECDSA_secp256k1(Buffer.from(data), hashed, secp256k1Precompute);
     return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
   }
 
@@ -946,7 +945,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   }
 
   // mutation function
-
   async deleteFactor(factorPub: Point, factorKey?: BNString): Promise<void> {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
@@ -1177,9 +1175,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
           if (keyType === KeyType.ed25519) {
             const k = generateEd25519Seed();
             importKey.ed25519 = k.toString("hex");
-          } else if (keyType === KeyType.secp256k1 && !!this.options.useClientGeneratedTSSKey) {
-            const k = secp256k1.genKeyPair().getPrivate();
-            importKey.secp256k1 = scalarBNToBufferSEC1(k).toString("hex");
+          } else if (keyType === KeyType.secp256k1) {
+            if (this.options.useClientGeneratedTSSKey) {
+              const k = secp256k1.genKeyPair().getPrivate();
+              importKey.secp256k1 = scalarBNToBufferSEC1(k).toString("hex");
+            }
           } else {
             throw CoreKitError.default(`Unsupported key type and sig type combination `);
           }
@@ -1648,7 +1648,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return this.tkey.computeAccountNonce(this.state.accountIndex);
   }
 
-  private async sign_ECDSA_secp256k1(data: Buffer, hashed: boolean = false, precomputedTssClient?: Secp256k1PrecomputedClient) {
+  private async _sign_ECDSA_secp256k1(data: Buffer, hashed: boolean = false, precomputedTssClient?: Secp256k1PrecomputedClient) {
     const executeSign = async (client: Client, serverCoeffs: Record<string, string>, hashedData: Buffer, signatures: string[]) => {
       const { r, s, recoveryParam } = await client.sign(hashedData.toString("base64"), true, "", "keccak256", {
         signatures,

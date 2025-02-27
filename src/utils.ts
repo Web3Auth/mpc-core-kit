@@ -202,7 +202,7 @@ export function makeEthereumSigner(kit: Web3AuthMPCCoreKit): EthereumSigner {
   }
   return {
     sign: async (msgHash: Buffer) => {
-      const sig = await kit.signECDSA(msgHash, { hashed: true });
+      const sig = await kit.sign_ECDSA_secp256k1(msgHash, { hashed: true });
       return sigToRSV(sig);
     },
     getPublic: async () => {

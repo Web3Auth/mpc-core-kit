@@ -486,7 +486,7 @@ export interface ICoreKit {
    * - hashed: The data is already hashed. Do not hash again. Only works for ecdsa-secp256k1.
    * - secp256k1Precompute: Provide a precomputed client for faster signing. Only works for ecdsa-secp256k1.
    */
-  signECDSA(
+  sign_ECDSA_secp256k1(
     data: Buffer,
     opts?: {
       hashed?: boolean;

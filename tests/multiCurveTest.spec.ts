@@ -20,7 +20,6 @@ import { schnorr as bip340 } from '@noble/curves/secp256k1';
 
 const web3AuthNetwork = WEB3AUTH_NETWORK.DEVNET;
 const manualSync = false;
-const storageInstance = new MemoryStorage();
 const verifierId = "multicurvetest"
 
 const mockSL = new MockStorageLayer({
@@ -36,7 +35,7 @@ describe("multiCurveTest", () => {
           baseUrl: "http://localhost:3000",
           uxMode: "nodejs",
           supportedKeyTypes: [KeyType.secp256k1, KeyType.ed25519],
-          storage: storageInstance,
+          storage: new MemoryStorage(),
           manualSync,
         });
     
@@ -46,7 +45,7 @@ describe("multiCurveTest", () => {
 
         const hash = keccak_256(message);
         instance.addTssLibs([dklslib]);
-        const result = await instance.signECDSA(Buffer.from(hash), {hashed: true})
+        const result = await instance.sign_ECDSA_secp256k1(Buffer.from(hash), {hashed: true})
         const {r, s } = sigToRSV(result);
 
         const validsecp256k1 = secp256k1.verify({
