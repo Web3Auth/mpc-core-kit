@@ -256,12 +256,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     });
   }
 
-  public getTssData(args: { skipThrow?: boolean; keyType: KeyType }) {
-    const result = this.tkey.metadata.getTssData(args.keyType, TSS_TAG_DEFAULT);
-    if (!result && !args.skipThrow) {
-      throw CoreKitError.noMetadataFound();
+  public getTssData(keyType: KeyType) {
+    const result = this.getTssDataNotThrow(keyType);
+    if (!result) {
+      throw CoreKitError.default("Legacy mode only support single curve, please congfiure with correct keyType");
     }
     return result;
+  }
+
+  public getTssDataNotThrow(keyType: KeyType) {
+    return this.tkey.metadata.getTssData(keyType, TSS_TAG_DEFAULT);
   }
 
   // RecoverTssKey only valid for user that enable MFA where user has 2 type shares :
@@ -591,7 +595,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (this.options.legacyFlag) {
       const spKeyType = this.getServiceProviderKeyType();
       // Check for existing curve in tssData for legacy mode
-      const tssData = this.getTssData({ keyType: spKeyType, skipThrow: true });
+      const tssData = this.getTssDataNotThrow(spKeyType);
       if (!tssData) throw CoreKitError.default("Legacy mode only support single curve, please congfiure with correct keyType");
     }
 
@@ -701,7 +705,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when getting tss factor public key.");
     }
     const firstKeyType = this.getSupportedCurveKeyTypes()[0];
-    const tssData = this.getTssData({ keyType: firstKeyType });
+    const tssData = this.getTssData(firstKeyType);
     const factorPubsList = tssData.factorPubs;
     return factorPubsList.map((factorPub) => factorPub.toSEC1(factorKeyCurve, true).toString("hex"));
   };
@@ -831,7 +835,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     const clientIndex = parties - 1;
     // 1. setup
     // generate endpoints for servers
-    const tssData = this.getTssData({ keyType });
+    const tssData = this.getTssData(keyType);
     const { nodeIndexes } = await this.torusSp.getTSSPubKey(this.tKey.tssTag, tssData.tssNonce, keyType);
     const {
       endpoints,
@@ -948,7 +952,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
     }
     const firstKeyType = this.getSupportedCurveKeyTypes()[0];
-    const tssData = this.getTssData({ keyType: firstKeyType });
+    const tssData = this.getTssData(firstKeyType);
     if (!tssData.factorPubs) {
       throw CoreKitError.factorPubsMissing();
     }
@@ -1216,7 +1220,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   }
 
   private getTssNonce(keyType: KeyType): number {
-    const tssData = this.getTssData({ keyType });
+    const tssData = this.getTssData(keyType);
     if (tssData.tssNonce === undefined) {
       throw CoreKitError.tssNoncesMissing(`tssNonce not present for tag ${this.tKey.tssTag}`);
     }
@@ -1321,8 +1325,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (this.options.legacyFlag) {
       const spKeyType = this.getServiceProviderKeyType();
       // Check for existing curve in tssData for legacy mode
-      const tssData = this.getTssData({ keyType: spKeyType, skipThrow: true });
-      if (!tssData) throw CoreKitError.default("Legacy mode only support single curve, please congfiure with correct keyType");
+      // the function below will throw if tss data is not available
+      this.getTssData(spKeyType);
     }
 
     if (this.options.disableHashedFactorKey) {
@@ -1358,7 +1362,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
     let newCurveKeyType = false;
     for (const keyType of this.supportedCurveKeyTypes) {
-      const tssData = this.getTssData({ skipThrow: true, keyType });
+      const tssData = this.getTssDataNotThrow(keyType);
       if (!tssData) {
         newCurveKeyType = true;
       }
@@ -1368,7 +1372,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       this.atomicSync(async () => {
         // check for missing curve and initialize it
         for (const keyType of this.supportedCurveKeyTypes) {
-          const tssData = this.getTssData({ skipThrow: true, keyType });
+          const tssData = this.getTssDataNotThrow(keyType);
           if (!tssData) {
             await this.tKey.initializeTss({
               tssKeyType: keyType,
@@ -1501,7 +1505,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
   private async copyOrCreateShare(newFactorTSSIndex: number, newFactorPub: Point) {
     this.checkReady();
     const firstKeyType = this.getSupportedCurveKeyTypes()[0];
-    const tssData = this.getTssData({ keyType: firstKeyType });
+    const tssData = this.getTssData(firstKeyType);
     if (!tssData.factorPubs || !Array.isArray(tssData.factorPubs)) {
       throw CoreKitError.factorPubsMissing("'factorPubs' is missing in the metadata. Failed to copy factor public key.");
     }
