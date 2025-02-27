@@ -106,8 +106,6 @@ export const newCoreKitLogInInstance = async ({
   legacyFlag?: boolean;
   }) => {
   const localTsslib = tssLib ?? tssLibDKLS;
-  // console.log("localTssLib", localTsslib)
-
   
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
@@ -124,7 +122,6 @@ export const newCoreKitLogInInstance = async ({
   const { idToken, parsedToken } = login ? await login(email) : await mockLogin(email);
   await instance.init();
 
-  // console.log("legacy Flag", legacyFlag)
   if (mockStorageLayer) {
     instance.tKey.storageLayer = mockStorageLayer
   }

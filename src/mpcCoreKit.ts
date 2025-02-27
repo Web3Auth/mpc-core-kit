@@ -482,12 +482,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.invalidConfig("Cannot import TSS key and register SFA key at the same time.");
     }
 
-    const fisrtKeyType = this.getSupportedCurveKeyTypes()[0];
+    const firstKeyType = this.getSupportedCurveKeyTypes()[0];
     try {
       // prefetch tss pub keys.
       const prefetchTssPubs = [];
       for (let i = 0; i < prefetchTssPublicKeys; i++) {
-        prefetchTssPubs.push(this.torusSp.getTSSPubKey(this.tkey.tssTag, i, fisrtKeyType));
+        prefetchTssPubs.push(this.torusSp.getTSSPubKey(this.tkey.tssTag, i, firstKeyType));
       }
 
       // get postbox key.
@@ -519,7 +519,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
         const existingSFAKey = loginResponse.finalKeyData.privKey.padStart(64, "0");
 
         await this.setupTkey({
-          providedImportKey: { [fisrtKeyType]: existingSFAKey },
+          providedImportKey: { [firstKeyType]: existingSFAKey },
           importingSFAKey: true,
           sfaLoginResponse: loginResponse,
           userInfo: { ...parseToken(idToken), verifier, verifierId },
@@ -778,7 +778,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
 
     const tssCurve = getKeyCurve(KeyType.ed25519);
-    // ed25519 only support account index 0 ?
+    if (this.state.accountIndex !== 0) throw CoreKitError.default("Ed25519 only support account index 0");
     const p = this.getPubKeyPoint(KeyType.ed25519, 0).toEllipticPoint(tssCurve);
     return ed25519().keyFromPublic(p).getPublic();
   }
@@ -1084,9 +1084,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
    *
    * Exports the private key scalar for the current account index.
    *
+   * @param keyType - export final tsskey of designated keyType
+   *
    * For signature type ed25519, consider using _UNSAFE_exportTssEd25519Seed.
    */
-  // TODO : should return all keyType final keys?
   public async _UNSAFE_exportTssKey(keyType: KeyType): Promise<string> {
     if (!this.state.factorKey) {
       throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss key.");
@@ -1170,14 +1171,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     const existingUser = await this.isMetadataPresent(this.state.postBoxKey);
     const importKey = providedImportKey ?? {};
     if (!existingUser) {
-      // if (!importKey && this.useClientGeneratedTSSKey) {
       const keyTypes = this.getSupportedCurveKeyTypes();
       for (const keyType of keyTypes) {
         if (!importKey[keyType]) {
           if (keyType === KeyType.ed25519) {
             const k = generateEd25519Seed();
             importKey.ed25519 = k.toString("hex");
-          } else if (keyType === KeyType.secp256k1) {
+          } else if (keyType === KeyType.secp256k1 && !!this.options.useClientGeneratedTSSKey) {
             const k = secp256k1.genKeyPair().getPrivate();
             importKey.secp256k1 = scalarBNToBufferSEC1(k).toString("hex");
           } else {

@@ -75,8 +75,6 @@ variable.forEach((testVariable) => {
         idToken,
       });
 
-      // console.log(coreKitInstance.tKey.metadata)
-      // console.log(coreKitInstance.state);
       // get key details
       await checkLogin(coreKitInstance);
 
