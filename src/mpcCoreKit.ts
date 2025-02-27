@@ -916,7 +916,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (!frostlib) {
       throw CoreKitError.default(`frostlib not loaded for ed25519`);
     }
-    return this.sign_frost({ data: Buffer.from(data), keyType: KeyType.secp256k1, sigType: SIG_TYPE.BIP340, frostlib, keyTweak: opts?.keyTweak });
+    if (frostlib.keyType !== KeyType.secp256k1) {
+      throw CoreKitError.default("frostlib keyType not matched");
+    }
+    return this.sign_frost({ data: Buffer.from(data), frostlib, keyTweak: opts?.keyTweak });
   }
 
   public async signEd25519(data: Uint8Array) {
@@ -932,7 +935,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     if (!frostlib) {
       throw CoreKitError.default(`frostlib not loaded for ed25519`);
     }
-    return this.sign_frost({ data: Buffer.from(data), keyType: KeyType.ed25519, sigType: SIG_TYPE.ED25519, frostlib });
+    if (frostlib.keyType !== KeyType.ed25519) {
+      throw CoreKitError.default(`frostlib keyType not matched - forstlib keyType ${frostlib.keyType}`);
+    }
+    return this.sign_frost({ data: Buffer.from(data), frostlib });
   }
 
   // mutation function
@@ -1672,14 +1678,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
   }
 
-  private async sign_frost(args: {
-    data: Buffer;
-    keyTweak?: BN;
-    keyType: KeyType;
-    sigType: WEB3AUTH_SIG_TYPE;
-    frostlib: FrostWasmLibEd25519 | FrostWasmLibBip340;
-  }): Promise<Buffer> {
-    const { data, keyTweak, keyType, sigType, frostlib } = args;
+  private async sign_frost(args: { data: Buffer; keyTweak?: BN; frostlib: FrostWasmLibEd25519 | FrostWasmLibBip340 }): Promise<Buffer> {
+    const { data, keyTweak, frostlib } = args;
+
+    const keyType = frostlib.keyType as KeyType;
+    const sigType = frostlib.sigType as WEB3AUTH_SIG_TYPE;
+
     const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, keyType, sigType);
     if (!nodeDetails.torusNodeTSSEndpoints) {
       throw CoreKitError.default("could not fetch tss node endpoints");
