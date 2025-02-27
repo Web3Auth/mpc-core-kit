@@ -208,10 +208,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return this.options.uxMode === UX_MODE.REDIRECT;
   }
 
-  // private get useClientGeneratedTSSKey(): boolean {
-  //   return this._sigType === "ed25519" && this.options.useClientGeneratedTSSKey === undefined ? true : !!this.options.useClientGeneratedTSSKey;
-  // }
-
   public getSupportedSigTypes(): Array<SigType> {
     return Array.from(this.supportedSigTypes);
   }
@@ -318,10 +314,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     this.resetState();
     if (params.rehydrate === undefined) params.rehydrate = true;
 
-    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, KeyType.ed25519);
-
     // multicurve only support for secp256k1 torus/ sss
     const spKeyType = this.getServiceProviderKeyType();
+
+    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, spKeyType);
 
     this.torusSp = new TSSTorusServiceProvider({
       customAuthArgs: {
@@ -923,7 +919,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return this.sign_frost({ data: Buffer.from(data), keyType: KeyType.secp256k1, sigType: SIG_TYPE.BIP340, frostlib, keyTweak: opts?.keyTweak });
   }
 
-  public async signEd25519(data: Uint8Array, opts?: { hashed?: boolean }) {
+  public async signEd25519(data: Uint8Array) {
     if (!this.supportedCurveKeyTypes.has(KeyType.ed25519)) {
       throw CoreKitError.default(`ed25519 KeyTYpe is not supported, please configure ed25519 curve key type `);
     }
@@ -931,9 +927,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.default(`ed25519 is not supported, please configure tssLib with ed25519 signature type `);
     }
 
-    if (opts?.hashed) {
-      throw CoreKitError.default(`hashed data not supported for bip340`);
-    }
     await this.loadTssWasm(SIG_TYPE.ED25519);
     const frostlib = this.wasmLib[SIG_TYPE.ED25519];
     if (!frostlib) {
@@ -1216,18 +1209,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     }
   }
 
-  // private async importTssKey(tssKey: string, factorPub: Point, newTSSIndex: TssShareType = TssShareType.DEVICE): Promise<void> {
-  //   if (!this.state.signatures) {
-  //     throw CoreKitError.signaturesNotPresent("Signatures not present in state when importing tss key.");
-  //   }
-
-  //   const keyType = this._keyType
-  //   await this.tKey.importTssKey(
-  //     { tssTag: this.tKey.tssTag, importKey: Buffer.from(tssKey, "hex"), factorPubs: [factorPub], newTSSIndexes: [newTSSIndex], tssKeyType: keyType },
-  //     { authSignatures: this.state.signatures }
-  //   );
-  // }
-
   private getTssNonce(keyType: KeyType): number {
     const tssData = this.getTssData({ keyType });
     if (tssData.tssNonce === undefined) {
@@ -1273,7 +1254,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
 
         if (this.supportedCurveKeyTypes.has(KeyType.ed25519)) {
           const importTssBufEd25519 = importTssKey.ed25519 ? Buffer.from(importTssKey.ed25519, "hex") : undefined;
-          // check if key is in the tsslib and keytype exists
+          // factorPub and tssIndex are not allowed as tkey tss will get from tss data of existing curve
           await this.tKey.initializeTss({
             importKey: importTssBufEd25519,
             tssKeyType: KeyType.ed25519,
@@ -1283,7 +1264,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
             },
           });
         }
-      } else {
+      } else if (this.supportedCurveKeyTypes.has(KeyType.ed25519)) {
+        // for case where only ed25519 is configured, factorPub, and index is required
         const importTssBuf = importTssKey.ed25519 ? Buffer.from(importTssKey.ed25519, "hex") : undefined;
         await this.tKey.initializeTss({
           importKey: importTssBuf,
@@ -1295,6 +1277,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
             authSignatures: this.state.signatures,
           },
         });
+      } else {
+        throw CoreKitError.default("Invalid or unsupported type");
       }
 
       // Finalize initialization.

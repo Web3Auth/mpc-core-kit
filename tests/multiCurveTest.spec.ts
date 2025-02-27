@@ -1,11 +1,11 @@
-import { COREKIT_STATUS } from './../src/interfaces';
+import { COREKIT_STATUS } from '../src/interfaces';
 import dklslib from "@toruslabs/tss-dkls-lib";
 import frostLib from "@toruslabs/tss-frost-lib";
 import frostBip340lib from "@toruslabs/tss-frost-lib-bip340";
 
 import { expect } from "chai";
 import { describe, it } from "node:test";
-import { MemoryStorage, sigToRSV, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "src";
+import { makeBip340Signer, makeEd25519Signer, makeEthereumSigner, MemoryStorage, sigToRSV, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "src";
 import {  mockLogin2 } from "./setup";
 import { KeyType } from '@tkey/common-types';
 import { BN } from 'bn.js';
@@ -29,7 +29,6 @@ const mockSL = new MockStorageLayer({
 });
 
 describe("multiCurveTest", () => {
-    //
     const newCoreKitInstance = () =>
         new Web3AuthMPCCoreKit({
           web3AuthClientId: "torus-key-test",
@@ -64,9 +63,32 @@ describe("multiCurveTest", () => {
 
 
         instance.addTssLibs([frostLib]);
-        const result3 = await instance.signEd25519(Buffer.from(message), { hashed: false })
+        const result3 = await instance.signEd25519(Buffer.from(message))
         const valided25519 = ed25519.verify(bytesToHex(result3), bytesToHex(Buffer.from(message)), bytesToHex( new Uint8Array(instance.getPubKeyEd25519()) ) )
         expect(valided25519).eq(true);
+
+
+        const ethSigner = makeEthereumSigner(instance)
+        const ethSignerPubKey = await ethSigner.getPublic();
+        const ethSignerResult = await ethSigner.sign(Buffer.from(hash)) 
+        const validsethSignerResult = secp256k1.verify({
+            r: bytesToNumberBE(ethSignerResult.r),
+            s: bytesToNumberBE(ethSignerResult.s),
+        }, bytesToHex(hash), "04"+bytesToHex(ethSignerPubKey));
+        expect(validsethSignerResult).eq(true);  
+
+
+        const bip340Signer = makeBip340Signer(instance)
+        const bip340SignerResult = await bip340Signer.sign(Buffer.from(utf8ToBytes(message)));
+
+
+        const validBip340SignerResult = bip340.verify(bip340SignerResult, bytesToHex(utf8ToBytes(message)), bytesToHex(instance.getPubKeyBip340()));
+        expect(validBip340SignerResult).eq(true);
+              
+        const ed25519Signer = makeEd25519Signer(instance)
+        const ed25519SignerResult = await ed25519Signer.sign(Buffer.from(utf8ToBytes(message)))
+        const validEd25519SignerResult = ed25519.verify(ed25519SignerResult, bytesToHex(Buffer.from(message)), bytesToHex( new Uint8Array(instance.getPubKeyEd25519()) ) )
+        expect(validEd25519SignerResult).eq(true);  
 
     }
 

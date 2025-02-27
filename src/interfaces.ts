@@ -549,6 +549,16 @@ export interface EthereumSigner {
   getPublic: () => Promise<Buffer>;
 }
 
+export interface Bip340Signer {
+  sign: (msgHash: Buffer) => Promise<Buffer>;
+  getPublic: () => Promise<Buffer>;
+}
+
+export interface Ed25519Signer {
+  sign: (msgHash: Buffer) => Promise<Buffer>;
+  getPublic: () => Promise<Buffer>;
+}
+
 export type StateEmitterEvents = {
   LOGOUT: () => void;
 };

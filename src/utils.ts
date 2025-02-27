@@ -9,7 +9,8 @@ import { eddsa as EDDSA } from "elliptic";
 import loglevel from "loglevel";
 
 import { DELIMITERS, SCALAR_LEN } from "./constants";
-import { CoreKitSigner, EthereumSigner, IAsyncStorage, IStorage } from "./interfaces";
+import { Bip340Signer, Ed25519Signer, EthereumSigner, IAsyncStorage, IStorage } from "./interfaces";
+import { Web3AuthMPCCoreKit } from "./mpcCoreKit";
 
 export const ed25519 = () => {
   return new EDDSA("ed25519");
@@ -195,50 +196,48 @@ export function sigToRSV(sig: Buffer) {
   return { r: sig.subarray(0, 32), s: sig.subarray(32, 64), v: sig[64] };
 }
 
-export function makeEthereumSigner(kit: CoreKitSigner): EthereumSigner {
-  if (kit.keyType !== KeyType.secp256k1) {
-    throw new Error(`Invalid key type: expected secp256k1, got ${kit.keyType}`);
+export function makeEthereumSigner(kit: Web3AuthMPCCoreKit): EthereumSigner {
+  if (!kit.getSupportedCurveKeyTypes().includes(KeyType.secp256k1)) {
+    throw new Error(`Invalid key type: secp256k1 is not configured`);
   }
   return {
     sign: async (msgHash: Buffer) => {
-      const sig = await kit.sign(msgHash, { hashed: true });
+      const sig = await kit.signECDSA(msgHash, { hashed: true });
       return sigToRSV(sig);
     },
     getPublic: async () => {
-      const pk = Point.fromSEC1(secp256k1, kit.getPubKey().toString("hex"));
+      const pk = Point.fromSEC1(secp256k1, kit.getPubKey(KeyType.secp256k1).toString("hex"));
       return pk.toSEC1(secp256k1).subarray(1);
     },
   };
 }
 
-// export function makeBip340Signer(kit: CoreKitSigner): EthereumSigner {
-//   if (kit.keyType !== KeyType.secp256k1) {
-//     throw new Error(`Invalid key type: expected secp256k1, got ${kit.keyType}`);
-//   }
-//   return {
-//     sign: async (msgHash: Buffer) => {
-//       const sig = await kit.sign(msgHash, { hashed: true });
-//       return sigToRSV(sig);
-//     },
-//     getPublic: async () => {
-//       const pk = Point.fromSEC1(secp256k1, kit.getPubKey().toString("hex"));
-//       return pk.toSEC1(secp256k1).subarray(1);
-//     },
-//   };
-// }
+export function makeBip340Signer(kit: Web3AuthMPCCoreKit): Bip340Signer {
+  if (!kit.getSupportedCurveKeyTypes().includes(KeyType.secp256k1)) {
+    throw new Error(`Invalid key type: secp256k1 is not configured`);
+  }
 
-export function makeEd25519Signer(kit: CoreKitSigner): EthereumSigner {
-  if (kit.keyType !== KeyType.secp256k1) {
-    throw new Error(`Invalid key type: expected secp256k1, got ${kit.keyType}`);
+  return {
+    sign: async (msgHash: Buffer) => {
+      return kit.signBip340(msgHash, { hashed: false });
+    },
+    getPublic: async () => {
+      const pk = Point.fromSEC1(secp256k1, kit.getPubKey(KeyType.secp256k1).toString("hex"));
+      return pk.toSEC1(secp256k1).subarray(1);
+    },
+  };
+}
+
+export function makeEd25519Signer(kit: Web3AuthMPCCoreKit): Ed25519Signer {
+  if (!kit.getSupportedCurveKeyTypes().includes(KeyType.ed25519)) {
+    throw new Error(`Invalid key type: ed25519 is not configured`);
   }
   return {
     sign: async (msgHash: Buffer) => {
-      const sig = await kit.sign(msgHash, { hashed: true });
-      return sigToRSV(sig);
+      return kit.signEd25519(msgHash);
     },
     getPublic: async () => {
-      const pk = Point.fromSEC1(secp256k1, kit.getPubKey().toString("hex"));
-      return pk.toSEC1(secp256k1).subarray(1);
+      return kit.getPubKeyEd25519();
     },
   };
 }
