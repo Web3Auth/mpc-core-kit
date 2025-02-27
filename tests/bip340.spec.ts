@@ -151,7 +151,7 @@ variable.forEach((testVariable) => {
       const msg = "hello world";
       const msgBuffer = Buffer.from(msg);
 
-      const signature = await coreKitInstance.signBip340(msgBuffer);
+      const signature = await coreKitInstance.signBIP340(msgBuffer);
       const pk = coreKitInstance.getPubKeyBip340();
       const valid = bip340.verify(signature, msgBuffer, pk);
       assert(valid);

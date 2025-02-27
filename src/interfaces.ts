@@ -478,21 +478,44 @@ export interface ICoreKit {
   commitChanges(): Promise<void>;
 
   /**
-   * Create a signature for the given data.
+   * Create a SECP256K1 ECDSA signature for the given data.
+   * will throw if secp256k1 is not configured as supported keyType
+   * will thrwo if dkls lib is not added prior signing
    *
    * Options:
    * - hashed: The data is already hashed. Do not hash again. Only works for ecdsa-secp256k1.
    * - secp256k1Precompute: Provide a precomputed client for faster signing. Only works for ecdsa-secp256k1.
+   */
+  signECDSA(
+    data: Buffer,
+    opts?: {
+      hashed?: boolean;
+      secp256k1Precompute?: Secp256k1PrecomputedClient;
+    }
+  ): Promise<Buffer>;
+
+  /**
+   * Create a BIP340 signature for the given data.
+   * will throw if secp256k1 is not configured as supported keyType
+   * will thrwo if bip340 frost lib is not added prior signing
+   *
+   * Options:
    * - keyTweak: Provide a bip340 key tweak. Only works for bip340.
    */
-  // sign(
-  //   data: Buffer,
-  //   opts?: {
-  //     hashed?: boolean;
-  //     secp256k1Precompute?: Secp256k1PrecomputedClient;
-  //     keyTweak?: BN;
-  //   }
-  // ): Promise<Buffer>;
+  signBIP340(
+    data: Buffer,
+    opts?: {
+      keyTweak?: BN;
+    }
+  ): Promise<Buffer>;
+
+  /**
+   * Create a ED25519 signature for the given data.
+   * will throw if ed25519 is not configured as supported keyType
+   * will thrwo if ed25519 frost lib is not added prior signing
+   *
+   */
+  signED25519(data: Buffer): Promise<Buffer>;
 
   /**
    * WARNING: Use with caution. This will export the private signing key.

@@ -900,7 +900,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return Buffer.concat([sig.r, sig.s, Buffer.from([sig.v])]);
   }
 
-  public async signBip340(data: Uint8Array, opts?: { hashed?: boolean; keyTweak?: BN }) {
+  public async signBIP340(data: Uint8Array, opts?: { hashed?: boolean; keyTweak?: BN }) {
     if (!this.supportedCurveKeyTypes.has(KeyType.secp256k1)) {
       throw CoreKitError.default(`secp256k1 KeyTYpe is not supported, please configure secp256k1 curve key type `);
     }
@@ -922,7 +922,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
     return this.sign_frost({ data: Buffer.from(data), frostlib, keyTweak: opts?.keyTweak });
   }
 
-  public async signEd25519(data: Uint8Array) {
+  public async signED25519(data: Uint8Array) {
     if (!this.supportedCurveKeyTypes.has(KeyType.ed25519)) {
       throw CoreKitError.default(`ed25519 KeyTYpe is not supported, please configure ed25519 curve key type `);
     }

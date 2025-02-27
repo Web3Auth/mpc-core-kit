@@ -219,7 +219,7 @@ export function makeBip340Signer(kit: Web3AuthMPCCoreKit): Bip340Signer {
 
   return {
     sign: async (msgHash: Buffer) => {
-      return kit.signBip340(msgHash, { hashed: false });
+      return kit.signBIP340(msgHash, { hashed: false });
     },
     getPublic: async () => {
       const pk = Point.fromSEC1(secp256k1, kit.getPubKey(KeyType.secp256k1).toString("hex"));
@@ -234,7 +234,7 @@ export function makeEd25519Signer(kit: Web3AuthMPCCoreKit): Ed25519Signer {
   }
   return {
     sign: async (msgHash: Buffer) => {
-      return kit.signEd25519(msgHash);
+      return kit.signED25519(msgHash);
     },
     getPublic: async () => {
       return kit.getPubKeyEd25519();

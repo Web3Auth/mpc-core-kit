@@ -56,14 +56,14 @@ describe("multiCurveTest", () => {
         expect(validsecp256k1).eq(true);
 
         instance.addTssLibs([frostBip340lib]);
-        const result2 = await instance.signBip340( Buffer.from(utf8ToBytes(message)), {hashed: false})
+        const result2 = await instance.signBIP340( Buffer.from(utf8ToBytes(message)), {hashed: false})
         
         const validb340 = bip340.verify(bytesToHex(result2), bytesToHex(utf8ToBytes(message)), bytesToHex(instance.getPubKeyBip340()));
         expect(validb340).eq(true);
 
 
         instance.addTssLibs([frostLib]);
-        const result3 = await instance.signEd25519(Buffer.from(message))
+        const result3 = await instance.signED25519(Buffer.from(message))
         const valided25519 = ed25519.verify(bytesToHex(result3), bytesToHex(Buffer.from(message)), bytesToHex( new Uint8Array(instance.getPubKeyEd25519()) ) )
         expect(valided25519).eq(true);
 
