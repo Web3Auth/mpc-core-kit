@@ -1,6 +1,7 @@
 import { BNString, KeyType, ONE_KEY_DELETE_NONCE, Point, secp256k1, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
+import { ShareTransferModule, ShareTransferStore } from "@tkey/share-transfer";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
 import { KEY_TYPE, SIGNER_MAP } from "@toruslabs/constants";
@@ -70,7 +71,6 @@ import {
   sampleEndpoints,
   scalarBNToBufferSEC1,
 } from "./utils";
-import { ShareTransferModule, ShareTransferStore } from "@tkey/share-transfer";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
@@ -674,7 +674,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async requestShare(userAgent?: string): Promise<string> {
-    return await (this.tKey.modules.shareTransfer as ShareTransferModule).requestNewShare(
+    return (this.tKey.modules.shareTransfer as ShareTransferModule).requestNewShare(
       userAgent ?? navigator.userAgent,
       this.tKey.getCurrentShareIndexes()
     );
@@ -687,18 +687,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   public async getShareTransferStore(): Promise<ShareTransferStore> {
-    return await (this.tKey.modules.shareTransfer as ShareTransferModule).getShareTransferStore();
+    return (this.tKey.modules.shareTransfer as ShareTransferModule).getShareTransferStore();
   }
 
   public async approveShareRequest(currentEncPubKeyY: string): Promise<void> {
-    console.log("Approving All Share Requests");
     try {
       const newShare = await this.tKey.generateNewShare();
       const shareToShare = newShare.newShareStores[newShare.newShareIndex.toString("hex")];
       await (this.tKey.modules.shareTransfer as ShareTransferModule).approveRequest(currentEncPubKeyY, shareToShare);
       await this.tKey.syncLocalMetadataTransitions();
     } catch (err) {
-      console.error("Failed to process share transfer store:", err);
+      log.error("Failed to process share transfer store:", err);
     }
   }
 

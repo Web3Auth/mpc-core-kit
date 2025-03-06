@@ -1,4 +1,5 @@
 import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { ShareTransferStore } from "@tkey/share-transfer";
 import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -16,7 +17,6 @@ import type { tssLib as TssFrostLib } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
-import { ShareTransferStore } from "@tkey/share-transfer";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
