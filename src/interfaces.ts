@@ -16,6 +16,7 @@ import type { tssLib as TssFrostLib } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
+import { ShareTransferStore } from "@tkey/share-transfer";
 
 export type CoreKitMode = UX_MODE_TYPE | "nodejs" | "react-native";
 
@@ -261,6 +262,12 @@ export interface ICoreKit {
    * @returns The factor key.
    */
   createFactor(createFactorParams: CreateFactorParams): Promise<string>;
+
+  requestShare(userAgent?: string): Promise<string>;
+  waitForRequestShareResponse(currentEncPubKeyX: string): Promise<void>;
+  getShareTransferStore(): Promise<ShareTransferStore>;
+  approveShareRequest(pubKey: string): Promise<void>;
+  createDeviceFactor(metadata: Record<string, string>): Promise<BN>;
 
   /**
    * Deletes the factor identified by the given public key, including all

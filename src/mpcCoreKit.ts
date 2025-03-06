@@ -70,6 +70,7 @@ import {
   sampleEndpoints,
   scalarBNToBufferSEC1,
 } from "./utils";
+import { ShareTransferModule, ShareTransferStore } from "@tkey/share-transfer";
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
@@ -260,6 +261,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
 
     const shareSerializationModule = new ShareSerializationModule();
+    const shareTransferModule = new ShareTransferModule();
 
     this.tkey = new TKeyTSS({
       enableLogging: this.enableLogging,
@@ -268,6 +270,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       manualSync: this.options.manualSync,
       modules: {
         shareSerialization: shareSerializationModule,
+        shareTransfer: shareTransferModule,
       },
       tssKeyType: this.keyType,
     });
@@ -668,6 +671,56 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       err.stack = reason.stack;
       throw err;
     });
+  }
+
+  public async requestShare(userAgent?: string): Promise<string> {
+    return await (this.tKey.modules.shareTransfer as ShareTransferModule).requestNewShare(
+      userAgent ?? navigator.userAgent,
+      this.tKey.getCurrentShareIndexes()
+    );
+  }
+
+  public async waitForRequestShareResponse(currentEncPubKeyX: string): Promise<void> {
+    const shareStore = await (this.tkey!.modules.shareTransfer as ShareTransferModule).startRequestStatusCheck(currentEncPubKeyX, true);
+    await this.tKey.reconstructKey();
+    this.tKey.inputShareStore(shareStore);
+  }
+
+  public async getShareTransferStore(): Promise<ShareTransferStore> {
+    return await (this.tKey.modules.shareTransfer as ShareTransferModule).getShareTransferStore();
+  }
+
+  public async approveShareRequest(currentEncPubKeyY: string): Promise<void> {
+    console.log("Approving All Share Requests");
+    try {
+      const newShare = await this.tKey.generateNewShare();
+      const shareToShare = newShare.newShareStores[newShare.newShareIndex.toString("hex")];
+      await (this.tKey.modules.shareTransfer as ShareTransferModule).approveRequest(currentEncPubKeyY, shareToShare);
+      await this.tKey.syncLocalMetadataTransitions();
+    } catch (err) {
+      console.error("Failed to process share transfer store:", err);
+    }
+  }
+
+  public async createDeviceFactor(metadata: Record<string, string>): Promise<BN> {
+    this.tKey.initialize();
+
+    const deviceFactorKey = new BN(
+      await this.createFactor({
+        shareType: TssShareType.DEVICE,
+        additionalMetadata: metadata,
+      }),
+      "hex"
+    );
+
+    await this.atomicSync(async () => {
+      await this.setDeviceFactor(deviceFactorKey);
+      await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
+
+      await this.commitChanges();
+    });
+
+    return deviceFactorKey;
   }
 
   /**
