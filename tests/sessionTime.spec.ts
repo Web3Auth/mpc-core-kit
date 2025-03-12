@@ -6,6 +6,7 @@ import { tssLib } from "@toruslabs/tss-dkls-lib";
 
 import { COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
+import { KeyType } from "@tkey/common-types";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -70,11 +71,12 @@ variable.forEach(async (testVariable) => {
         web3AuthNetwork,
         baseUrl: "http://localhost:3000",
         uxMode,
-        tssLib,
+        supportedKeyTypes: [tssLib.keyType as KeyType],
         storage: new MemoryStorage(),
         manualSync,
         sessionTime,
         disableSessionManager,
+        legacyFlag: false,
       });
       if (coreKitInstance.status === COREKIT_STATUS.INITIALIZED) await criticalResetAccount(coreKitInstance);
     }

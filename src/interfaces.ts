@@ -87,15 +87,16 @@ export type MPCKeyDetails = {
   requiredFactors: number;
   totalFactors: number;
   shareDescriptions: ShareDescriptionMap;
-  keyType: KeyType;
-  tssPubKey?: TkeyPoint;
+  supportedKeyType: KeyType[];
 };
 
 export type OAuthLoginParams = (SubVerifierDetailsParams | AggregateVerifierLoginParams) & {
   /**
    * Key to import key into Tss during first time login.
    */
-  importTssKey?: string;
+  importTssKey?: {
+    [K in KeyType]: string;
+  };
 
   /**
    * For new users, use SFA key if user was registered with SFA before.
@@ -161,7 +162,9 @@ export interface JWTLoginParams {
   /**
    * Key to import key into Tss during first time login.
    */
-  importTssKey?: string;
+  importTssKey?: {
+    [K in KeyType]?: string;
+  };
 
   /**
    * For new users, use SFA key if user was registered with SFA before.
@@ -183,7 +186,6 @@ export interface Web3AuthState {
   postboxKeyNodeIndexes?: number[];
   userInfo?: UserInfo;
   tssShareIndex?: number;
-  tssPubKey?: Buffer;
   accountIndex: number;
   factorKey?: BN;
 }
@@ -199,9 +201,9 @@ export interface Web3AuthOptions {
   web3AuthClientId: string;
 
   /**
-   * The threshold signing library to use.
+   * The supported curve key type.
    */
-  tssLib: TssLibType;
+  supportedKeyTypes: KeyType[];
 
   /**
    * @defaultValue `false`
@@ -333,6 +335,15 @@ export interface Web3AuthOptions {
    * only scalar will be exported, scalar can be used for signing outside of this sdk but not for importing the key in other wallets.
    */
   useClientGeneratedTSSKey?: boolean;
+
+  /**
+   * @defaultValue `false`
+   * Set this flag to true to use the legacy flag for signing
+   * legacy flag do not support multicurve mode
+   * legacy ed25519 customAuth is only supported in legacy mode
+   * Note: This option is set to false by default.
+   */
+  legacyFlag?: boolean;
 }
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;
 
@@ -345,7 +356,7 @@ export interface IMPCContext {
   updateState: (newState: Partial<Web3AuthState>) => void;
   getUserInfo: () => UserInfo;
   setupTkey: (params?: {
-    providedImportKey?: string;
+    providedImportKey?: { [key in KeyType]?: string };
     sfaLoginResponse?: TorusKey | TorusLoginResponse | TorusAggregateLoginResponse;
     userInfo?: UserInfo;
     importingSFAKey?: boolean;
@@ -467,21 +478,44 @@ export interface ICoreKit {
   commitChanges(): Promise<void>;
 
   /**
-   * Create a signature for the given data.
+   * Create a SECP256K1 ECDSA signature for the given data.
+   * will throw if secp256k1 is not configured as supported keyType
+   * will thrwo if dkls lib is not added prior signing
    *
    * Options:
    * - hashed: The data is already hashed. Do not hash again. Only works for ecdsa-secp256k1.
    * - secp256k1Precompute: Provide a precomputed client for faster signing. Only works for ecdsa-secp256k1.
-   * - keyTweak: Provide a bip340 key tweak. Only works for bip340.
    */
-  sign(
+  sign_ECDSA_secp256k1(
     data: Buffer,
     opts?: {
       hashed?: boolean;
       secp256k1Precompute?: Secp256k1PrecomputedClient;
+    }
+  ): Promise<Buffer>;
+
+  /**
+   * Create a BIP340 signature for the given data.
+   * will throw if secp256k1 is not configured as supported keyType
+   * will thrwo if bip340 frost lib is not added prior signing
+   *
+   * Options:
+   * - keyTweak: Provide a bip340 key tweak. Only works for bip340.
+   */
+  signBIP340(
+    data: Buffer,
+    opts?: {
       keyTweak?: BN;
     }
   ): Promise<Buffer>;
+
+  /**
+   * Create a ED25519 signature for the given data.
+   * will throw if ed25519 is not configured as supported keyType
+   * will thrwo if ed25519 frost lib is not added prior signing
+   *
+   */
+  signED25519(data: Buffer): Promise<Buffer>;
 
   /**
    * WARNING: Use with caution. This will export the private signing key.
@@ -490,7 +524,7 @@ export interface ICoreKit {
    *
    * For keytype ed25519, consider using _UNSAFE_exportTssEd25519Seed.
    */
-  _UNSAFE_exportTssKey(): Promise<string>;
+  _UNSAFE_exportTssKey(keyType: KeyType): Promise<string>;
 
   /**
    * WARNING: Use with caution. This will export the private signing key.
@@ -510,7 +544,6 @@ export interface SessionData {
   postboxKeyNodeIndexes?: number[];
   factorKey: string;
   tssShareIndex: number;
-  tssPubKey: string;
   signatures: string[];
   userInfo: UserInfo;
 }
@@ -536,6 +569,16 @@ export interface EthSig {
 
 export interface EthereumSigner {
   sign: (msgHash: Buffer) => Promise<EthSig>;
+  getPublic: () => Promise<Buffer>;
+}
+
+export interface Bip340Signer {
+  sign: (msgHash: Buffer) => Promise<Buffer>;
+  getPublic: () => Promise<Buffer>;
+}
+
+export interface Ed25519Signer {
+  sign: (msgHash: Buffer) => Promise<Buffer>;
   getPublic: () => Promise<Buffer>;
 }
 

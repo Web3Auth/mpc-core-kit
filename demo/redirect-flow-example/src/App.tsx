@@ -104,7 +104,7 @@ function App() {
         uxMode: "redirect",
         manualSync: true,
         storage: window.localStorage,
-        tssLib: selectedTssLib,
+        supportedKeyTypes: [KeyType.secp256k1, KeyType.ed25519],
         useDKG: false,
       })
   );
@@ -118,7 +118,7 @@ function App() {
     // )
   )
   async function setupProvider(chainConfig?: CustomChainConfig) {
-    if (coreKitInstance.current.keyType !== KeyType.secp256k1) {
+    if (!coreKitInstance.current.getSupportedCurveKeyTypes().includes(KeyType.ed25519)) {
       console.warn(`Ethereum requires keytype ${KeyType.secp256k1}, skipping provider setup`);
       return;
     }
@@ -175,7 +175,7 @@ function App() {
       uxMode: "redirect",
       manualSync: false,
       storage: window.localStorage,
-      tssLib: selectedTssLib,
+      supportedKeyTypes: [KeyType.ed25519, KeyType.secp256k1],
       useDKG: false,
     })
  
@@ -205,14 +205,11 @@ function App() {
     if (!coreKitInstance) {
       throw new Error("coreKitInstance not found");
     }
-    const factorPubs = coreKitInstance.current.tKey.metadata.factorPubs;
-    if (!factorPubs) {
+    const factorPubs = coreKitInstance.current.getTssFactorPub();
+    if (!factorPubs || factorPubs.length === 0) {
       throw new Error("factorPubs not found");
     }
-    const pubsHex = factorPubs[coreKitInstance.current.tKey.tssTag].map(pub => {
-      return pub.toSEC1(factorKeyCurve, true).toString("hex");
-    });
-    uiConsole(pubsHex);
+    uiConsole(factorPubs);
   };
 
   const loginWithMock = async () => {
@@ -406,64 +403,85 @@ function App() {
     return balance;
   };
 
-  const signMessage = async (): Promise<any> => {
-    if (coreKitInstance.current.sigType === SIG_TYPE.ECDSA_SECP256K1) {
-      if (!web3) {
-        uiConsole("web3 not initialized yet");
-        return;
-      }
-      const fromAddress = (await web3.eth.getAccounts())[0];
-      const message = "hello";
-      const signedMessage = await web3.eth.personal.sign(message, fromAddress, "");
-      
 
-      uiConsole(signedMessage);
-    } else if (coreKitInstance.current.sigType === SIG_TYPE.ED25519 || coreKitInstance.current.sigType === SIG_TYPE.BIP340) {
-      const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.current.sign(msg);
-      uiConsole(sig.toString("hex"));
+  const signMessageEd25519 = async (): Promise<any> => {
+   
+    if (!coreKitInstance.current.getSupportedSigTypes().includes(SIG_TYPE.ED25519)) {
+      coreKitInstance.current.addTssLibs([tssLibFrost]);
+    } 
+    const msg = Buffer.from("hello signer!");
+    const sig = await coreKitInstance.current.signED25519(msg);
+    uiConsole(sig.toString("hex"));
+  }
+
+  const signMessage = async (): Promise<any> => {
+    if (!web3) {
+      uiConsole("web3 not initialized yet");
+      return;
     }
+    if (!coreKitInstance.current.getSupportedSigTypes().includes(SIG_TYPE.ECDSA_SECP256K1)) {
+      coreKitInstance.current.addTssLibs([tssLibDkls]);
+    }
+    const fromAddress = (await web3.eth.getAccounts())[0];
+    const message = "hello";
+    const signedMessage = await web3.eth.personal.sign(message, fromAddress, "");
+    uiConsole(signedMessage);
   };
 
   const signWithKeyTweak = async (): Promise<any> => {
-    if (coreKitInstance.current.sigType === SIG_TYPE.ECDSA_SECP256K1) {
-      throw new Error("Not supported for this signature type");
-    } else if (coreKitInstance.current.sigType === SIG_TYPE.ED25519 || coreKitInstance.current.sigType === SIG_TYPE.BIP340) {
-      const msg = Buffer.from("hello signer!");
-      const keyTweak = (() => {
-        const ec = new EC(coreKitInstance.current.keyType);
-        return ec.genKeyPair().getPrivate();
-      })();
-      const sig = await coreKitInstance.current.sign(msg, { keyTweak });
-      uiConsole(sig.toString("hex"));
+    if (!coreKitInstance.current.getSupportedCurveKeyTypes().includes(KeyType.secp256k1) ) {
+      throw new Error("Not supported for this curve type");
     }
+    
+    if (!coreKitInstance.current.getSupportedSigTypes().includes(SIG_TYPE.BIP340)) {
+      coreKitInstance.current.addTssLibs([tssLibFrostBip340])
+    }
+    
+    const msg = Buffer.from("hello signer!");
+    const keyTweak = (() => {
+      const ec = new EC(KeyType.secp256k1);
+      return ec.genKeyPair().getPrivate();
+    })();
+    const sig = await coreKitInstance.current.signBIP340(msg );
+    uiConsole(sig.toString("hex"));
   };
 
   const signMessageWithPrecomputedTss = async (): Promise<any> => {
-    if (coreKitInstance.current.keyType === "secp256k1") {
-      const precomputedTssClient = await coreKitInstance.current.precompute_secp256k1();
-      const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.current.sign(msg, { secp256k1Precompute: precomputedTssClient });
-      uiConsole(sig.toString("hex"));
-    } else {
-      throw new Error("Not supported for this key type");
+
+    if (!coreKitInstance.current.getSupportedCurveKeyTypes().includes(KeyType.secp256k1) ) {
+      throw new Error("Not supported for this curve type");
     }
+    if (!coreKitInstance.current.getSupportedSigTypes().includes(SIG_TYPE.ECDSA_SECP256K1)) {
+      coreKitInstance.current.addTssLibs([tssLibDkls])
+    }
+
+    const precomputedTssClient = await coreKitInstance.current.precompute_secp256k1();
+    const msg = Buffer.from("hello signer!");
+    const sig = await coreKitInstance.current.sign_ECDSA_secp256k1(msg, { secp256k1Precompute: precomputedTssClient });
+    uiConsole(sig.toString("hex"));
   };
 
   const signMultipleMessagesWithPrecomputedTss = async (): Promise<any> => {
-    if (coreKitInstance.current.keyType === "secp256k1") {
-      const [precomputedTssClient, precomputedTssClient2] = await Promise.all([coreKitInstance.current.precompute_secp256k1(), coreKitInstance.current.precompute_secp256k1()]);
 
-      const msg = Buffer.from("hello signer!");
-      const sig = await coreKitInstance.current.sign(msg, { secp256k1Precompute: precomputedTssClient });
-      const msg2 = Buffer.from("hello signer2!");
-
-      const sig2 = await coreKitInstance.current.sign(msg2, { secp256k1Precompute: precomputedTssClient2 });
-      uiConsole("Sig1: ", sig.toString("hex"), "Sig2: ", sig2.toString("hex"));
-    } else {
-      throw new Error("Not supported for this key type");
+    if (!coreKitInstance.current.getSupportedCurveKeyTypes().includes(KeyType.secp256k1) ) {
+      throw new Error("Not supported for this curve type");
     }
+    if (!coreKitInstance.current.getSupportedSigTypes().includes(SIG_TYPE.ECDSA_SECP256K1)) {
+      coreKitInstance.current.addTssLibs([tssLibDkls])
+    }
+
+    const [precomputedTssClient, precomputedTssClient2] = await Promise.all([coreKitInstance.current.precompute_secp256k1(), coreKitInstance.current.precompute_secp256k1()]);
+
+    const msg = Buffer.from("hello signer!");
+    const sig = await coreKitInstance.current.sign_ECDSA_secp256k1(msg, { secp256k1Precompute: precomputedTssClient });
+    const msg2 = Buffer.from("hello signer2!");
+
+    const sig2 = await coreKitInstance.current.sign_ECDSA_secp256k1(msg2, { secp256k1Precompute: precomputedTssClient2 });
+    uiConsole("Sig1: ", sig.toString("hex"), "Sig2: ", sig2.toString("hex"));
+
   };
+
+
   const switchChainSepolia = async () => {
     if (!provider) {
       uiConsole("provider not initialized yet");
@@ -705,32 +723,6 @@ function App() {
     await coreKitInstance.current.commitChanges();
   };
 
-  const tssLibSelector = (
-    <div className="flex-container">
-      <label>TSS Library:</label>
-      <select 
-        value={selectedTssLib === tssLibDkls ? "dkls" : selectedTssLib === tssLibFrost ? "frost" : "frostBip340"} 
-        onChange={(e) => {
-          switch(e.target.value) {
-            case "dkls":
-              setSelectedTssLib(tssLibDkls);
-              break;
-            case "frost":
-              setSelectedTssLib(tssLibFrost);
-              break;
-            case "frostBip340":
-              setSelectedTssLib(tssLibFrostBip340);
-              break;
-          }
-        }}
-      >
-        <option value="dkls">DKLS</option>
-        <option value="frost">FROST</option>
-        <option value="frostBip340">FROST BIP340</option>
-      </select>
-    </div>
-  );
-
   const loggedInView = (
     <>
       <h2 className="subtitle">Account Details</h2>
@@ -739,8 +731,12 @@ function App() {
           Get User Info
         </button>
 
-        <button onClick={async () => uiConsole(await coreKitInstance.current.getPubKey())} className="card">
-          Get Public Key
+        <button onClick={async () => uiConsole(await coreKitInstance.current.getPubKey(KeyType.secp256k1))} className="card">
+          Get Public Key Secp256k1
+        </button>
+
+        <button onClick={async () => uiConsole(await coreKitInstance.current.getPubKey(KeyType.ed25519))} className="card">
+          Get Public Key Ed25519
         </button>
 
         <button onClick={keyDetails} className="card">
@@ -760,9 +756,17 @@ function App() {
           [CRITICAL] Reset Account
         </button>
 
-        <button onClick={async () => uiConsole(await coreKitInstance.current._UNSAFE_exportTssKey())} className="card">
-          [CAUTION] Export TSS Private Key
+        <button onClick={async () => uiConsole(await coreKitInstance.current._UNSAFE_exportTssKey(KeyType.secp256k1))} className="card">
+          [CAUTION] Export TSS Private Key Secp256k1
         </button>
+
+        <button onClick={async () => uiConsole(await coreKitInstance.current._UNSAFE_exportTssKey(KeyType.ed25519))} className="card">
+          [CAUTION] Export TSS Private Key Ed25519
+        </button>
+
+        <button onClick={async () => uiConsole(await coreKitInstance.current._UNSAFE_exportTssEd25519Seed())} className="card">
+          [CAUTION] Export Ed25519 seed 
+        </button> 
 
         <button onClick={logout} className="card">
           Log Out
@@ -872,6 +876,10 @@ function App() {
           Get Balance
         </button>
 
+        <button onClick={signMessageEd25519} className="card">
+          Sign Message Ed25519
+        </button>
+
         <button onClick={signMessage} className="card">
           Sign Message
         </button>
@@ -909,7 +917,6 @@ function App() {
 
   const unloggedInView = (
     <>
-      {tssLibSelector}
       <input value={mockEmail} onChange={(e) => setMockEmail(e.target.value)}></input>
       <button onClick={() => loginWithMock()} className="card">
         MockLogin

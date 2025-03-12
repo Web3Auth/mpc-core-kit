@@ -6,6 +6,7 @@ import assert from "assert";
 
 import { COREKIT_STATUS, MemoryStorage, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
+import { KeyType } from "@tkey/common-types";
 
 type TestVariable = {
   description: string;
@@ -47,12 +48,13 @@ const variable: TestVariable[] = [
 
 variable.forEach((testVariable) => {
   const { web3AuthNetwork, uxMode, manualSync, email, web3ClientID: web3AuthClientId, expectedErrorThrown } = testVariable;
+  const keyType = tssLib.keyType as KeyType;
   const coreKitInstance = new Web3AuthMPCCoreKit({
     web3AuthClientId,
     web3AuthNetwork,
     baseUrl: "http://localhost:3000",
     uxMode,
-    tssLib,
+    supportedKeyTypes: [keyType],
     storage: new MemoryStorage(),
     manualSync,
   });

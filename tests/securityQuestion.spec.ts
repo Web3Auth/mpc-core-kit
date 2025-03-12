@@ -16,6 +16,7 @@ import {
   Web3AuthMPCCoreKit,
 } from "../src";
 import { criticalResetAccount, mockLogin } from "./setup";
+import { KeyType } from "@tkey/common-types";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -26,6 +27,8 @@ type TestVariable = {
 
 const storageInstance = new MemoryStorage();
 export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3AuthMPCCoreKit>, testVariable: TestVariable) => {
+
+  const keyType = tssLib.keyType as KeyType;
   test(`#Tss Security Question - ${testVariable.manualSync} `, async function (t) {
     async function beforeTest() {
       const coreKitInstance = await newInstance();
@@ -63,7 +66,7 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       // recover factor
       const factor = await securityQuestion.recoverFactor(instance, answer);
       // check factor
-      await instance.tKey.getTSSShare(new BN(factor, "hex"));
+      await instance.getTssShare({ keyType, factorkey: new BN(factor, "hex") });
       // check wrong answer
       await assert.rejects(() => securityQuestion.recoverFactor(instance, "wrong answer"));
 
@@ -77,26 +80,26 @@ export const TssSecurityQuestionsTest = async (newInstance: () => Promise<Web3Au
       // recover factor
       // check factor
       const newFactor = await securityQuestion.recoverFactor(instance, newAnswer);
-      await instance.tKey.getTSSShare(new BN(newFactor, "hex"));
-
+      await instance.getTssShare({ keyType, factorkey: new BN(newFactor, "hex") });
+ 
       instance.setTssWalletIndex(0);
 
       // recover factor
       // check factor
       const newFactor2 = await securityQuestion.recoverFactor(instance, newAnswer);
-      await instance.tKey.getTSSShare(new BN(newFactor, "hex"));
+      await instance.getTssShare({ keyType, factorkey: new BN(newFactor, "hex") });
 
       instance.setTssWalletIndex(2);
 
       // recover factor
       // check factor
       const newFactor3 = await securityQuestion.recoverFactor(instance, newAnswer);
-      await instance.tKey.getTSSShare(new BN(newFactor, "hex"));
+      await instance.getTssShare({ keyType, factorkey: new BN(newFactor, "hex") });
 
       assert.strictEqual(newFactor, newFactor2);
       assert.strictEqual(newFactor, newFactor3);
 
-      await assert.rejects(() => instance.tKey.getTSSShare(new BN(factor, "hex")));
+      await assert.rejects(() => instance.getTssShare({ keyType, factorkey: new BN(factor, "hex") }));
 
       // recover factor
       // check wrong answer
@@ -126,13 +129,14 @@ const variable: TestVariable[] = [
 const email = "testmail99";
 
 variable.forEach(async (testVariable) => {
+  const keyType = tssLib.keyType as KeyType;
   const newCoreKitLogInInstance = async () => {
     const instance = new Web3AuthMPCCoreKit({
       web3AuthClientId: "torus-key-test",
       web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
       baseUrl: "http://localhost:3000",
       uxMode: "nodejs",
-      tssLib,
+      supportedKeyTypes: [keyType],
       storage: storageInstance,
       manualSync: testVariable.manualSync,
     });

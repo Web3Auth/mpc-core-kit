@@ -1,11 +1,11 @@
-import { EllipticPoint, secp256k1 } from "@tkey/common-types";
-import { tssLib } from "@toruslabs/tss-dkls-lib";
+import { EllipticPoint, KeyType, secp256k1 } from "@tkey/common-types";
 import BN from "bn.js";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { TorusKey } from "@toruslabs/torus.js";
 
 import { IAsyncStorage, IStorage, parseToken, TssLibType, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
+import { MockStorageLayer } from "@tkey/storage-layer-torus";
 
 export const mockLogin2 = async (email: string) => {
   const req = new Request("https://li6lnimoyrwgn2iuqtgdwlrwvq0upwtr.lambda-url.eu-west-1.on.aws/", {
@@ -31,14 +31,10 @@ export const criticalResetAccount = async (coreKitInstance: Web3AuthMPCCoreKit):
     throw new Error("coreKitInstance is not set");
   }
 
-  if (coreKitInstance.tKey.secp256k1Key) {
-    await coreKitInstance.tKey.CRITICAL_deleteTkey();
-  } else {
-    await coreKitInstance.tKey.storageLayer.setMetadata({
-      privKey: new BN(coreKitInstance.state.postBoxKey!, "hex"),
-      input: { message: "KEY_NOT_FOUND" },
-    });
-  }
+  await coreKitInstance.tKey.storageLayer.setMetadata({
+    privKey: new BN(coreKitInstance.state.postBoxKey!, "hex"),
+    input: { message: "KEY_NOT_FOUND" },
+  });
 };
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
@@ -94,6 +90,9 @@ export const newCoreKitLogInInstance = async ({
   importTssKey,
   registerExistingSFAKey,
   login,
+  mockStorageLayer,
+  tssLib,
+  legacyFlag,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
   manualSync: boolean;
@@ -103,24 +102,36 @@ export const newCoreKitLogInInstance = async ({
   importTssKey?: string;
   registerExistingSFAKey?: boolean;
   login?: LoginFunc;
-}) => {
+  mockStorageLayer?: MockStorageLayer;
+  legacyFlag?: boolean;
+  }) => {
+  const localTsslib = tssLib ?? tssLibDKLS;
+  
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
-    tssLib: tssLib || tssLibDKLS,
+    supportedKeyTypes: [localTsslib.keyType as KeyType],
     storage: storageInstance,
     manualSync,
+    legacyFlag,
   });
+  instance.addTssLibs([localTsslib])
 
   const { idToken, parsedToken } = login ? await login(email) : await mockLogin(email);
   await instance.init();
+
+  if (mockStorageLayer) {
+    instance.tKey.storageLayer = mockStorageLayer
+  }
+
+  const finalImportKey = importTssKey ? { [localTsslib.keyType]: importTssKey } : undefined;
   await instance.loginWithJWT({
     verifier: "torus-test-health",
     verifierId: parsedToken.email,
     idToken,
-    importTssKey,
+    importTssKey: finalImportKey,
     registerExistingSFAKey
   });
 
@@ -133,6 +144,9 @@ export const loginWithSFA = async ({
   email,
   storageInstance,
   login,
+  tssLib,
+  legacyFlag,
+  mockStorageLayer,
 }: {
   network: WEB3AUTH_NETWORK_TYPE;
   manualSync: boolean;
@@ -140,19 +154,31 @@ export const loginWithSFA = async ({
   storageInstance: IStorage | IAsyncStorage;
   tssLib?: TssLibType;
   login?: LoginFunc;
-}): Promise<TorusKey> => {
+  legacyFlag?: boolean;
+  mockStorageLayer?: MockStorageLayer;
+  }): Promise<TorusKey> => {
+  
+  const localTssLib = tssLib ?? tssLibDKLS
+  
   const instance = new Web3AuthMPCCoreKit({
     web3AuthClientId: "torus-key-test",
     web3AuthNetwork: network,
     baseUrl: "http://localhost:3000",
     uxMode: "nodejs",
-    tssLib: tssLib || tssLibDKLS,
+    supportedKeyTypes: [localTssLib.keyType as KeyType],
     storage: storageInstance,
     manualSync,
+    legacyFlag,
   });
 
   const { idToken, parsedToken } = login ? await login(email) : await mockLogin(email);
   await instance.init();
+
+  // mock storate layer
+  if (mockStorageLayer) {
+    instance.tKey.storageLayer = mockStorageLayer
+  }
+
   const nodeDetails = await instance.torusSp.customAuthInstance.nodeDetailManager.getNodeDetails({
     verifier: "torus-test-health",
     verifierId: parsedToken.email,
@@ -188,7 +214,7 @@ export function bufferToElliptic(p: Buffer, ec = secp256k1): EllipticPoint {
 
 
 export function generateRandomEmail(): string {
-  const username = stringGen(10); 
+  const username = stringGen(100); 
   const domain = stringGen(5); 
   const tld = stringGen(3);     
   return `${username}@${domain}.${tld}`;
