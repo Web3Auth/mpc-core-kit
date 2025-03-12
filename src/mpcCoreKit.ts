@@ -1094,17 +1094,19 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
       throw CoreKitError.signaturesNotPresent("Signatures not present in state when exporting tss key.");
     }
 
-    const exportTssKey0 = await this.tKey._UNSAFE_exportTssKey({
-      factorKey: this.state.factorKey,
-      authSignatures: this.state.signatures,
-      keyType,
+    return this.atomicSync(async () => {
+      const exportTssKey0 = await this.tKey._UNSAFE_exportTssKey({
+        factorKey: this.state.factorKey,
+        authSignatures: this.state.signatures,
+        keyType,
+      });
+
+      const accountNonce = this.getAccountNonce();
+      const tssCurve = getKeyCurve(keyType);
+      const tssKey = exportTssKey0.add(accountNonce).umod(tssCurve.n);
+
+      return tssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
     });
-
-    const accountNonce = this.getAccountNonce();
-    const tssCurve = getKeyCurve(keyType);
-    const tssKey = exportTssKey0.add(accountNonce).umod(tssCurve.n);
-
-    return tssKey.toString("hex", FIELD_ELEMENT_HEX_LEN);
   }
 
   /**
@@ -1114,19 +1116,22 @@ export class Web3AuthMPCCoreKit implements ICoreKit, IMPCContext {
    * flow has been used.
    */
   public async _UNSAFE_exportTssEd25519Seed(): Promise<Buffer> {
-    if (!this.supportedSigTypes.has("ed25519")) {
+    if (!this.supportedCurveKeyTypes.has(KeyType.ed25519)) {
       throw CoreKitError.default("Wrong signature type. Method can only be used when signature type is ed25519.");
     }
     if (!this.state.factorKey) throw CoreKitError.factorKeyNotPresent("factorKey not present in state when exporting tss ed25519 seed.");
     if (!this.state.signatures) throw CoreKitError.signaturesNotPresent("Signatures not present in state when exporting tss ed25519 seed.");
 
     try {
-      const exportEd25519Seed = await this.tKey._UNSAFE_exportTssEd25519Seed({
-        factorKey: this.state.factorKey,
-        authSignatures: this.state.signatures,
-      });
+      const result = await this.atomicSync(async () => {
+        const exportEd25519Seed = await this.tKey._UNSAFE_exportTssEd25519Seed({
+          factorKey: this.state.factorKey,
+          authSignatures: this.state.signatures,
+        });
 
-      return exportEd25519Seed;
+        return exportEd25519Seed;
+      });
+      return result;
     } catch (error: unknown) {
       throw CoreKitError.default(`Error exporting ed25519 seed: ${error}`);
     }
