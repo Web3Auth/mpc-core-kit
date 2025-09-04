@@ -18,12 +18,16 @@ import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { BN } from "bn.js";
 import { KeyType, Point } from "@tkey/common-types";
-import { tssLib } from "@toruslabs/tss-dkls-lib";
+import { tssLib as originalTssLib } from "@toruslabs/tss-dkls-lib";
 // import{ tssLib } from "@toruslabs/tss-frost-lib";
+import { fetchLocalConfig } from "@toruslabs/fnd-base";
+import { setupSockets as originalSetupSockets, createSockets as originalCreateSockets } from "@toruslabs/tss-client";
+import { io } from "socket.io-client";
 
 import "./App.css";
 import jwt, { Algorithm } from "jsonwebtoken";
 import { flow } from "./flow";
+import { INodeDetails } from "@toruslabs/constants";
 
 const uiConsole = (...args: any[]): void => {
   const el = document.querySelector("#console>p");
@@ -46,6 +50,12 @@ const DEFAULT_CHAIN_CONFIG: CustomChainConfig = {
   decimals: 18,
 };
 
+
+// Create a custom TSS lib that uses polling-only sockets
+const tssLib = {
+  ...originalTssLib,
+};
+
 const coreKitInstance = new Web3AuthMPCCoreKit({
   web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
   web3AuthNetwork: selectedNetwork,
@@ -53,7 +63,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit({
   manualSync: true,
   storage: window.localStorage,
   // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
-  tssLib,
+  tssLib, // Using our custom TSS lib with polling-only sockets
   useDKG: false,
 });
 
@@ -116,10 +126,12 @@ function App() {
       // Example config to handle redirect result manually
       if (coreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
         await coreKitInstance.init({ handleRedirectResult: false, rehydrate });
+        
         if (window.location.hash.includes("#state")) {
           await coreKitInstance.handleRedirectResult();
         }
       }
+    
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await setupProvider();
       }
@@ -182,6 +194,27 @@ function App() {
       if (!mockEmail) {
         throw new Error("mockEmail not found");
       }
+      const nodeDetails = fetchLocalConfig(selectedNetwork, coreKitInstance.keyType);
+      if (!nodeDetails) {
+        throw new Error("nodeDetails not found");
+      }
+      const modifiedNodeDetails: INodeDetails = {
+        ...nodeDetails,
+        // reverse the order of endpoints
+        torusNodeEndpoints: nodeDetails?.torusNodeEndpoints?.reverse(),
+        torusNodeSSSEndpoints: nodeDetails?.torusNodeSSSEndpoints?.reverse(),
+        torusNodeRSSEndpoints: nodeDetails?.torusNodeRSSEndpoints?.reverse(),
+        torusNodeTSSEndpoints: nodeDetails?.torusNodeTSSEndpoints?.reverse(),
+        torusNodePub: nodeDetails?.torusNodePub?.reverse(),
+        torusIndexes: nodeDetails?.torusIndexes?.reverse(),
+        currentEpoch: nodeDetails?.currentEpoch,
+      };
+      if (!coreKitInstance.torusSp) {
+        throw new Error("torusSp not found");
+      }
+
+      coreKitInstance.torusSp.customAuthInstance.config.nodeDetails = modifiedNodeDetails;
+      console.log("modifiedNodeDetails", modifiedNodeDetails);
       const { idToken, parsedToken } = await mockLogin(mockEmail);
       await coreKitInstance.loginWithJWT({
         verifier: "torus-test-health",
@@ -357,7 +390,8 @@ function App() {
     }
     const address = (await web3.eth.getAccounts())[0];
     const balance = web3.utils.fromWei(
-      await web3.eth.getBalance(address) // Balance is in wei
+      await web3.eth.getBalance(address), // Balance is in wei
+      'ether'
     );
     uiConsole(balance);
     return balance;
@@ -512,7 +546,7 @@ function App() {
     const fromAddress = (await web3.eth.getAccounts())[0];
 
     const destination = "0x2E464670992574A613f10F7682D5057fB507Cc21";
-    const amount = web3.utils.toWei("0.0001"); // Convert 1 ether to wei
+    const amount = web3.utils.toWei("0.0001", "ether"); // Convert 0.0001 ether to wei
 
     // Submit transaction to the blockchain and wait for it to be mined
     uiConsole("Sending transaction...");

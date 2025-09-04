@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { BNString, KeyType, ONE_KEY_DELETE_NONCE, Point, secp256k1, SHARE_DELETED, ShareStore, StringifiedType } from "@tkey/common-types";
 import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
@@ -11,13 +12,14 @@ import { fetchLocalConfig } from "@toruslabs/fnd-base";
 import { keccak256 } from "@toruslabs/metadata-helpers";
 import { SessionManager } from "@toruslabs/session-manager";
 import { Torus as TorusUtils, TorusKey } from "@toruslabs/torus.js";
-import { Client, getDKLSCoeff, setupSockets } from "@toruslabs/tss-client";
+import { Client, getDKLSCoeff } from "@toruslabs/tss-client";
 import type { WasmLib as DKLSWasmLib } from "@toruslabs/tss-dkls-lib";
 import { sign as signEd25519 } from "@toruslabs/tss-frost-client";
 import type { WasmLib as FrostWasmLib } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 import bowser from "bowser";
 import { ec as EC } from "elliptic";
+import { io } from "socket.io-client";
 
 import {
   ERRORS,
@@ -70,6 +72,73 @@ import {
   sampleEndpoints,
   scalarBNToBufferSEC1,
 } from "./utils";
+
+// Custom socket setup function
+// Custom function to create sockets with polling only
+const createSocketsWithPolling = (wsEndpoints: string[], sessionId: string, socketPath = "/tss/socket.io") => {
+  console.log("Creating sockets with sessionId:", sessionId);
+  return wsEndpoints.map((wsEndpoint) => {
+    if (wsEndpoint === null || wsEndpoint === undefined) {
+      return null;
+    }
+    return io(wsEndpoint, {
+      path: socketPath,
+      transports: ["polling"],
+      query: { sessionId },
+      extraHeaders: {
+        "x-web3-session-id": sessionId,
+      },
+      withCredentials: true,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: 10,
+    });
+  });
+};
+
+// Custom setup sockets function
+const customSetupSockets = async (tssWSEndpoints: string[], sessionId: string, socketPath = "/tss/socket.io") => {
+  console.log("Custom socket setup starting with polling transport:", { tssWSEndpoints, sessionId });
+
+  try {
+    // Create sockets with polling only
+    const sockets = createSocketsWithPolling(tssWSEndpoints, sessionId, socketPath);
+
+    // Add monitoring
+    sockets.forEach((socket, index) => {
+      if (socket) {
+        socket.on("connect", () => {
+          console.log(`Socket ${index} connected to ${tssWSEndpoints[index]} using polling`);
+        });
+
+        socket.on("disconnect", () => {
+          console.log(`Socket ${index} disconnected from ${tssWSEndpoints[index]}`);
+        });
+
+        socket.on("error", (error: unknown) => {
+          console.error(`Socket ${index} error:`, error);
+        });
+      }
+    });
+
+    // Wait for connections
+    await new Promise((resolve) => {
+      const checkConnectionTimer = setInterval(() => {
+        for (let i = 0; i < sockets.length; i++) {
+          const socket = sockets[i];
+          if (socket && !socket.connected) return;
+        }
+        clearInterval(checkConnectionTimer);
+        resolve(true);
+      }, 100);
+    });
+
+    console.log("All sockets connected successfully using polling transport");
+    return sockets;
+  } catch (error) {
+    console.error("Custom socket setup failed:", error);
+    throw error;
+  }
+};
 
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
@@ -736,7 +805,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
 
     // Setup sockets.
-    const sockets = await setupSockets(tssWSEndpoints, randomSessionNonce);
+    const sockets = await customSetupSockets(tssWSEndpoints, randomSessionNonce);
 
     const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex);
     const denormalisedShare = dklsCoeff.mul(tssShare).umod(secp256k1.curve.n);
