@@ -19,7 +19,7 @@ import type { WasmLib as FrostWasmLib } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 import bowser from "bowser";
 import { ec as EC } from "elliptic";
-import { io } from "socket.io-client";
+import { Socket } from "socket.io-client";
 
 import {
   ERRORS,
@@ -73,73 +73,6 @@ import {
   scalarBNToBufferSEC1,
 } from "./utils";
 
-// Custom socket setup function
-// Custom function to create sockets with polling only
-const createSocketsWithPolling = (wsEndpoints: string[], sessionId: string, socketPath = "/tss/socket.io") => {
-  console.log("Creating sockets with sessionId:", sessionId);
-  return wsEndpoints.map((wsEndpoint) => {
-    if (wsEndpoint === null || wsEndpoint === undefined) {
-      return null;
-    }
-    return io(wsEndpoint, {
-      path: socketPath,
-      transports: ["polling"],
-      query: { sessionId },
-      extraHeaders: {
-        "x-web3-session-id": sessionId,
-      },
-      withCredentials: true,
-      reconnectionDelayMax: 10000,
-      reconnectionAttempts: 10,
-    });
-  });
-};
-
-// Custom setup sockets function
-const customSetupSockets = async (tssWSEndpoints: string[], sessionId: string, socketPath = "/tss/socket.io") => {
-  console.log("Custom socket setup starting with polling transport:", { tssWSEndpoints, sessionId });
-
-  try {
-    // Create sockets with polling only
-    const sockets = createSocketsWithPolling(tssWSEndpoints, sessionId, socketPath);
-
-    // Add monitoring
-    sockets.forEach((socket, index) => {
-      if (socket) {
-        socket.on("connect", () => {
-          console.log(`Socket ${index} connected to ${tssWSEndpoints[index]} using polling`);
-        });
-
-        socket.on("disconnect", () => {
-          console.log(`Socket ${index} disconnected from ${tssWSEndpoints[index]}`);
-        });
-
-        socket.on("error", (error: unknown) => {
-          console.error(`Socket ${index} error:`, error);
-        });
-      }
-    });
-
-    // Wait for connections
-    await new Promise((resolve) => {
-      const checkConnectionTimer = setInterval(() => {
-        for (let i = 0; i < sockets.length; i++) {
-          const socket = sockets[i];
-          if (socket && !socket.connected) return;
-        }
-        clearInterval(checkConnectionTimer);
-        resolve(true);
-      }, 100);
-    });
-
-    console.log("All sockets connected successfully using polling transport");
-    return sockets;
-  } catch (error) {
-    console.error("Custom socket setup failed:", error);
-    throw error;
-  }
-};
-
 export class Web3AuthMPCCoreKit implements ICoreKit {
   public state: Web3AuthState = { accountIndex: 0 };
 
@@ -171,7 +104,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private preSigningHook?: PreSigningHookType;
 
-  constructor(options: Web3AuthOptions) {
+  constructor(
+    options: Web3AuthOptions,
+    private readonly createSocketsWithPolling: (wsEndpoints: string[], sessionId: string, socketPath?: string) => (Socket | null)[]
+  ) {
     if (!options.web3AuthClientId) {
       throw CoreKitError.clientIdInvalid();
     }
@@ -208,6 +144,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     TorusUtils.setSessionTime(this.options.sessionTime);
+    this.createSocketsWithPolling = createSocketsWithPolling;
   }
 
   get tKey(): TKeyTSS {
@@ -805,7 +742,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
 
     // Setup sockets.
-    const sockets = await customSetupSockets(tssWSEndpoints, randomSessionNonce);
+    const sockets = await this.customSetupSockets(tssWSEndpoints, randomSessionNonce);
 
     const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex);
     const denormalisedShare = dklsCoeff.mul(tssShare).umod(secp256k1.curve.n);
@@ -1589,6 +1526,51 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       return (this._tssLib as V4TSSLibType).load();
     } else if ((this._tssLib as V3TSSLibType).lib) {
       return (this._tssLib as V3TSSLibType).lib as DKLSWasmLib | FrostWasmLib;
+    }
+  }
+
+  // Custom setup sockets function
+  private async customSetupSockets(tssWSEndpoints: string[], sessionId: string, socketPath = "/tss/socket.io") {
+    console.log("Custom socket setup starting with polling transport:", { tssWSEndpoints, sessionId });
+
+    try {
+      // Create sockets with polling only
+      const sockets = this.createSocketsWithPolling(tssWSEndpoints, sessionId, socketPath);
+
+      // Add monitoring
+      sockets.forEach((socket, index) => {
+        if (socket) {
+          socket.on("connect", () => {
+            console.log(`Socket ${index} connected to ${tssWSEndpoints[index]} using polling`);
+          });
+
+          socket.on("disconnect", () => {
+            console.log(`Socket ${index} disconnected from ${tssWSEndpoints[index]}`);
+          });
+
+          socket.on("error", (error: unknown) => {
+            console.error(`Socket ${index} error:`, error);
+          });
+        }
+      });
+
+      // Wait for connections
+      await new Promise((resolve) => {
+        const checkConnectionTimer = setInterval(() => {
+          for (let i = 0; i < sockets.length; i++) {
+            const socket = sockets[i];
+            if (socket && !socket.connected) return;
+          }
+          clearInterval(checkConnectionTimer);
+          resolve(true);
+        }, 100);
+      });
+
+      console.log("All sockets connected successfully using polling transport");
+      return sockets;
+    } catch (error) {
+      console.error("Custom socket setup failed:", error);
+      throw error;
     }
   }
 }

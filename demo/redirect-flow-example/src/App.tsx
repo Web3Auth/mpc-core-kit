@@ -21,8 +21,7 @@ import { KeyType, Point } from "@tkey/common-types";
 import { tssLib as originalTssLib } from "@toruslabs/tss-dkls-lib";
 // import{ tssLib } from "@toruslabs/tss-frost-lib";
 import { fetchLocalConfig } from "@toruslabs/fnd-base";
-import { setupSockets as originalSetupSockets, createSockets as originalCreateSockets } from "@toruslabs/tss-client";
-import { io } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 
 import "./App.css";
 import jwt, { Algorithm } from "jsonwebtoken";
@@ -56,6 +55,29 @@ const tssLib = {
   ...originalTssLib,
 };
 
+// Custom socket setup function
+// Custom function to create sockets with polling only
+const createSocketsWithPolling = (wsEndpoints: string[], sessionId: string, socketPath = "/tss/socket.io"): (Socket | null)[] => {
+  console.log("Creating sockets with sessionId:", sessionId);
+  return wsEndpoints.map((wsEndpoint) => {
+    if (wsEndpoint === null || wsEndpoint === undefined) {
+      return null;
+    }
+    return io(wsEndpoint, {
+      path: socketPath,
+      transports: ["websocket","polling"],
+      query: { sessionId },
+      extraHeaders: {
+        "x-web3-session-id": sessionId,
+      },
+      withCredentials: true,
+      reconnectionDelayMax: 10000,
+      reconnectionAttempts: 10,
+    });
+  });
+};
+
+
 const coreKitInstance = new Web3AuthMPCCoreKit({
   web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
   web3AuthNetwork: selectedNetwork,
@@ -65,7 +87,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit({
   // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
   tssLib, // Using our custom TSS lib with polling-only sockets
   useDKG: false,
-});
+}, createSocketsWithPolling);
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";
 const jwtPrivateKey = `-----BEGIN PRIVATE KEY-----\n${privateKey}\n-----END PRIVATE KEY-----`;
