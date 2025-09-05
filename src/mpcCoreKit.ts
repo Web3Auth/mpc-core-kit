@@ -100,6 +100,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private _keyType: KeyType;
 
+  private sockets: (Socket | null)[] | undefined;
+
+  private socketSessionId: string | undefined;
+
   private atomicCallStackCounter: number = 0;
 
   private preSigningHook?: PreSigningHookType;
@@ -239,6 +243,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
     this.resetState();
     if (params.rehydrate === undefined) params.rehydrate = true;
+    if (params.sockets && !params.sessionId) {
+      throw CoreKitError.invalidParams("sessionId is required when providing sockets");
+    }
+    this.sockets = params.sockets;
+    this.socketSessionId = params.sessionId;
 
     const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
@@ -726,7 +735,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     // session is needed for authentication to the web3auth infrastructure holding the factor 1
-    const randomSessionNonce = generateSessionNonce();
+    const randomSessionNonce = this.socketSessionId || generateSessionNonce();
     const currentSession = getSessionId(this.verifier, this.verifierId, this.tKey.tssTag, tssNonce, randomSessionNonce);
 
     const parties = 4;
@@ -742,7 +751,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     } = generateTSSEndpoints(torusNodeTSSEndpoints, parties, clientIndex, nodeIndexes);
 
     // Setup sockets.
-    const sockets = await this.customSetupSockets(tssWSEndpoints, randomSessionNonce);
+    const sockets = this.sockets || (await this.customSetupSockets(tssWSEndpoints, randomSessionNonce));
 
     const dklsCoeff = getDKLSCoeff(true, participatingServerDKGIndexes, tssShareIndex);
     const denormalisedShare = dklsCoeff.mul(tssShare).umod(secp256k1.curve.n);
@@ -1376,6 +1385,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.torusSp = null;
     this.storageLayer = null;
     this.state = { accountIndex: 0 };
+    this.sockets = undefined;
+    this.socketSessionId = undefined;
   }
 
   private _getPostBoxKey(result: TorusKey): string {

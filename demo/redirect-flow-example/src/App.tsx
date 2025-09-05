@@ -12,6 +12,7 @@ import {
   parseToken,
   factorKeyCurve,
   makeEthereumSigner,
+  generateSessionNonce
 } from "@web3auth/mpc-core-kit";
 import Web3 from "web3";
 import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
@@ -77,6 +78,50 @@ const createSocketsWithPolling = (wsEndpoints: string[], sessionId: string, sock
   });
 };
 
+ // Custom setup sockets function
+  const customSetupSockets = async (tssWSEndpoints: string[], sessionId: string, socketPath = "/tss/socket.io") => {
+  console.log("Custom socket setup starting with polling transport:", { tssWSEndpoints, sessionId });
+
+  try {
+    // Create sockets with polling only
+    const sockets = createSocketsWithPolling(tssWSEndpoints, sessionId, socketPath);
+
+    // Add monitoring
+    sockets.forEach((socket, index) => {
+      if (socket) {
+        socket.on("connect", () => {
+          console.log(`Socket ${index} connected to ${tssWSEndpoints[index]} using polling`);
+        });
+
+        socket.on("disconnect", () => {
+          console.log(`Socket ${index} disconnected from ${tssWSEndpoints[index]}`);
+        });
+
+        socket.on("error", (error: unknown) => {
+          console.error(`Socket ${index} error:`, error);
+        });
+      }
+    });
+
+    // Wait for connections
+    await new Promise((resolve) => {
+      const checkConnectionTimer = setInterval(() => {
+        for (let i = 0; i < sockets.length; i++) {
+          const socket = sockets[i];
+          if (socket && !socket.connected) return;
+        }
+        clearInterval(checkConnectionTimer);
+        resolve(true);
+      }, 100);
+    });
+
+    console.log("All sockets connected successfully using polling transport");
+    return sockets;
+  } catch (error) {
+    console.error("Custom socket setup failed:", error);
+    throw error;
+  }
+}
 
 const coreKitInstance = new Web3AuthMPCCoreKit({
   web3AuthClientId: "BPi5PB_UiIZ-cPz1GtV5i1I2iOSOHuimiXBI0e-Oe_u6X3oVAbCiAZOTEBtTXw4tsluTITPqA8zMsfxIKMjiqNQ",
@@ -147,13 +192,20 @@ function App() {
     const init = async () => {
       // Example config to handle redirect result manually
       if (coreKitInstance.status === COREKIT_STATUS.NOT_INITIALIZED) {
-        await coreKitInstance.init({ handleRedirectResult: false, rehydrate });
-        
+        const nodeDetails = fetchLocalConfig(selectedNetwork, coreKitInstance.keyType);
+        if (!nodeDetails?.torusNodeTSSEndpoints) {
+          throw new Error("node details or tss ws endpoints not found");
+        }
+        const { torusNodeTSSEndpoints } = nodeDetails;
+        const sessionId = generateSessionNonce();
+        const sockets = await customSetupSockets(torusNodeTSSEndpoints, sessionId);
+        await coreKitInstance.init({ handleRedirectResult: false, rehydrate, sockets, sessionId });
+
         if (window.location.hash.includes("#state")) {
           await coreKitInstance.handleRedirectResult();
         }
       }
-    
+
       if (coreKitInstance.status === COREKIT_STATUS.LOGGED_IN) {
         await setupProvider();
       }
@@ -215,6 +267,9 @@ function App() {
     try {
       if (!mockEmail) {
         throw new Error("mockEmail not found");
+      }
+      if (!coreKitInstance.torusSp) {
+        await coreKitInstance.init({ handleRedirectResult: false });
       }
       const nodeDetails = fetchLocalConfig(selectedNetwork, coreKitInstance.keyType);
       if (!nodeDetails) {
@@ -426,10 +481,10 @@ function App() {
         return;
       }
       const fromAddress = (await web3.eth.getAccounts())[0];
-     
+
       const message = "hello";
       const signedMessage = await web3.eth.personal.sign(message, fromAddress, "");
-      
+
 
       uiConsole(signedMessage);
     } else if (coreKitInstance.keyType === "ed25519") {

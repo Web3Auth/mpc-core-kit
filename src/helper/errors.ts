@@ -135,6 +135,7 @@ class CoreKitError extends AbstractCoreKitError {
     1005: "No valid storage option found.",
     1006: "No data found in storage.",
     1007: "Invalid config.",
+    1008: "Invalid params passed in.",
 
     // TSS and key management errors
     1101: "'tssLib' is required when running in this UX mode.",
@@ -213,6 +214,10 @@ class CoreKitError extends AbstractCoreKitError {
 
   public static invalidConfig(extraMessage = ""): ICoreKitError {
     return CoreKitError.fromCode(1007, extraMessage);
+  }
+
+  public static invalidParams(extraMessage = ""): ICoreKitError {
+    return CoreKitError.fromCode(1008, extraMessage);
   }
 
   // TSS and key management errors

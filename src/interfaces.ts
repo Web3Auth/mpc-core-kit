@@ -14,6 +14,7 @@ import { Client } from "@toruslabs/tss-client";
 import type { tssLib as TssDklsLib } from "@toruslabs/tss-dkls-lib";
 import type { tssLib as TssFrostLib } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
+import { Socket } from "socket.io-client";
 
 import { FactorKeyTypeShareDescription, TssShareType, USER_PATH, WEB3AUTH_NETWORK } from "./constants";
 
@@ -46,6 +47,14 @@ export interface InitParams {
    * rehydrate the session during init()
    */
   rehydrate?: boolean;
+  /**
+   * external sockets to be used for TSS.
+   */
+  sockets?: (Socket | null)[];
+  /**
+   * session id for external sockets.
+   */
+  sessionId?: string;
 }
 
 export interface BaseLoginParams {
