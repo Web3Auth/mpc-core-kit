@@ -102,6 +102,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private preSigningHook?: PreSigningHookType;
 
+  private socketIoTransports?: string[];
+
   constructor(options: Web3AuthOptions) {
     if (!options.web3AuthClientId) {
       throw CoreKitError.clientIdInvalid();
@@ -139,6 +141,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
 
     TorusUtils.setSessionTime(this.options.sessionTime);
+
+    this.socketIoTransports = options.socketIoTransports;
   }
 
   get tKey(): TKeyTSS {
@@ -1506,7 +1510,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       clientShareAdjustedHex,
       pubKeyHex,
       data,
-      serverCoefficientsHex
+      serverCoefficientsHex,
+      undefined,
+      this.socketIoTransports
     );
 
     log.info(`signature: ${signature}`);

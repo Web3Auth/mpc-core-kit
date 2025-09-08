@@ -18,8 +18,8 @@ import { CHAIN_NAMESPACES, CustomChainConfig, IProvider } from "@web3auth/base";
 import { EthereumSigningProvider } from "@web3auth/ethereum-mpc-provider";
 import { BN } from "bn.js";
 import { KeyType, Point } from "@tkey/common-types";
-import { tssLib } from "@toruslabs/tss-dkls-lib";
-// import{ tssLib } from "@toruslabs/tss-frost-lib";
+// import { tssLib } from "@toruslabs/tss-dkls-lib";
+import{ tssLib } from "@toruslabs/tss-frost-lib";
 
 import "./App.css";
 import jwt, { Algorithm } from "jsonwebtoken";
@@ -55,6 +55,7 @@ const coreKitInstance = new Web3AuthMPCCoreKit({
   // sessionTime: 3600, // <== can provide variable session time based on user subscribed plan
   tssLib,
   useDKG: false,
+  socketIoTransports: ["websocket", "polling"],
 });
 
 const privateKey = "MEECAQAwEwYHKoZIzj0CAQYIKoZIzj0DAQcEJzAlAgEBBCCD7oLrcKae+jVZPGx52Cb/lKhdKxpXjl9eGNa1MlY57A==";

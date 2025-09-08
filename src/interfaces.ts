@@ -452,6 +452,8 @@ export interface Web3AuthOptions {
    * only scalar will be exported, scalar can be used for signing outside of this sdk but not for importing the key in other wallets.
    */
   useClientGeneratedTSSKey?: boolean;
+
+  socketIoTransports?: string[];
 }
 
 export type Web3AuthOptionsWithDefaults = Required<Web3AuthOptions>;

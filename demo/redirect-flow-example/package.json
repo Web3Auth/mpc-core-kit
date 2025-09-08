@@ -5,7 +5,7 @@
   "dependencies": {
     "@tkey/common-types": "^15.1.0",
     "@toruslabs/tss-dkls-lib": "^4.0.0",
-    "@toruslabs/tss-frost-lib": "^1.0.0",
+    "@toruslabs/tss-frost-lib": "file:../../toruslabs-tss-frost-lib-2.0.0-alpha.0.tgz",
     "@types/jest": "^27.5.2",
     "@types/node": "^16.18.48",
     "@types/react": "^18.3.11",

@@ -31,8 +31,7 @@
   ],
   "peerDependencies": {
     "@babel/runtime": "^7.x",
-    "@toruslabs/tss-dkls-lib": "^4.0.0",
-    "@toruslabs/tss-frost-lib": "^1.0.0"
+    "@toruslabs/tss-dkls-lib": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "@toruslabs/tss-dkls-lib": {
@@ -54,12 +53,13 @@
     "@toruslabs/fetch-node-details": "^14.0.1",
     "@toruslabs/fnd-base": "^14.0.0",
     "@toruslabs/metadata-helpers": "^6.0.0",
-    "@toruslabs/session-manager": "^3.1.0",
     "@toruslabs/openlogin-utils": "^8.2.1",
+    "@toruslabs/session-manager": "^3.1.0",
     "@toruslabs/torus.js": "^15.1.0",
     "@toruslabs/tss-client": "^3.1.0",
-    "@toruslabs/tss-frost-client": "0.3.1",
+    "@toruslabs/tss-frost-client": "file:toruslabs-tss-frost-client-1.0.1-alpha.0.tgz",
     "@toruslabs/tss-frost-common": "^1.0.1",
+    "@toruslabs/tss-frost-lib": "file:toruslabs-tss-frost-lib-2.0.0-alpha.0.tgz",
     "bn.js": "^5.2.1",
     "bowser": "^2.11.0",
     "elliptic": "^6.5.7",
@@ -71,7 +71,6 @@
     "@toruslabs/eslint-config-typescript": "^3.3.3",
     "@toruslabs/torus-scripts": "^6.1.2",
     "@toruslabs/tss-dkls-lib": "^4.0.0",
-    "@toruslabs/tss-frost-lib": "^1.0.0",
     "@types/chai": "^4.3.16",
     "@types/elliptic": "^6.4.18",
     "@types/jsonwebtoken": "^9.0.7",
