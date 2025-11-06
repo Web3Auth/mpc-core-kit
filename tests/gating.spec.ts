@@ -23,7 +23,8 @@ const variable: TestVariable[] = [
     description: "should not be gated when on devnet",
     web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
     uxMode: "nodejs",
-    email: defaultTestEmail,
+    // tkey tests seems use this verifierid, metadata retrun only have tkey that do not support tss
+    email: defaultTestEmail + '1',
     web3ClientID: "torus-key-test",
     expectedErrorThrown: false,
   },

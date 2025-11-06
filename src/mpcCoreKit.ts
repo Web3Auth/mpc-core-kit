@@ -1283,6 +1283,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async checkIfFactorKeyValid(factorKey: BN): Promise<boolean> {
     this.checkReady();
+    const factorKeyPrivate = factorKeyCurve.keyFromPrivate(factorKey.toBuffer());
+    const factorPubX = factorKeyPrivate.getPublic().getX().toString("hex").padStart(64, "0");
+    const existingFactorEnc = this.tkey.metadata.factorEncs[this.tkey.tssTag][factorPubX];
+    if (!existingFactorEnc) {
+      return false;
+    }
     const factorKeyMetadata = await this.tKey?.readMetadata<StringifiedType>(factorKey);
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND" || factorKeyMetadata.message === "SHARE_DELETED") {
       return false;
