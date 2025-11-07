@@ -86,6 +86,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public torusSp: TSSTorusServiceProvider | null = null;
 
+  // new user indication
+  // only true during new user sign up, after reinit or rehydration, the flag will be always false
+  public newUser: boolean = false;
+
   private options: Web3AuthOptionsWithDefaults;
 
   private storageLayer: TorusStorageLayer | null = null;
@@ -1093,6 +1097,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   // mutation function
   private async handleNewUser(importTssKey?: string, isSfaKey?: boolean) {
+    this.newUser = true;
     await this.atomicSync(async () => {
       // Generate or use hash factor and initialize tkey with it.
       let factorKey: BN;
