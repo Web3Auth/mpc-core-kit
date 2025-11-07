@@ -23,14 +23,7 @@ const defaultTestEmail = "testEmail1";
 const isBasePlan = (id: string) => id === "BCriFlI9ihm81N-bc7x6N-xbqwBLuxfRDMmSH87spKH27QTNOPj1W9s2K3-mp9NzXuaRiqxvAGHyuGlXG5wLD1g";
 // BasePlan up to 1 day only
 const variable: TestVariable[] = [
-  {
-    web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET,
-    uxMode: "nodejs",
-    // tkey tests seems use this verifierid, metadata retrun only have tkey that do not support tss
-    email: defaultTestEmail + "1",
-    web3ClientID: "torus-key-test",
-    sessionTime: 3600
-  },
+  { web3AuthNetwork: WEB3AUTH_NETWORK.DEVNET, uxMode: "nodejs", email: defaultTestEmail, web3ClientID: "torus-key-test", sessionTime: 3600 },
   {
     web3AuthNetwork: WEB3AUTH_NETWORK.MAINNET,
     uxMode: "nodejs",

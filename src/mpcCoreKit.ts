@@ -1285,7 +1285,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.checkReady();
     const factorKeyPrivate = factorKeyCurve.keyFromPrivate(factorKey.toBuffer());
     const factorPubX = factorKeyPrivate.getPublic().getX().toString("hex").padStart(64, "0");
-    const existingFactorEnc = this.tkey.metadata.factorEncs[this.tkey.tssTag][factorPubX];
+    const existingFactorEnc = this.tkey.metadata.factorEncs?.[this.tkey.tssTag]?.[factorPubX];
     if (!existingFactorEnc) {
       return false;
     }
