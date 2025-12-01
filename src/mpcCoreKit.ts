@@ -1151,6 +1151,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async handleExistingUser() {
+    this.newUser = false
     await this.tKey.initialize({ neverInitializeNewKey: true });
     if (this.options.disableHashedFactorKey) {
       return;
@@ -1414,6 +1415,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tkey = null;
     this.torusSp = null;
     this.storageLayer = null;
+    this.newUser = false;
     this.state = { accountIndex: 0 };
   }
 
