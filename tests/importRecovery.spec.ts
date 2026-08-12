@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 
-import {  MemoryStorage, sigToRSV, TssLibType, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
+import {  AsyncStorage, MemoryStorage, sigToRSV, TssLibType, TssShareType, WEB3AUTH_NETWORK, Web3AuthMPCCoreKit } from "../src";
 import { bufferToElliptic, criticalResetAccount, mockLogin  } from "./setup";
 import { EllipticPoint, KeyType, secp256k1 } from "@tkey/common-types";
 import { keccak256 } from "@toruslabs/metadata-helpers";
@@ -53,10 +53,10 @@ export const ImportTest = async (testVariable: ImportKeyTestVariable) => {
 
   async function resetAccount(email: string) {
     const kit = await newCoreKitInstance(email);
-    console.log('tss pub key', kit.state.tssPubKey)
+
     await criticalResetAccount(kit, testVariable.manualSync);
     await kit.logout();
-    // await new AsyncStorage(kit._storageKey, storageInstance).resetStore();
+    await new AsyncStorage(kit._storageKey, storageInstance).resetStore();
   }
 
   test(`import recover tss key : ${testVariable.manualSync}`, async function (t) {
