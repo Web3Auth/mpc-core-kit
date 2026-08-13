@@ -86,10 +86,6 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public torusSp: TSSTorusServiceProvider | null = null;
 
-  // new user indication
-  // only true during new user sign up, after reinit or rehydration, the flag will be always false
-  public newUser: boolean = false;
-
   private options: Web3AuthOptionsWithDefaults;
 
   private storageLayer: TorusStorageLayer | null = null;
@@ -105,6 +101,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   private enableLogging = false;
 
   private ready = false;
+
+  // only true during new user sign up; after reinit or rehydration this is always false
+  private newUser: boolean = false;
 
   private _tssLib: TssLibType;
 
@@ -195,6 +194,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   get supportsAccountIndex(): boolean {
     return this._keyType !== KeyType.ed25519;
+  }
+
+  public isNewUser(): boolean {
+    return this.newUser;
   }
 
   private get verifier(): string {

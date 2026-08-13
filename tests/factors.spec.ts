@@ -83,6 +83,20 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
   await test(`#Factor manipulation - manualSync ${testVariable.manualSync} `, async function (t) {
     await beforeTest();
 
+    await t.test("hashed factor auto login", async function () {
+      const instance = await newInstance();
+      assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
+      assert.strictEqual(instance.getTssFactorPub().length, 1);
+      if (testVariable.manualSync) {
+        await instance.commitChanges();
+      }
+      await instance.logout();
+
+      const instance2 = await newInstance();
+      assert.strictEqual(instance2.status, COREKIT_STATUS.LOGGED_IN);
+      assert.strictEqual(instance2.getTssFactorPub().length, 1);
+    });
+
     await t.test("should be able to create factor", async function () {
       const coreKitInstance = await newInstance();
       assert.equal(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
@@ -201,6 +215,10 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
 
       await instance3.inputFactorKey(new BN(browserFactor, "hex"));
       assert.strictEqual(instance3.status, COREKIT_STATUS.LOGGED_IN);
+
+      await assert.rejects(async () => {
+        await instance3.enableMFA({});
+      }, /MFA is already enabled/);
 
       if ( tssLib && tssLib.keyType === KeyType.ed25519) {
         await signEd25519Data({ coreKitInstance: instance3, msg: "hello world" });
