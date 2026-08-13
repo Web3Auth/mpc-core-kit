@@ -1,8 +1,8 @@
 import assert from "node:assert";
 import test from "node:test";
 
-import { EllipticPoint, getPubKeyPoint, KeyType, Point, secp256k1 } from "@tkey/common-types";
-import { factorKeyCurve } from "@tkey/tss";
+import { EllipticPoint, KeyType, Point, secp256k1 } from "@tkey/common-types";
+import { factorKeyCurve, getPubKeyPoint } from "@tkey/tss";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
@@ -195,12 +195,9 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
 
 
 
-      try {
+      await assert.rejects(async () => {
         await instance3.inputFactorKey(factorBN.subn(1));
-        throw Error("should not be able to input factor");
-      } catch (e) {
-        assert(e instanceof Error);
-      }
+      });
 
       await instance3.inputFactorKey(new BN(browserFactor, "hex"));
       assert.strictEqual(instance3.status, COREKIT_STATUS.LOGGED_IN);
@@ -226,15 +223,12 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
 
 
-      const deviceFactorPub = getPubKeyPoint(deviceFactorKeyBN);
+      const deviceFactorPub = getPubKeyPoint(deviceFactorKeyBN, factorKeyCurve);
       await instance.deleteFactor(deviceFactorPub, browserFactor);
 
-      try {
+      await assert.rejects(async () => {
         await instance.inputFactorKey(deviceFactorKeyBN);
-        throw Error("should not be able to deleted input factor");
-      } catch (e) {
-        assert(e instanceof Error);
-      }
+      });
     });
   });
 };
