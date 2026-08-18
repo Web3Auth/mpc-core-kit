@@ -102,6 +102,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private ready = false;
 
+  // only true during new user sign up; after reinit or rehydration this is always false
+  private newUser: boolean = false;
+
   private _tssLib: TssLibType;
 
   private wasmLib: DKLSWasmLib | FrostWasmLib;
@@ -191,6 +194,10 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   get supportsAccountIndex(): boolean {
     return this._keyType !== KeyType.ed25519;
+  }
+
+  public isNewUser(): boolean {
+    return this.newUser;
   }
 
   private get verifier(): string {
@@ -1093,6 +1100,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   // mutation function
   private async handleNewUser(importTssKey?: string, isSfaKey?: boolean) {
+    this.newUser = true;
     await this.atomicSync(async () => {
       // Generate or use hash factor and initialize tkey with it.
       let factorKey: BN;
@@ -1146,6 +1154,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   }
 
   private async handleExistingUser() {
+    this.newUser = false;
     await this.tKey.initialize({ neverInitializeNewKey: true });
     if (this.options.disableHashedFactorKey) {
       return;
@@ -1283,6 +1292,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private async checkIfFactorKeyValid(factorKey: BN): Promise<boolean> {
     this.checkReady();
+    const factorKeyPrivate = factorKeyCurve.keyFromPrivate(factorKey.toBuffer());
+    const factorPubX = factorKeyPrivate.getPublic().getX().toString("hex").padStart(64, "0");
+    const existingFactorEnc = this.tkey.metadata.factorEncs?.[this.tkey.tssTag]?.[factorPubX];
+    if (!existingFactorEnc) {
+      return false;
+    }
     const factorKeyMetadata = await this.tKey?.readMetadata<StringifiedType>(factorKey);
     if (!factorKeyMetadata || factorKeyMetadata.message === "KEY_NOT_FOUND" || factorKeyMetadata.message === "SHARE_DELETED") {
       return false;
@@ -1403,6 +1418,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.tkey = null;
     this.torusSp = null;
     this.storageLayer = null;
+    this.newUser = false;
     this.state = { accountIndex: 0 };
   }
 

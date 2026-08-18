@@ -2,7 +2,7 @@ import assert from "node:assert";
 import test from "node:test";
 
 import { EllipticPoint, KeyType, Point, secp256k1 } from "@tkey/common-types";
-import { factorKeyCurve } from "@tkey/tss";
+import { factorKeyCurve, getPubKeyPoint } from "@tkey/tss";
 import { tssLib as tssLibDKLS } from "@toruslabs/tss-dkls-lib";
 import { tssLib as tssLibFROST } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
@@ -83,6 +83,20 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
   await test(`#Factor manipulation - manualSync ${testVariable.manualSync} `, async function (t) {
     await beforeTest();
 
+    await t.test("hashed factor auto login", async function () {
+      const instance = await newInstance();
+      assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
+      assert.strictEqual(instance.getTssFactorPub().length, 1);
+      if (testVariable.manualSync) {
+        await instance.commitChanges();
+      }
+      await instance.logout();
+
+      const instance2 = await newInstance();
+      assert.strictEqual(instance2.status, COREKIT_STATUS.LOGGED_IN);
+      assert.strictEqual(instance2.getTssFactorPub().length, 1);
+    });
+
     await t.test("should be able to create factor", async function () {
       const coreKitInstance = await newInstance();
       assert.equal(coreKitInstance.status, COREKIT_STATUS.LOGGED_IN);
@@ -158,7 +172,7 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
     });
 
     // enable mfa
-
+    let browserFactor: string;
     await t.test("enable MFA", async function () {
       const instance = await newInstance();
       assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
@@ -179,7 +193,7 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
       const instance2 = await newInstance();
       assert.strictEqual(instance2.status, COREKIT_STATUS.REQUIRED_SHARE);
 
-      const browserFactor = await instance2.getDeviceFactor();
+      browserFactor = await instance2.getDeviceFactor();
 
       const factorBN = new BN(recoverFactor, "hex")
 
@@ -195,24 +209,45 @@ export const FactorManipulationTest = async (testVariable: FactorTestVariable) =
 
 
 
-      try {
+      await assert.rejects(async () => {
         await instance3.inputFactorKey(factorBN.subn(1));
-        throw Error("should not be able to input factor");
-      } catch (e) {
-        assert(e instanceof Error);
-      }
+      });
 
       await instance3.inputFactorKey(new BN(browserFactor, "hex"));
       assert.strictEqual(instance3.status, COREKIT_STATUS.LOGGED_IN);
+
+      await assert.rejects(async () => {
+        await instance3.enableMFA({});
+      }, /MFA is already enabled/);
 
       if ( tssLib && tssLib.keyType === KeyType.ed25519) {
         await signEd25519Data({ coreKitInstance: instance3, msg: "hello world" });
       } else {
         await signSecp256k1Data({ coreKitInstance: instance3, msg: "hello world" });
       }
-
     });
 
+    // replace factor
+    await t.test("replace factor", async function () {
+      const instance = await newInstance();
+    
+      const deviceFactorKeyBN = new BN(browserFactor, "hex")
+      await instance.inputFactorKey(deviceFactorKeyBN); 
+      assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
+
+      const newFactorkey = await instance.createFactor({ shareType: TssShareType.DEVICE });
+      await instance.inputFactorKey(new BN(newFactorkey, "hex"));
+
+      assert.strictEqual(instance.status, COREKIT_STATUS.LOGGED_IN);
+
+
+      const deviceFactorPub = getPubKeyPoint(deviceFactorKeyBN, factorKeyCurve);
+      await instance.deleteFactor(deviceFactorPub, browserFactor);
+
+      await assert.rejects(async () => {
+        await instance.inputFactorKey(deviceFactorKeyBN);
+      });
+    });
   });
 };
 
