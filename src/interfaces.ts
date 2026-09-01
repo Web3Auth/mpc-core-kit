@@ -1,4 +1,5 @@
 import { KeyType, Point as TkeyPoint, ShareDescriptionMap } from "@tkey/common-types";
+import { ShareTransferStore } from "@tkey/share-transfer";
 import { TKeyTSS } from "@tkey/tss";
 import type {
   AGGREGATE_VERIFIER_TYPE,
@@ -261,6 +262,12 @@ export interface ICoreKit {
    * @returns The factor key.
    */
   createFactor(createFactorParams: CreateFactorParams): Promise<string>;
+
+  requestShare(userAgent?: string): Promise<string>;
+  waitForRequestShareResponse(currentEncPubKeyX: string): Promise<void>;
+  getShareTransferStore(): Promise<ShareTransferStore>;
+  approveShareRequest(pubKey: string): Promise<void>;
+  createDeviceFactor(metadata: Record<string, string>): Promise<BN>;
 
   /**
    * Deletes the factor identified by the given public key, including all
