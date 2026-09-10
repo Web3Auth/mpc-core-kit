@@ -712,7 +712,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
+  public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string | undefined> {
     this.checkReady();
     const startTime = Date.now();
     let mutationStarted = false;
@@ -773,8 +773,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         recovery_factor_created: Boolean(backupFactorKey),
         duration: Date.now() - startTime,
       });
-      // update to undefined for next major release
-      return backupFactorKey as string;
+      return backupFactorKey;
     } catch (reason) {
       this.suppressFactorAnalytics = false;
       const error = reason as Error;
@@ -879,6 +878,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   public getPubKeyPoint(): Point {
     const { tssPubKey } = this.state;
+    if (!tssPubKey) {
+      throw CoreKitError.tssPublicKeyOrEndpointsMissing("tssPubKey not present in state when getting public key point.");
+    }
     return Point.fromSEC1(this.tkey.tssCurve, tssPubKey.toString("hex"));
   }
 
