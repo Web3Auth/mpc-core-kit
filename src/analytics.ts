@@ -2,6 +2,9 @@ import type { AnalyticsBrowser, EventProperties, UserTraits } from "@segment/ana
 
 import { log } from "./utils";
 
+// Public Segment *source* write key (write-only). This is the same key used by
+// web3auth-web. It is not a secret: browser SDKs must ship it in the bundle.
+// Mixpanel isolation is via sdk_name / web3auth_client_id, not a private key.
 const SEGMENT_WRITE_KEY = "f6LbNqCeVRf512ggdME4b6CyflhF1tsX";
 
 export const ANALYTICS_EVENTS = {
