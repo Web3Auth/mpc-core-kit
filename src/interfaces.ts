@@ -379,6 +379,16 @@ export interface Web3AuthOptions {
   enableLogging?: boolean;
 
   /**
+   * Disables anonymous SDK usage analytics.
+   *
+   * Analytics are enabled for browser integrations on secure, non-localhost origins.
+   * Events include `web3auth_network` so dashboards can filter mainnet vs devnet.
+   *
+   * @defaultValue `false`
+   */
+  disableAnalytics?: boolean;
+
+  /**
    * This option is used to specify the url path where user will be
    * redirected after login. Redirect Uri for OAuth is baseUrl/redirectPathName.
    *

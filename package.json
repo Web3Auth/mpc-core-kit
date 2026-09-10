@@ -18,8 +18,11 @@
   "homepage": "https://github.com/Web3Auth/mpc-core-kit/tree/master#readme",
   "license": "ISC",
   "scripts": {
+    "sync:sdk-version": "node scripts/sync-sdk-version.mjs",
+    "pretest": "npm run sync:sdk-version",
     "test": "node --test -r esbuild-register tests/*.spec.ts",
     "dev": "torus-scripts start",
+    "prebuild": "npm run sync:sdk-version",
     "build": "torus-scripts build",
     "release": "torus-scripts release",
     "lint": "eslint --fix 'src/**/*.ts'",
@@ -43,6 +46,7 @@
     }
   },
   "dependencies": {
+    "@segment/analytics-next": "^1.84.0",
     "@tkey/common-types": "^15.1.0",
     "@tkey/core": "^15.1.0",
     "@tkey/share-serialization": "^15.1.0",
@@ -75,7 +79,7 @@
     "@types/chai": "^4.3.16",
     "@types/elliptic": "^6.4.18",
     "@types/jsonwebtoken": "^9.0.7",
-    "@types/node": "^20.14.0",
+    "@types/node": "^22.20.2",
     "@typescript-eslint/parser": "^7.18.0",
     "chai": "^5.1.1",
     "cross-env": "^7.0.3",
