@@ -234,8 +234,14 @@ test("oauth connection track data survives a redirect and is consumed once", () 
       auth_connection: "google",
       is_aggregate_verifier: false,
     };
-    persistOAuthConnectionTrackData(trackData);
-    assert.ok(store.has(OAUTH_CONNECTION_TRACK_STORAGE_KEY));
+    persistOAuthConnectionTrackData({
+      ...trackData,
+      id_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.VerySecretSignature",
+      email: "person@example.com",
+    });
+    const stored = JSON.parse(store.get(OAUTH_CONNECTION_TRACK_STORAGE_KEY) || "{}") as Record<string, unknown>;
+    assert.deepStrictEqual(stored, trackData);
+    assert.strictEqual("id_token" in stored, false);
     assert.deepStrictEqual(consumeOAuthConnectionTrackData(), trackData);
     assert.strictEqual(consumeOAuthConnectionTrackData(), undefined);
   } finally {

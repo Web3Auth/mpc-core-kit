@@ -164,12 +164,26 @@ function sanitizeErrorMessage(message: string): string {
     .slice(0, 500);
 }
 
+const OAUTH_CONNECTION_TRACK_ALLOWED_KEYS = new Set(["login_method", "verifier", "auth_connection", "is_aggregate_verifier"]);
+
+function sanitizeOAuthConnectionTrackDataForStorage(trackData: Record<string, unknown>): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  Object.entries(trackData).forEach(([key, value]) => {
+    if (!OAUTH_CONNECTION_TRACK_ALLOWED_KEYS.has(key)) return;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null) {
+      sanitized[key] = value;
+    }
+  });
+  return sanitized;
+}
+
 export const OAUTH_CONNECTION_TRACK_STORAGE_KEY = "web3auth_mpc_oauth_connection_track";
 
 export function persistOAuthConnectionTrackData(trackData: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
   try {
-    window.sessionStorage.setItem(OAUTH_CONNECTION_TRACK_STORAGE_KEY, JSON.stringify(trackData));
+    const sanitizedTrackData = sanitizeOAuthConnectionTrackDataForStorage(trackData);
+    window.sessionStorage.setItem(OAUTH_CONNECTION_TRACK_STORAGE_KEY, JSON.stringify(sanitizedTrackData));
   } catch (error) {
     log.error("Failed to persist oauth connection track data", error);
   }
@@ -183,7 +197,7 @@ export function consumeOAuthConnectionTrackData(): Record<string, unknown> | und
     window.sessionStorage.removeItem(OAUTH_CONNECTION_TRACK_STORAGE_KEY);
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
-    return parsed as Record<string, unknown>;
+    return sanitizeOAuthConnectionTrackDataForStorage(parsed as Record<string, unknown>);
   } catch (error) {
     log.error("Failed to consume oauth connection track data", error);
     return undefined;
