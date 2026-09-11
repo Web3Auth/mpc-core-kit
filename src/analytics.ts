@@ -45,6 +45,18 @@ export interface AnalyticsOptions {
   clientFactory?: AnalyticsClientFactory;
 }
 
+function unwrapAnalyticsClient(client: AnalyticsClient): AnalyticsClient {
+  // AnalyticsBrowser is PromiseLike<[Analytics, Context]>. An async factory
+  // that returns it resolves to that tuple instead of the client. Returning a
+  // plain object also prevents later `await client` from unwrapping it again.
+  const value = client as AnalyticsClient | [AnalyticsClient, unknown];
+  const resolved = Array.isArray(value) && value[0] && typeof value[0].track === "function" ? value[0] : client;
+  return {
+    identify: resolved.identify.bind(resolved),
+    track: resolved.track.bind(resolved),
+  };
+}
+
 export class Analytics {
   private client?: AnalyticsClient;
 
@@ -73,7 +85,12 @@ export class Analytics {
             globalAnalyticsKey: "web3auth_analytics",
           }
         );
-        return segment as AnalyticsClient;
+        // AnalyticsBrowser is a PromiseLike<[Analytics, Context]>, so returning it
+        // directly from an async function would resolve to that tuple instead of the client.
+        return {
+          identify: segment.identify.bind(segment),
+          track: segment.track.bind(segment),
+        };
       });
   }
 
@@ -82,8 +99,8 @@ export class Analytics {
 
     this.initializationPromise = this.clientFactory()
       .then((client) => {
-        this.client = client;
-        return client;
+        this.client = unwrapAnalyticsClient(client);
+        return this.client;
       })
       .catch((error: unknown): AnalyticsClient | undefined => {
         log.error("Failed to initialize analytics", error);
@@ -145,6 +162,32 @@ function sanitizeErrorMessage(message: string): string {
     .replace(/\b(?:0x)?[a-fA-F0-9]{64,}\b/g, "[REDACTED_KEY]")
     .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
     .slice(0, 500);
+}
+
+export const OAUTH_CONNECTION_TRACK_STORAGE_KEY = "web3auth_mpc_oauth_connection_track";
+
+export function persistOAuthConnectionTrackData(trackData: Record<string, unknown>): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage.setItem(OAUTH_CONNECTION_TRACK_STORAGE_KEY, JSON.stringify(trackData));
+  } catch (error) {
+    log.error("Failed to persist oauth connection track data", error);
+  }
+}
+
+export function consumeOAuthConnectionTrackData(): Record<string, unknown> | undefined {
+  if (typeof window === "undefined") return undefined;
+  try {
+    const raw = window.sessionStorage.getItem(OAUTH_CONNECTION_TRACK_STORAGE_KEY);
+    if (!raw) return undefined;
+    window.sessionStorage.removeItem(OAUTH_CONNECTION_TRACK_STORAGE_KEY);
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+    return parsed as Record<string, unknown>;
+  } catch (error) {
+    log.error("Failed to consume oauth connection track data", error);
+    return undefined;
+  }
 }
 
 export function getErrorAnalyticsProperties(error: unknown): { error_code?: number | string; error_message: string } {

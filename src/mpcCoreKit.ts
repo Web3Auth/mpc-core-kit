@@ -35,8 +35,10 @@ import {
   ANALYTICS_INTEGRATION_TYPE,
   ANALYTICS_SDK_NAME,
   ANALYTICS_SDK_VERSION,
+  consumeOAuthConnectionTrackData,
   getErrorAnalyticsProperties,
   getInputFactorFailureReason,
+  persistOAuthConnectionTrackData,
 } from "./analytics";
 import {
   ERRORS,
@@ -430,9 +432,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
     const startTime = Date.now();
     const trackData = this.getOAuthTrackData(params);
-    // Redirect unloads the page before Segment can reliably send; the return
-    // path in handleRedirectResult records Connection Started instead.
-    if (!this.isRedirectMode) {
+    // Redirect unloads the page before Segment can reliably send. Persist the
+    // OAuth properties so handleRedirectResult can emit Connection Started with
+    // the same verifier / auth_connection. If triggerLogin throws before unload,
+    // emit start here so Connection Failed still has a matching funnel start.
+    if (this.isRedirectMode) {
+      persistOAuthConnectionTrackData(trackData);
+    } else {
       void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
     }
     try {
@@ -483,9 +489,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       log.error("login error", err);
       if (err instanceof CoreError) {
         if (err.code === 1302) {
+          if (this.isRedirectMode) {
+            consumeOAuthConnectionTrackData();
+            void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
+          }
           this.trackRequiredShare(startTime, trackData);
           throw CoreKitError.default(ERRORS.TKEY_SHARES_REQUIRED);
         }
+      }
+      if (this.isRedirectMode) {
+        consumeOAuthConnectionTrackData();
+        void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
       }
       void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_FAILED, {
         ...trackData,
@@ -592,7 +606,11 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   public async handleRedirectResult(): Promise<void> {
     this.checkReady();
     const startTime = Date.now();
-    void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, { login_method: "redirect" });
+    let connectionTrackData: Record<string, unknown> = {
+      ...consumeOAuthConnectionTrackData(),
+      login_method: "redirect",
+    };
+    void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, connectionTrackData);
 
     try {
       const result = await this.torusSp.customAuthInstance.getRedirectResult();
@@ -628,32 +646,26 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       const userInfo = this.getUserInfo();
+      connectionTrackData = this.enrichRedirectConnectionTrackData(connectionTrackData, userInfo);
       if (!this.state.postBoxKey) {
         throw CoreKitError.postBoxKeyMissing("postBoxKey not present in state after processing redirect result.");
       }
       this.torusSp.postboxKey = new BN(this.state.postBoxKey, "hex");
       this.torusSp.verifierId = userInfo.verifierId;
       await this.setupTkey();
-      this.trackConnectionOutcome(startTime, {
-        login_method: "redirect",
-        verifier: userInfo.aggregateVerifier || userInfo.verifier,
-        is_aggregate_verifier: Boolean(userInfo.aggregateVerifier),
-      });
+      this.trackConnectionOutcome(startTime, connectionTrackData);
     } catch (error: unknown) {
       const { userInfo } = this.state;
+      connectionTrackData = this.enrichRedirectConnectionTrackData(connectionTrackData, userInfo);
       const isRequiredShare = error instanceof CoreError && error.code === 1302;
       if (isRequiredShare) {
-        this.trackRequiredShare(startTime, {
-          login_method: "redirect",
-          verifier: userInfo?.aggregateVerifier || userInfo?.verifier,
-          is_aggregate_verifier: Boolean(userInfo?.aggregateVerifier),
-        });
+        this.trackRequiredShare(startTime, connectionTrackData);
       }
       this.resetState();
       log.error("error while handling redirect result", error);
       if (!isRequiredShare) {
         void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_FAILED, {
-          login_method: "redirect",
+          ...connectionTrackData,
           ...getErrorAnalyticsProperties(error),
           duration: Date.now() - startTime,
         });
@@ -1682,6 +1694,16 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       verifier: params.aggregateVerifierIdentifier,
       auth_connection: params.subVerifierDetailsArray[0]?.typeOfLogin,
       is_aggregate_verifier: true,
+    };
+  }
+
+  private enrichRedirectConnectionTrackData(trackData: Record<string, unknown>, userInfo?: UserInfo): Record<string, unknown> {
+    return {
+      ...trackData,
+      login_method: "redirect",
+      verifier: trackData.verifier ?? userInfo?.aggregateVerifier ?? userInfo?.verifier,
+      auth_connection: trackData.auth_connection ?? userInfo?.typeOfLogin,
+      is_aggregate_verifier: trackData.is_aggregate_verifier ?? Boolean(userInfo?.aggregateVerifier),
     };
   }
 

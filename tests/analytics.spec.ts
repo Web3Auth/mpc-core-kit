@@ -6,8 +6,11 @@ import {
   ANALYTICS_SDK_VERSION,
   Analytics,
   AnalyticsClient,
+  consumeOAuthConnectionTrackData,
   getErrorAnalyticsProperties,
   getInputFactorFailureReason,
+  OAUTH_CONNECTION_TRACK_STORAGE_KEY,
+  persistOAuthConnectionTrackData,
   WEB3AUTH_NETWORK,
 } from "../src";
 import { version as packageVersion } from "../package.json";
@@ -106,6 +109,34 @@ test("analytics skips insecure and local origins", async () => {
   }
 });
 
+test("analytics uses a thenable Segment client instead of the resolved tuple", async () => {
+  const originalWindow = globalThis.window;
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { location: { origin: "https://example.com" } },
+  });
+  try {
+    const trackCalls: unknown[][] = [];
+    const client = {
+      identify: async (): Promise<void> => undefined,
+      track: async (...args: unknown[]): Promise<void> => {
+        trackCalls.push(args);
+      },
+      then(onFulfilled?: (value: unknown) => unknown) {
+        return Promise.resolve([this, {}]).then(onFulfilled);
+      },
+    };
+    const analytics = new Analytics({
+      clientFactory: async () => client as unknown as AnalyticsClient,
+    });
+    analytics.init();
+    await analytics.track(ANALYTICS_EVENTS.CONNECTION_COMPLETED);
+    assert.strictEqual(trackCalls[0][0], ANALYTICS_EVENTS.CONNECTION_COMPLETED);
+  } finally {
+    Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
+  }
+});
+
 test("analytics skips when no browser window is available", async () => {
   const originalWindow = globalThis.window;
   let factoryCalled = false;
@@ -176,4 +207,38 @@ test("analytics errors redact tokens and key material", () => {
   assert.strictEqual(properties.error_message.includes(token), false);
   assert.strictEqual(properties.error_message.includes(key), false);
   assert.strictEqual(properties.error_message.includes(email), false);
+});
+
+test("oauth connection track data survives a redirect and is consumed once", () => {
+  const originalWindow = globalThis.window;
+  const store = new Map<string, string>();
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: {
+      sessionStorage: {
+        setItem: (key: string, value: string) => {
+          store.set(key, value);
+        },
+        getItem: (key: string) => store.get(key) ?? null,
+        removeItem: (key: string) => {
+          store.delete(key);
+        },
+      },
+    },
+  });
+
+  try {
+    const trackData = {
+      login_method: "oauth",
+      verifier: "google-verifier",
+      auth_connection: "google",
+      is_aggregate_verifier: false,
+    };
+    persistOAuthConnectionTrackData(trackData);
+    assert.ok(store.has(OAUTH_CONNECTION_TRACK_STORAGE_KEY));
+    assert.deepStrictEqual(consumeOAuthConnectionTrackData(), trackData);
+    assert.strictEqual(consumeOAuthConnectionTrackData(), undefined);
+  } finally {
+    Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
+  }
 });
