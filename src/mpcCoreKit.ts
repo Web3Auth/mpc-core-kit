@@ -35,10 +35,10 @@ import {
   ANALYTICS_INTEGRATION_TYPE,
   ANALYTICS_SDK_NAME,
   ANALYTICS_SDK_VERSION,
-  consumeOAuthConnectionTrackData,
+  consumePendingConnectionTrackData,
   getErrorAnalyticsProperties,
   getInputFactorFailureReason,
-  persistOAuthConnectionTrackData,
+  persistPendingConnectionTrackData,
 } from "./analytics";
 import {
   ERRORS,
@@ -431,13 +431,13 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.invalidConfig("key import is not supported in redirect mode");
     }
     const startTime = Date.now();
-    const trackData = this.getOAuthTrackData(params);
+    const trackData = this.getConnectionTrackData(params);
     // Redirect unloads the page before Segment can reliably send. Persist the
-    // OAuth properties so handleRedirectResult can emit Connection Started with
+    // connection properties so handleRedirectResult can emit Connection Started with
     // the same verifier / auth_connection. If triggerLogin throws before unload,
     // emit start here so Connection Failed still has a matching funnel start.
     if (this.isRedirectMode) {
-      persistOAuthConnectionTrackData(trackData);
+      persistPendingConnectionTrackData(trackData);
     } else {
       void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
     }
@@ -490,7 +490,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       if (err instanceof CoreError) {
         if (err.code === 1302) {
           if (this.isRedirectMode) {
-            consumeOAuthConnectionTrackData();
+            consumePendingConnectionTrackData();
             void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
           }
           this.trackRequiredShare(startTime, trackData);
@@ -498,7 +498,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         }
       }
       if (this.isRedirectMode) {
-        consumeOAuthConnectionTrackData();
+        consumePendingConnectionTrackData();
         void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
       }
       void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_FAILED, {
@@ -607,7 +607,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     this.checkReady();
     const startTime = Date.now();
     let connectionTrackData: Record<string, unknown> = {
-      ...consumeOAuthConnectionTrackData(),
+      ...consumePendingConnectionTrackData(),
       login_method: "redirect",
     };
     void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, connectionTrackData);
@@ -1680,7 +1680,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     });
   }
 
-  private getOAuthTrackData(params: OAuthLoginParams): Record<string, unknown> {
+  private getConnectionTrackData(params: OAuthLoginParams): Record<string, unknown> {
     if ("subVerifierDetails" in params) {
       return {
         login_method: "oauth",

@@ -6,11 +6,11 @@ import {
   ANALYTICS_SDK_VERSION,
   Analytics,
   AnalyticsClient,
-  consumeOAuthConnectionTrackData,
+  consumePendingConnectionTrackData,
+  CONNECTION_TRACK_STORAGE_KEY,
   getErrorAnalyticsProperties,
   getInputFactorFailureReason,
-  OAUTH_CONNECTION_TRACK_STORAGE_KEY,
-  persistOAuthConnectionTrackData,
+  persistPendingConnectionTrackData,
   WEB3AUTH_NETWORK,
 } from "../src";
 import { version as packageVersion } from "../package.json";
@@ -209,7 +209,7 @@ test("analytics errors redact tokens and key material", () => {
   assert.strictEqual(properties.error_message.includes(email), false);
 });
 
-test("oauth connection track data survives a redirect and is consumed once", () => {
+test("pending connection track data survives a redirect and is consumed once", () => {
   const originalWindow = globalThis.window;
   const store = new Map<string, string>();
   Object.defineProperty(globalThis, "window", {
@@ -234,16 +234,16 @@ test("oauth connection track data survives a redirect and is consumed once", () 
       auth_connection: "google",
       is_aggregate_verifier: false,
     };
-    persistOAuthConnectionTrackData({
+    persistPendingConnectionTrackData({
       ...trackData,
       id_token: "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.VerySecretSignature",
       email: "person@example.com",
     });
-    const stored = JSON.parse(store.get(OAUTH_CONNECTION_TRACK_STORAGE_KEY) || "{}") as Record<string, unknown>;
+    const stored = JSON.parse(store.get(CONNECTION_TRACK_STORAGE_KEY) || "{}") as Record<string, unknown>;
     assert.deepStrictEqual(stored, trackData);
     assert.strictEqual("id_token" in stored, false);
-    assert.deepStrictEqual(consumeOAuthConnectionTrackData(), trackData);
-    assert.strictEqual(consumeOAuthConnectionTrackData(), undefined);
+    assert.deepStrictEqual(consumePendingConnectionTrackData(), trackData);
+    assert.strictEqual(consumePendingConnectionTrackData(), undefined);
   } finally {
     Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
   }

@@ -164,12 +164,12 @@ function sanitizeErrorMessage(message: string): string {
     .slice(0, 500);
 }
 
-const OAUTH_CONNECTION_TRACK_ALLOWED_KEYS = new Set(["login_method", "verifier", "auth_connection", "is_aggregate_verifier"]);
+const CONNECTION_TRACK_ALLOWED_KEYS = new Set(["login_method", "verifier", "auth_connection", "is_aggregate_verifier"]);
 
-function sanitizeOAuthConnectionTrackDataForStorage(trackData: Record<string, unknown>): Record<string, unknown> {
+function sanitizeConnectionTrackDataForStorage(trackData: Record<string, unknown>): Record<string, unknown> {
   const sanitized: Record<string, unknown> = {};
   Object.entries(trackData).forEach(([key, value]) => {
-    if (!OAUTH_CONNECTION_TRACK_ALLOWED_KEYS.has(key)) return;
+    if (!CONNECTION_TRACK_ALLOWED_KEYS.has(key)) return;
     if (typeof value === "string" || typeof value === "number" || typeof value === "boolean" || value === null) {
       sanitized[key] = value;
     }
@@ -177,29 +177,29 @@ function sanitizeOAuthConnectionTrackDataForStorage(trackData: Record<string, un
   return sanitized;
 }
 
-export const OAUTH_CONNECTION_TRACK_STORAGE_KEY = "web3auth_mpc_oauth_connection_track";
+export const CONNECTION_TRACK_STORAGE_KEY = "web3auth_mpc_connection_track";
 
-export function persistOAuthConnectionTrackData(trackData: Record<string, unknown>): void {
+export function persistPendingConnectionTrackData(trackData: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
   try {
-    const sanitizedTrackData = sanitizeOAuthConnectionTrackDataForStorage(trackData);
-    window.sessionStorage.setItem(OAUTH_CONNECTION_TRACK_STORAGE_KEY, JSON.stringify(sanitizedTrackData));
+    const sanitizedTrackData = sanitizeConnectionTrackDataForStorage(trackData);
+    window.sessionStorage.setItem(CONNECTION_TRACK_STORAGE_KEY, JSON.stringify(sanitizedTrackData));
   } catch (error) {
-    log.error("Failed to persist oauth connection track data", error);
+    log.error("Failed to persist pending connection track data", error);
   }
 }
 
-export function consumeOAuthConnectionTrackData(): Record<string, unknown> | undefined {
+export function consumePendingConnectionTrackData(): Record<string, unknown> | undefined {
   if (typeof window === "undefined") return undefined;
   try {
-    const raw = window.sessionStorage.getItem(OAUTH_CONNECTION_TRACK_STORAGE_KEY);
+    const raw = window.sessionStorage.getItem(CONNECTION_TRACK_STORAGE_KEY);
     if (!raw) return undefined;
-    window.sessionStorage.removeItem(OAUTH_CONNECTION_TRACK_STORAGE_KEY);
+    window.sessionStorage.removeItem(CONNECTION_TRACK_STORAGE_KEY);
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
-    return sanitizeOAuthConnectionTrackDataForStorage(parsed as Record<string, unknown>);
+    return sanitizeConnectionTrackDataForStorage(parsed as Record<string, unknown>);
   } catch (error) {
-    log.error("Failed to consume oauth connection track data", error);
+    log.error("Failed to consume pending connection track data", error);
     return undefined;
   }
 }
