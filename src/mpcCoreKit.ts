@@ -30,6 +30,17 @@ import bowser from "bowser";
 import { ec as EC } from "elliptic";
 
 import {
+  Analytics,
+  ANALYTICS_EVENTS,
+  ANALYTICS_INTEGRATION_TYPE,
+  ANALYTICS_SDK_NAME,
+  ANALYTICS_SDK_VERSION,
+  consumePendingConnectionTrackData,
+  getErrorAnalyticsProperties,
+  getInputFactorFailureReason,
+  persistPendingConnectionTrackData,
+} from "./analytics";
+import {
   ERRORS,
   FactorKeyTypeShareDescription,
   FIELD_ELEMENT_HEX_LEN,
@@ -114,6 +125,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   private socketTransports: string[] = ["websocket", "polling"];
 
+  private analytics: Analytics;
+
+  private suppressFactorAnalytics = false;
+
+  private skipInitAnalytics = false;
+
   constructor(options: Web3AuthOptions) {
     if (!options.web3AuthClientId) {
       throw CoreKitError.clientIdInvalid();
@@ -139,6 +156,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     if (!options.disableHashedFactorKey) options.disableHashedFactorKey = false;
     if (!options.hashedFactorNonce) options.hashedFactorNonce = options.web3AuthClientId;
     if (options.disableSessionManager === undefined) options.disableSessionManager = false;
+    if (options.disableAnalytics === undefined) options.disableAnalytics = false;
     if (options.socketTransports) this.socketTransports = options.socketTransports;
     this.options = options as Web3AuthOptionsWithDefaults;
 
@@ -149,6 +167,20 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
         sessionTime: options.sessionTime,
       });
     }
+
+    this.analytics = new Analytics({
+      disabled: options.disableAnalytics || isNodejsOrRN,
+    });
+    this.analytics.setGlobalProperties({
+      integration_type: ANALYTICS_INTEGRATION_TYPE,
+      dapp_url: typeof window === "undefined" ? undefined : window.location?.origin,
+      sdk_name: ANALYTICS_SDK_NAME,
+      sdk_version: ANALYTICS_SDK_VERSION,
+      web3auth_client_id: this.options.web3AuthClientId,
+      web3auth_network: this.options.web3AuthNetwork,
+      auth_ux_mode: this.options.uxMode,
+      key_type: this.keyType,
+    });
 
     TorusUtils.setSessionTime(this.options.sessionTime);
   }
@@ -228,7 +260,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const { tssIndex, tssShare } = await this.tKey.getTSSShare(factorKeyBNInput);
       if (tssIndexes.includes(tssIndex)) {
         // reset instance before throw error
-        await this.init();
+        this.skipInitAnalytics = true;
+        try {
+          await this.init();
+        } finally {
+          this.skipInitAnalytics = false;
+        }
         throw CoreKitError.duplicateTssIndex();
       }
       tssIndexes.push(tssIndex);
@@ -238,94 +275,139 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     const finalKey = lagrangeInterpolation(this.tkey.tssCurve, tssShares, tssIndexesBN);
     // reset instance after recovery completed
-    await this.init();
+    this.skipInitAnalytics = true;
+    try {
+      await this.init();
+    } finally {
+      this.skipInitAnalytics = false;
+    }
     return finalKey.toString("hex", 64);
   }
 
   public async init(params: InitParams = { handleRedirectResult: true }): Promise<void> {
-    this.resetState();
-    if (params.rehydrate === undefined) params.rehydrate = true;
-
-    const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
-
-    if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG) {
-      throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
+    const startTime = Date.now();
+    this.analytics.init();
+    if (!this.skipInitAnalytics) {
+      void this.analytics.identify(this.options.web3AuthClientId, {
+        web3auth_client_id: this.options.web3AuthClientId,
+        web3auth_network: this.options.web3AuthNetwork,
+      });
     }
+    let skipSdkInitializationFailed = false;
 
-    this.torusSp = new TSSTorusServiceProvider({
-      customAuthArgs: {
-        web3AuthClientId: this.options.web3AuthClientId,
-        baseUrl: this.options.baseUrl,
-        uxMode: this.isNodejsOrRN(this.options.uxMode) ? UX_MODE.REDIRECT : (this.options.uxMode as UX_MODE_TYPE),
-        network: this.options.web3AuthNetwork,
-        redirectPathName: this.options.redirectPathName,
-        locationReplaceOnRedirect: true,
-        serverTimeOffset: this.options.serverTimeOffset,
-        keyType: this.keyType,
-        useDkg: this.options.useDKG,
-      },
-    });
+    try {
+      this.resetState();
+      if (params.rehydrate === undefined) params.rehydrate = true;
 
-    this.storageLayer = new TorusStorageLayer({
-      hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
-      enableLogging: this.enableLogging,
-    });
+      const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
-    const shareSerializationModule = new ShareSerializationModule();
+      if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG) {
+        throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
+      }
 
-    this.tkey = new TKeyTSS({
-      enableLogging: this.enableLogging,
-      serviceProvider: this.torusSp,
-      storageLayer: this.storageLayer,
-      manualSync: this.options.manualSync,
-      modules: {
-        shareSerialization: shareSerializationModule,
-      },
-      tssKeyType: this.keyType,
-    });
+      this.torusSp = new TSSTorusServiceProvider({
+        customAuthArgs: {
+          web3AuthClientId: this.options.web3AuthClientId,
+          baseUrl: this.options.baseUrl,
+          uxMode: this.isNodejsOrRN(this.options.uxMode) ? UX_MODE.REDIRECT : (this.options.uxMode as UX_MODE_TYPE),
+          network: this.options.web3AuthNetwork,
+          redirectPathName: this.options.redirectPathName,
+          locationReplaceOnRedirect: true,
+          serverTimeOffset: this.options.serverTimeOffset,
+          keyType: this.keyType,
+          useDkg: this.options.useDKG,
+        },
+      });
 
-    if (this.isRedirectMode) {
-      await this.torusSp.init({ skipSw: true, skipPrefetch: true });
-    } else if (this.options.uxMode === UX_MODE.POPUP) {
-      await this.torusSp.init({});
-    }
+      this.storageLayer = new TorusStorageLayer({
+        hostUrl: `${new URL(nodeDetails.torusNodeEndpoints[0]).origin}/metadata`,
+        enableLogging: this.enableLogging,
+      });
 
-    this.ready = true;
+      const shareSerializationModule = new ShareSerializationModule();
 
-    // try handle redirect flow if enabled and return(redirect) from oauth login
-    if (
-      params.handleRedirectResult &&
-      this.options.uxMode === UX_MODE.REDIRECT &&
-      (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))
-    ) {
-      // on failed redirect, instance is reseted.
-      // skip check feature gating on redirection as it was check before login
-      await this.handleRedirectResult();
+      this.tkey = new TKeyTSS({
+        enableLogging: this.enableLogging,
+        serviceProvider: this.torusSp,
+        storageLayer: this.storageLayer,
+        manualSync: this.options.manualSync,
+        modules: {
+          shareSerialization: shareSerializationModule,
+        },
+        tssKeyType: this.keyType,
+      });
 
-      // return early on successful redirect, the rest of the code will not be executed
-      return;
-    } else if (params.rehydrate && this.sessionManager) {
-      // if not redirect flow try to rehydrate session if available
-      const sessionId = await this.currentStorage.get<string>("sessionId");
-      if (sessionId) {
-        this.sessionManager.sessionId = sessionId;
+      if (this.isRedirectMode) {
+        await this.torusSp.init({ skipSw: true, skipPrefetch: true });
+      } else if (this.options.uxMode === UX_MODE.POPUP) {
+        await this.torusSp.init({});
+      }
 
-        // swallowed, should not throw on rehydrate timed out session
-        const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
-          log.error("rehydrate session error", err);
-        });
+      this.ready = true;
 
-        // try rehydrate session
-        if (sessionResult) {
-          await this.rehydrateSession(sessionResult);
+      // try handle redirect flow if enabled and return(redirect) from oauth login
+      if (
+        params.handleRedirectResult &&
+        this.options.uxMode === UX_MODE.REDIRECT &&
+        (window?.location.hash.includes("#state") || window?.location.hash.includes("#access_token"))
+      ) {
+        // on failed redirect, instance is reseted.
+        // skip check feature gating on redirection as it was check before login
+        // Connection Started/Completed/Failed are tracked inside handleRedirectResult.
+        // Login errors from redirect must not also count as SDK initialization failures.
+        try {
+          await this.handleRedirectResult();
+        } catch (error) {
+          skipSdkInitializationFailed = true;
+          throw error;
+        }
+        this.trackInitializationCompleted(startTime, { session_rehydration: "skipped" });
 
-          // return early on success rehydration
+        // return early on successful redirect, the rest of the code will not be executed
+        return;
+      } else if (params.rehydrate && this.sessionManager) {
+        // if not redirect flow try to rehydrate session if available
+        const sessionId = await this.currentStorage.get<string>("sessionId");
+        if (sessionId) {
+          this.sessionManager.sessionId = sessionId;
+          const rehydrationStartTime = Date.now();
+
+          // swallowed, should not throw on rehydrate timed out session
+          const sessionResult = await this.sessionManager.authorizeSession().catch(async (err) => {
+            log.error("rehydrate session error", err);
+            void this.analytics.track(ANALYTICS_EVENTS.SESSION_REHYDRATION_FAILED, {
+              ...getErrorAnalyticsProperties(err),
+              duration: Date.now() - rehydrationStartTime,
+            });
+          });
+
+          // try rehydrate session
+          if (sessionResult) {
+            const rehydrated = await this.rehydrateSession(sessionResult);
+            this.trackInitializationCompleted(startTime, { session_rehydration: rehydrated ? "completed" : "failed" });
+
+            // return early whether rehydrate succeeded or swallowed an error
+            return;
+          }
+
+          await this.featureRequest();
+          this.trackInitializationCompleted(startTime, { session_rehydration: "failed" });
           return;
         }
       }
+      // feature gating if not redirect flow or session rehydration
+      await this.featureRequest();
+      this.trackInitializationCompleted(startTime, { session_rehydration: "skipped" });
+    } catch (error) {
+      if (!this.skipInitAnalytics && !skipSdkInitializationFailed) {
+        void this.analytics.track(ANALYTICS_EVENTS.SDK_INITIALIZATION_FAILED, {
+          ...this.getInitializationTrackData(),
+          ...getErrorAnalyticsProperties(error),
+          duration: Date.now() - startTime,
+        });
+      }
+      throw error;
     }
-    // feature gating if not redirect flow or session rehydration
-    await this.featureRequest();
   }
 
   public async loginWithOAuth(params: OAuthLoginParams): Promise<void> {
@@ -347,6 +429,17 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
     if (this.isRedirectMode && (importTssKey || registerExistingSFAKey)) {
       throw CoreKitError.invalidConfig("key import is not supported in redirect mode");
+    }
+    const startTime = Date.now();
+    const trackData = this.getConnectionTrackData(params);
+    // Redirect unloads the page before Segment can reliably send. Persist the
+    // connection properties so handleRedirectResult can emit Connection Started with
+    // the same verifier / auth_connection. If triggerLogin throws before unload,
+    // emit start here so Connection Failed still has a matching funnel start.
+    if (this.isRedirectMode) {
+      persistPendingConnectionTrackData(trackData);
+    } else {
+      void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
     }
     try {
       // oAuth login.
@@ -391,13 +484,28 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         await this.setupTkey(importTssKey, loginResponse, false);
       }
+      this.trackConnectionOutcome(startTime, trackData);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
         if (err.code === 1302) {
+          if (this.isRedirectMode) {
+            consumePendingConnectionTrackData();
+            void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
+          }
+          this.trackRequiredShare(startTime, trackData);
           throw CoreKitError.default(ERRORS.TKEY_SHARES_REQUIRED);
         }
       }
+      if (this.isRedirectMode) {
+        consumePendingConnectionTrackData();
+        void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
+      }
+      void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_FAILED, {
+        ...trackData,
+        ...getErrorAnalyticsProperties(err),
+        duration: Date.now() - startTime,
+      });
       throw CoreKitError.default((err as Error).message);
     }
   }
@@ -422,6 +530,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       throw CoreKitError.invalidConfig("Cannot import TSS key and register SFA key at the same time.");
     }
 
+    const startTime = Date.now();
+    const trackData = this.getJWTTrackData(params);
+    void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
     try {
       // prefetch tss pub keys.
       const prefetchTssPubs = [];
@@ -466,15 +577,22 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       } else {
         await this.setupTkey(importTssKey, loginResponse, false);
       }
+      this.trackConnectionOutcome(startTime, trackData);
     } catch (err: unknown) {
       log.error("login error", err);
       if (err instanceof CoreError) {
         if (err.code === 1302) {
+          this.trackRequiredShare(startTime, trackData);
           const newError = CoreKitError.default(ERRORS.TKEY_SHARES_REQUIRED);
           newError.stack = err.stack;
           throw newError;
         }
       }
+      void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_FAILED, {
+        ...trackData,
+        ...getErrorAnalyticsProperties(err),
+        duration: Date.now() - startTime,
+      });
       const newError = CoreKitError.default((err as Error).message);
       newError.stack = (err as Error).stack;
       throw newError;
@@ -487,6 +605,12 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   public async handleRedirectResult(): Promise<void> {
     this.checkReady();
+    const startTime = Date.now();
+    let connectionTrackData: Record<string, unknown> = {
+      ...consumePendingConnectionTrackData(),
+      login_method: "redirect",
+    };
+    void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED, connectionTrackData);
 
     try {
       const result = await this.torusSp.customAuthInstance.getRedirectResult();
@@ -522,25 +646,48 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       }
 
       const userInfo = this.getUserInfo();
+      connectionTrackData = this.enrichRedirectConnectionTrackData(connectionTrackData, userInfo);
       if (!this.state.postBoxKey) {
         throw CoreKitError.postBoxKeyMissing("postBoxKey not present in state after processing redirect result.");
       }
       this.torusSp.postboxKey = new BN(this.state.postBoxKey, "hex");
       this.torusSp.verifierId = userInfo.verifierId;
       await this.setupTkey();
+      this.trackConnectionOutcome(startTime, connectionTrackData);
     } catch (error: unknown) {
+      const { userInfo } = this.state;
+      connectionTrackData = this.enrichRedirectConnectionTrackData(connectionTrackData, userInfo);
+      const isRequiredShare = error instanceof CoreError && error.code === 1302;
+      if (isRequiredShare) {
+        this.trackRequiredShare(startTime, connectionTrackData);
+      }
       this.resetState();
       log.error("error while handling redirect result", error);
+      if (!isRequiredShare) {
+        void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_FAILED, {
+          ...connectionTrackData,
+          ...getErrorAnalyticsProperties(error),
+          duration: Date.now() - startTime,
+        });
+      }
       throw CoreKitError.default((error as Error).message);
     }
   }
 
   public async inputFactorKey(factorKey: BN): Promise<void> {
     this.checkReady();
+    const startTime = Date.now();
+    const completesLogin = this.status === COREKIT_STATUS.REQUIRED_SHARE;
+    if (!this.suppressFactorAnalytics) void this.analytics.track(ANALYTICS_EVENTS.INPUT_FACTOR_STARTED);
     try {
       // always check for valid factor key
-      const factorKeyPrivate = factorKeyCurve.keyFromPrivate(factorKey.toBuffer());
-      const factorPubX = factorKeyPrivate.getPublic().getX().toString("hex").padStart(64, "0");
+      let factorPubX: string;
+      try {
+        const factorKeyPrivate = factorKeyCurve.keyFromPrivate(factorKey.toBuffer());
+        factorPubX = factorKeyPrivate.getPublic().getX().toString("hex").padStart(64, "0");
+      } catch {
+        throw CoreKitError.providedFactorKeyInvalid("Invalid FactorKey provided. Failed to derive its public key.");
+      }
       const factorEncExist = this.tkey.metadata.factorEncs?.[this.tkey.tssTag]?.[factorPubX];
       if (!factorEncExist) {
         throw CoreKitError.providedFactorKeyInvalid("Invalid FactorKey provided. Failed to input factor key.");
@@ -556,8 +703,28 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       // Finalize initialization.
       await this.tKey.reconstructKey();
       await this.finalizeTkey(factorKey);
+      if (!this.suppressFactorAnalytics) {
+        void this.analytics.track(ANALYTICS_EVENTS.INPUT_FACTOR_COMPLETED, {
+          factor_share_type: this.state.tssShareIndex,
+          duration: Date.now() - startTime,
+        });
+      }
+      if (completesLogin && !this.suppressFactorAnalytics) {
+        void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_COMPLETED, {
+          completion_method: "input_factor",
+          factor_share_type: this.state.tssShareIndex,
+          duration: Date.now() - startTime,
+        });
+      }
     } catch (err: unknown) {
       log.error("login error", err);
+      if (!this.suppressFactorAnalytics) {
+        void this.analytics.track(ANALYTICS_EVENTS.INPUT_FACTOR_FAILED, {
+          failure_reason: getInputFactorFailureReason(err),
+          ...getErrorAnalyticsProperties(err),
+          duration: Date.now() - startTime,
+        });
+      }
       if (err instanceof CoreError) {
         if (err.code === 1302) {
           throw CoreKitError.default(ERRORS.TKEY_SHARES_REQUIRED);
@@ -590,58 +757,82 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string> {
+  public async enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor = true): Promise<string | undefined> {
     this.checkReady();
-
-    const { postBoxKey } = this.state;
-    const hashedFactorKey = getHashedPrivateKey(postBoxKey, this.options.hashedFactorNonce);
-    if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
-      if (this.tKey._localMetadataTransitions[0].length) {
-        throw CoreKitError.commitChangesBeforeMFA();
-      }
-      throw CoreKitError.mfaAlreadyEnabled();
-    }
-
-    return this.atomicSync(async () => {
-      let browserData;
-
-      if (this.isNodejsOrRN(this.options.uxMode)) {
-        browserData = {
-          browserName: "Node Env",
-          browserVersion: "",
-          deviceName: "nodejs",
-        };
-      } else {
-        // try {
-        const browserInfo = bowser.parse(navigator.userAgent);
-        const browserName = `${browserInfo.browser.name}`;
-        browserData = {
-          browserName,
-          browserVersion: browserInfo.browser.version,
-          deviceName: browserInfo.os.name,
-        };
-      }
-      const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
-      await this.setDeviceFactor(deviceFactorKey);
-      await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
-
-      const hashedFactorPub = getPubKeyPoint(hashedFactorKey, factorKeyCurve);
-      await this.deleteFactor(hashedFactorPub, hashedFactorKey);
-
-      // only recovery factor = true
-      let backupFactorKey;
-      if (recoveryFactor) {
-        backupFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
-      }
-
-      // update to undefined for next major release
-      return backupFactorKey;
-    }).catch((reason: Error) => {
-      log.error("error enabling MFA:", reason.message);
-      const err = CoreKitError.default(reason.message);
-      err.stack = reason.stack;
-      throw err;
+    const startTime = Date.now();
+    let mutationStarted = false;
+    void this.analytics.track(ANALYTICS_EVENTS.MFA_ENABLEMENT_STARTED, {
+      auth_ux_mode: this.options.uxMode,
+      recovery_factor_enabled: recoveryFactor,
     });
+
+    try {
+      const { postBoxKey } = this.state;
+      const hashedFactorKey = getHashedPrivateKey(postBoxKey, this.options.hashedFactorNonce);
+      if (!(await this.checkIfFactorKeyValid(hashedFactorKey))) {
+        if (this.tKey._localMetadataTransitions[0].length) {
+          throw CoreKitError.commitChangesBeforeMFA();
+        }
+        throw CoreKitError.mfaAlreadyEnabled();
+      }
+
+      mutationStarted = true;
+      this.suppressFactorAnalytics = true;
+      const backupFactorKey = await this.atomicSync(async () => {
+        let browserData;
+
+        if (this.isNodejsOrRN(this.options.uxMode)) {
+          browserData = {
+            browserName: "Node Env",
+            browserVersion: "",
+            deviceName: "nodejs",
+          };
+        } else {
+          const browserInfo = bowser.parse(navigator.userAgent);
+          const browserName = `${browserInfo.browser.name}`;
+          browserData = {
+            browserName,
+            browserVersion: browserInfo.browser.version,
+            deviceName: browserInfo.os.name,
+          };
+        }
+        const deviceFactorKey = new BN(await this.createFactor({ shareType: TssShareType.DEVICE, additionalMetadata: browserData }), "hex");
+        await this.setDeviceFactor(deviceFactorKey);
+        await this.inputFactorKey(new BN(deviceFactorKey, "hex"));
+
+        const hashedFactorPub = getPubKeyPoint(hashedFactorKey, factorKeyCurve);
+        await this.deleteFactor(hashedFactorPub, hashedFactorKey);
+
+        // only recovery factor = true
+        let recoveryFactorKey: string | undefined;
+        if (recoveryFactor) {
+          recoveryFactorKey = await this.createFactor({ shareType: TssShareType.RECOVERY, ...enableMFAParams });
+        }
+
+        return recoveryFactorKey;
+      });
+      this.suppressFactorAnalytics = false;
+      void this.analytics.track(ANALYTICS_EVENTS.MFA_ENABLEMENT_COMPLETED, {
+        auth_ux_mode: this.options.uxMode,
+        is_mfa_enabled: true,
+        recovery_factor_created: Boolean(backupFactorKey),
+        duration: Date.now() - startTime,
+      });
+      return backupFactorKey;
+    } catch (reason) {
+      this.suppressFactorAnalytics = false;
+      const error = reason as Error;
+      log.error("error enabling MFA:", error.message);
+      void this.analytics.track(ANALYTICS_EVENTS.MFA_ENABLEMENT_FAILED, {
+        auth_ux_mode: this.options.uxMode,
+        ...getErrorAnalyticsProperties(reason),
+        duration: Date.now() - startTime,
+      });
+      if (!mutationStarted) throw reason;
+      const err = CoreKitError.default(error.message);
+      err.stack = error.stack;
+      throw err;
+    }
   }
 
   public getTssFactorPub = (): string[] => {
@@ -656,41 +847,62 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
   // mutation function
   public async createFactor(createFactorParams: CreateFactorParams): Promise<string> {
     this.checkReady();
+    const startTime = Date.now();
     const { shareType } = createFactorParams;
+    const shareDescription = createFactorParams.shareDescription || FactorKeyTypeShareDescription.Other;
+    let mutationStarted = false;
 
-    let { factorKey, shareDescription, additionalMetadata } = createFactorParams;
+    try {
+      let { factorKey, additionalMetadata } = createFactorParams;
 
-    if (!VALID_SHARE_INDICES.includes(shareType)) {
-      throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${shareType}). Valid share types are ${VALID_SHARE_INDICES}.`);
-    }
-    if (!factorKey) {
-      factorKey = generateFactorKey().private;
-    }
-    if (!shareDescription) {
-      shareDescription = FactorKeyTypeShareDescription.Other;
-    }
-    if (!additionalMetadata) {
-      additionalMetadata = {};
-    }
+      if (!VALID_SHARE_INDICES.includes(shareType)) {
+        throw CoreKitError.newShareIndexInvalid(`Invalid share type provided (${shareType}). Valid share types are ${VALID_SHARE_INDICES}.`);
+      }
+      if (!factorKey) {
+        factorKey = generateFactorKey().private;
+      }
+      if (!additionalMetadata) {
+        additionalMetadata = {};
+      }
 
-    const factorPub = getPubKeyPoint(factorKey, factorKeyCurve);
+      const factorPub = getPubKeyPoint(factorKey, factorKeyCurve);
 
-    if (this.getTssFactorPub().includes(factorPub.toSEC1(factorKeyCurve, true).toString("hex"))) {
-      throw CoreKitError.factorKeyAlreadyExists();
-    }
+      if (this.getTssFactorPub().includes(factorPub.toSEC1(factorKeyCurve, true).toString("hex"))) {
+        throw CoreKitError.factorKeyAlreadyExists();
+      }
 
-    return this.atomicSync(async () => {
-      await this.copyOrCreateShare(shareType, factorPub);
-      await this.backupMetadataShare(factorKey);
-      await this.addFactorDescription({ factorKey, shareDescription, additionalMetadata, updateMetadata: false });
+      mutationStarted = true;
+      const result = await this.atomicSync(async () => {
+        await this.copyOrCreateShare(shareType, factorPub);
+        await this.backupMetadataShare(factorKey);
+        await this.addFactorDescription({ factorKey, shareDescription, additionalMetadata, updateMetadata: false });
 
-      return scalarBNToBufferSEC1(factorKey).toString("hex");
-    }).catch((reason: Error) => {
-      log.error("error creating factor:", reason.message);
-      const err = CoreKitError.default(`error creating factor: ${reason.message}`);
-      err.stack = reason.stack;
+        return scalarBNToBufferSEC1(factorKey).toString("hex");
+      });
+      if (!this.suppressFactorAnalytics) {
+        void this.analytics.track(ANALYTICS_EVENTS.FACTOR_CREATION_COMPLETED, {
+          factor_share_type: shareType,
+          share_description: shareDescription,
+          duration: Date.now() - startTime,
+        });
+      }
+      return result;
+    } catch (reason) {
+      const error = reason as Error;
+      log.error("error creating factor:", error.message);
+      if (!this.suppressFactorAnalytics) {
+        void this.analytics.track(ANALYTICS_EVENTS.FACTOR_CREATION_FAILED, {
+          factor_share_type: shareType,
+          share_description: shareDescription,
+          ...getErrorAnalyticsProperties(reason),
+          duration: Date.now() - startTime,
+        });
+      }
+      if (!mutationStarted) throw reason;
+      const err = CoreKitError.default(`error creating factor: ${error.message}`);
+      err.stack = error.stack;
       throw err;
-    });
+    }
   }
 
   /**
@@ -698,6 +910,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   public getPubKey(): Buffer {
     const { tssPubKey } = this.state;
+    if (!tssPubKey) {
+      throw CoreKitError.tssPublicKeyOrEndpointsMissing("tssPubKey not present in state when getting public key.");
+    }
     return Buffer.from(tssPubKey);
   }
 
@@ -706,6 +921,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
    */
   public getPubKeyPoint(): Point {
     const { tssPubKey } = this.state;
+    if (!tssPubKey) {
+      throw CoreKitError.tssPublicKeyOrEndpointsMissing("tssPubKey not present in state when getting public key point.");
+    }
     return Point.fromSEC1(this.tkey.tssCurve, tssPubKey.toString("hex"));
   }
 
@@ -826,53 +1044,82 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
   // mutation function
   async deleteFactor(factorPub: Point, factorKey?: BNString): Promise<void> {
-    if (!this.state.factorKey) {
-      throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
-    }
-    if (!this.tKey.metadata.factorPubs) {
-      throw CoreKitError.factorPubsMissing();
-    }
-
-    await this.atomicSync(async () => {
-      const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
-      if (remainingFactors <= 1) {
-        throw CoreKitError.cannotDeleteLastFactor("Cannot delete last factor");
+    const startTime = Date.now();
+    try {
+      if (!this.state.factorKey) {
+        throw CoreKitError.factorKeyNotPresent("factorKey not present in state when deleting a factor.");
       }
-      const fpp = factorPub;
-      const stateFpp = getPubKeyPoint(this.state.factorKey, factorKeyCurve);
-      if (fpp.equals(stateFpp)) {
-        throw CoreKitError.factorInUseCannotBeDeleted("Cannot delete current active factor");
+      if (!this.tKey.metadata.factorPubs) {
+        throw CoreKitError.factorPubsMissing();
       }
 
-      await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
-      const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
-      const allDesc = this.tKey.metadata.getShareDescription();
-      const keyDesc = allDesc[factorPubHex];
-      if (keyDesc) {
-        await Promise.all(keyDesc.map(async (desc) => this.tKey?.metadata.deleteShareDescription(factorPubHex, desc)));
-      }
-
-      // delete factorKey share metadata if factorkey is provided
-      if (factorKey) {
-        const factorKeyBN = new BN(factorKey, "hex");
-        const derivedFactorPub = getPubKeyPoint(factorKeyBN, factorKeyCurve);
-        // only delete if factorPub matches
-        if (derivedFactorPub.equals(fpp)) {
-          await this.deleteMetadataShareBackup(factorKeyBN);
+      await this.atomicSync(async () => {
+        const remainingFactors = this.tKey.metadata.factorPubs[this.tKey.tssTag].length || 0;
+        if (remainingFactors <= 1) {
+          throw CoreKitError.cannotDeleteLastFactor("Cannot delete last factor");
         }
+        const fpp = factorPub;
+        const stateFpp = getPubKeyPoint(this.state.factorKey, factorKeyCurve);
+        if (fpp.equals(stateFpp)) {
+          throw CoreKitError.factorInUseCannotBeDeleted("Cannot delete current active factor");
+        }
+
+        await this.tKey.deleteFactorPub({ factorKey: this.state.factorKey, deleteFactorPub: factorPub, authSignatures: this.signatures });
+        const factorPubHex = fpp.toSEC1(factorKeyCurve, true).toString("hex");
+        const allDesc = this.tKey.metadata.getShareDescription();
+        const keyDesc = allDesc[factorPubHex];
+        if (keyDesc) {
+          await Promise.all(keyDesc.map(async (desc) => this.tKey?.metadata.deleteShareDescription(factorPubHex, desc)));
+        }
+
+        // delete factorKey share metadata if factorkey is provided
+        if (factorKey) {
+          const factorKeyBN = new BN(factorKey, "hex");
+          const derivedFactorPub = getPubKeyPoint(factorKeyBN, factorKeyCurve);
+          // only delete if factorPub matches
+          if (derivedFactorPub.equals(fpp)) {
+            await this.deleteMetadataShareBackup(factorKeyBN);
+          }
+        }
+      });
+      if (!this.suppressFactorAnalytics) {
+        void this.analytics.track(ANALYTICS_EVENTS.FACTOR_DELETION_COMPLETED, { duration: Date.now() - startTime });
       }
-    });
+    } catch (error) {
+      if (!this.suppressFactorAnalytics) {
+        void this.analytics.track(ANALYTICS_EVENTS.FACTOR_DELETION_FAILED, {
+          ...getErrorAnalyticsProperties(error),
+          duration: Date.now() - startTime,
+        });
+      }
+      throw error;
+    }
   }
 
   public async logout(): Promise<void> {
-    if (this.sessionManager?.sessionId) {
-      await this.sessionManager.invalidateSession();
-    }
-    // to accommodate async storage
-    await this.currentStorage.set("sessionId", "");
+    const startTime = Date.now();
+    try {
+      if (this.sessionManager?.sessionId) {
+        await this.sessionManager.invalidateSession();
+      }
+      // to accommodate async storage
+      await this.currentStorage.set("sessionId", "");
 
-    this.resetState();
-    await this.init({ handleRedirectResult: false, rehydrate: false });
+      this.resetState();
+      this.skipInitAnalytics = true;
+      try {
+        await this.init({ handleRedirectResult: false, rehydrate: false });
+      } finally {
+        this.skipInitAnalytics = false;
+      }
+      void this.analytics.track(ANALYTICS_EVENTS.LOGOUT_COMPLETED, { duration: Date.now() - startTime });
+    } catch (error) {
+      void this.analytics.track(ANALYTICS_EVENTS.LOGOUT_FAILED, {
+        ...getErrorAnalyticsProperties(error),
+        duration: Date.now() - startTime,
+      });
+      throw error;
+    }
   }
 
   public getUserInfo(): UserInfo {
@@ -1192,7 +1439,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     }
   }
 
-  private async rehydrateSession(result: SessionData) {
+  private async rehydrateSession(result: SessionData): Promise<boolean> {
+    const startTime = Date.now();
     try {
       this.checkReady();
 
@@ -1229,8 +1477,18 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           await this.setDeviceFactor(this.state.factorKey);
         }
       }
+      void this.analytics.track(ANALYTICS_EVENTS.SESSION_REHYDRATION_COMPLETED, {
+        factor_share_type: this.state.tssShareIndex,
+        duration: Date.now() - startTime,
+      });
+      return true;
     } catch (err) {
       log.warn("failed to authorize session please use new instance without rehydration", err);
+      void this.analytics.track(ANALYTICS_EVENTS.SESSION_REHYDRATION_FAILED, {
+        ...getErrorAnalyticsProperties(err),
+        duration: Date.now() - startTime,
+      });
+      return false;
     }
   }
 
@@ -1269,6 +1527,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       await this.currentStorage.set("sessionId", sessionId);
     } catch (err) {
       log.error("error creating session", err);
+      void this.analytics.track(ANALYTICS_EVENTS.SESSION_CREATION_FAILED, getErrorAnalyticsProperties(err));
     }
   }
 
@@ -1396,6 +1655,85 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       tssShareIndex: tssIndex,
     };
     await this.tKey?.addShareDescription(factorPub, JSON.stringify(params), updateMetadata);
+  }
+
+  private getInitializationTrackData(): Record<string, unknown> {
+    const storageType = typeof this.options.storage === "string" ? this.options.storage : "async" in this.options.storage ? "async_custom" : "custom";
+    return {
+      auth_ux_mode: this.options.uxMode,
+      logging_enabled: this.enableLogging,
+      storage_type: storageType,
+      key_type: this.keyType,
+      manual_sync: this.options.manualSync,
+      hashed_factor_enabled: !this.options.disableHashedFactorKey,
+      session_manager_enabled: !this.options.disableSessionManager,
+      use_dkg: this.options.useDKG,
+    };
+  }
+
+  private trackInitializationCompleted(startTime: number, extra: Record<string, unknown> = {}): void {
+    if (this.skipInitAnalytics) return;
+    void this.analytics.track(ANALYTICS_EVENTS.SDK_INITIALIZATION_COMPLETED, {
+      ...this.getInitializationTrackData(),
+      ...extra,
+      duration: Date.now() - startTime,
+    });
+  }
+
+  private getConnectionTrackData(params: OAuthLoginParams): Record<string, unknown> {
+    if ("subVerifierDetails" in params) {
+      return {
+        login_method: "oauth",
+        verifier: params.subVerifierDetails.verifier,
+        auth_connection: params.subVerifierDetails.typeOfLogin,
+        is_aggregate_verifier: false,
+      };
+    }
+    return {
+      login_method: "oauth",
+      verifier: params.aggregateVerifierIdentifier,
+      auth_connection: params.subVerifierDetailsArray[0]?.typeOfLogin,
+      is_aggregate_verifier: true,
+    };
+  }
+
+  private enrichRedirectConnectionTrackData(trackData: Record<string, unknown>, userInfo?: UserInfo): Record<string, unknown> {
+    return {
+      ...trackData,
+      login_method: "redirect",
+      verifier: trackData.verifier ?? userInfo?.aggregateVerifier ?? userInfo?.verifier,
+      auth_connection: trackData.auth_connection ?? userInfo?.typeOfLogin,
+      is_aggregate_verifier: trackData.is_aggregate_verifier ?? Boolean(userInfo?.aggregateVerifier),
+    };
+  }
+
+  private getJWTTrackData(params: JWTLoginParams): Record<string, unknown> {
+    return {
+      login_method: "jwt",
+      verifier: params.verifier,
+      is_aggregate_verifier: Boolean(params.subVerifier),
+      is_sfa: true,
+    };
+  }
+
+  private trackConnectionOutcome(startTime: number, trackData: Record<string, unknown>): void {
+    if (this.status === COREKIT_STATUS.LOGGED_IN) {
+      void this.analytics.track(ANALYTICS_EVENTS.CONNECTION_COMPLETED, {
+        ...trackData,
+        corekit_status: this.status,
+        duration: Date.now() - startTime,
+      });
+    } else if (this.status === COREKIT_STATUS.REQUIRED_SHARE) {
+      this.trackRequiredShare(startTime, trackData);
+    }
+  }
+
+  private trackRequiredShare(startTime: number, trackData: Record<string, unknown>): void {
+    void this.analytics.track(ANALYTICS_EVENTS.LOGIN_REQUIRED_SHARE, {
+      ...trackData,
+      corekit_status: COREKIT_STATUS.REQUIRED_SHARE,
+      duration: Date.now() - startTime,
+    });
   }
 
   private resetState(): void {

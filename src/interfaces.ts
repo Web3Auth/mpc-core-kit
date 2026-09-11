@@ -237,9 +237,9 @@ export interface ICoreKit {
    *
    * @param enableMFAParams - Parameters for recovery factor for MFA.
    * @param recoveryFactor - Default is true. If false, recovery factor will NOT be created.
-   * @returns The backup factor key if if recoveryFacort is true else empty string.
+   * @returns The backup factor key when recoveryFactor is true; otherwise undefined.
    */
-  enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor?: boolean): Promise<string>;
+  enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor?: boolean): Promise<string | undefined>;
 
   /**
    * Second step for login where the user inputs their factor key.
@@ -377,6 +377,16 @@ export interface Web3AuthOptions {
    * enables logging of the internal packages.
    */
   enableLogging?: boolean;
+
+  /**
+   * Disables anonymous SDK usage analytics.
+   *
+   * Analytics are enabled for browser integrations on secure, non-localhost origins.
+   * Events include `web3auth_network` so dashboards can filter mainnet vs devnet.
+   *
+   * @defaultValue `false`
+   */
+  disableAnalytics?: boolean;
 
   /**
    * This option is used to specify the url path where user will be
