@@ -1,5 +1,6 @@
 import type { AnalyticsBrowser, EventProperties, UserTraits } from "@segment/analytics-next";
 
+import { COREKIT_STATUS, JWTLoginParams, OAuthLoginParams, UserInfo } from "./interfaces";
 import { log } from "./utils";
 
 // Public Segment *source* write key (write-only). This is the same key used by
@@ -10,9 +11,9 @@ const SEGMENT_WRITE_KEY = "f6LbNqCeVRf512ggdME4b6CyflhF1tsX";
 export const ANALYTICS_EVENTS = {
   SDK_INITIALIZATION_COMPLETED: "SDK Initialization Completed",
   SDK_INITIALIZATION_FAILED: "SDK Initialization Failed",
-  CONNECTION_STARTED: "Connection Started",
-  CONNECTION_COMPLETED: "Connection Completed",
-  CONNECTION_FAILED: "Connection Failed",
+  LOGIN_STARTED: "Login Started",
+  LOGIN_COMPLETED: "Login Completed",
+  LOGIN_FAILED: "Login Failed",
   LOGIN_REQUIRED_SHARE: "Login Required Share",
   INPUT_FACTOR_STARTED: "Input Factor Started",
   INPUT_FACTOR_COMPLETED: "Input Factor Completed",
@@ -54,6 +55,23 @@ function unwrapAnalyticsClient(client: AnalyticsClient): AnalyticsClient {
   return {
     identify: resolved.identify.bind(resolved),
     track: resolved.track.bind(resolved),
+  };
+}
+
+function sanitizeErrorMessage(message: string): string {
+  return message
+    .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+\b/g, "[REDACTED_TOKEN]")
+    .replace(/\b(?:0x)?[a-fA-F0-9]{64,}\b/g, "[REDACTED_KEY]")
+    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
+    .slice(0, 500);
+}
+
+export function getErrorAnalyticsProperties(error: unknown): { error_code?: number | string; error_message: string } {
+  const analyticsError = error as { code?: number | string; message?: string };
+  const message = analyticsError?.message || String(error) || "Unknown error";
+  return {
+    ...(analyticsError?.code !== undefined ? { error_code: analyticsError.code } : {}),
+    error_message: sanitizeErrorMessage(message),
   };
 }
 
@@ -112,6 +130,88 @@ export class Analytics {
     this.globalProperties = { ...this.globalProperties, ...properties };
   }
 
+  public trackInitializationCompleted(startTime: number, properties: Record<string, unknown>, extra: Record<string, unknown> = {}): void {
+    void this.track(ANALYTICS_EVENTS.SDK_INITIALIZATION_COMPLETED, {
+      ...properties,
+      ...extra,
+      duration: Date.now() - startTime,
+    });
+  }
+
+  public getLoginTrackData(params: OAuthLoginParams): Record<string, unknown> {
+    if ("subVerifierDetails" in params) {
+      return {
+        login_method: "oauth",
+        verifier: params.subVerifierDetails.verifier,
+        auth_connection: params.subVerifierDetails.typeOfLogin,
+        is_aggregate_verifier: false,
+      };
+    }
+    return {
+      login_method: "oauth",
+      verifier: params.aggregateVerifierIdentifier,
+      auth_connection: params.subVerifierDetailsArray[0]?.typeOfLogin,
+      is_aggregate_verifier: true,
+    };
+  }
+
+  public getJWTLoginTrackData(params: JWTLoginParams): Record<string, unknown> {
+    return {
+      login_method: "jwt",
+      verifier: params.verifier,
+      is_aggregate_verifier: Boolean(params.subVerifier),
+      is_sfa: true,
+    };
+  }
+
+  public enrichRedirectLoginTrackData(trackData: Record<string, unknown>, userInfo?: UserInfo): Record<string, unknown> {
+    return {
+      ...trackData,
+      login_method: "redirect",
+      verifier: trackData.verifier ?? userInfo?.aggregateVerifier ?? userInfo?.verifier,
+      auth_connection: trackData.auth_connection ?? userInfo?.typeOfLogin,
+      is_aggregate_verifier: trackData.is_aggregate_verifier ?? Boolean(userInfo?.aggregateVerifier),
+    };
+  }
+
+  public trackLoginStarted(trackData: Record<string, unknown>): void {
+    void this.track(ANALYTICS_EVENTS.LOGIN_STARTED, trackData);
+  }
+
+  public trackLoginCompleted(startTime: number, trackData: Record<string, unknown>): void {
+    void this.track(ANALYTICS_EVENTS.LOGIN_COMPLETED, {
+      ...trackData,
+      duration: Date.now() - startTime,
+    });
+  }
+
+  public trackLoginFailed(startTime: number, trackData: Record<string, unknown>, error: unknown): void {
+    void this.track(ANALYTICS_EVENTS.LOGIN_FAILED, {
+      ...trackData,
+      ...getErrorAnalyticsProperties(error),
+      duration: Date.now() - startTime,
+    });
+  }
+
+  public trackLoginOutcome(status: COREKIT_STATUS, startTime: number, trackData: Record<string, unknown>): void {
+    if (status === COREKIT_STATUS.LOGGED_IN) {
+      this.trackLoginCompleted(startTime, {
+        ...trackData,
+        corekit_status: status,
+      });
+    } else if (status === COREKIT_STATUS.REQUIRED_SHARE) {
+      this.trackLoginRequiredShare(startTime, trackData);
+    }
+  }
+
+  public trackLoginRequiredShare(startTime: number, trackData: Record<string, unknown>): void {
+    void this.track(ANALYTICS_EVENTS.LOGIN_REQUIRED_SHARE, {
+      ...trackData,
+      corekit_status: COREKIT_STATUS.REQUIRED_SHARE,
+      duration: Date.now() - startTime,
+    });
+  }
+
   public async identify(userId: string, traits?: UserTraits): Promise<void> {
     if (this.isSkipped()) return;
     try {
@@ -156,14 +256,6 @@ export class Analytics {
   }
 }
 
-function sanitizeErrorMessage(message: string): string {
-  return message
-    .replace(/\beyJ[\w-]+\.[\w-]+\.[\w-]+\b/g, "[REDACTED_TOKEN]")
-    .replace(/\b(?:0x)?[a-fA-F0-9]{64,}\b/g, "[REDACTED_KEY]")
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[REDACTED_EMAIL]")
-    .slice(0, 500);
-}
-
 const CONNECTION_TRACK_ALLOWED_KEYS = new Set(["login_method", "verifier", "auth_connection", "is_aggregate_verifier"]);
 
 function sanitizeConnectionTrackDataForStorage(trackData: Record<string, unknown>): Record<string, unknown> {
@@ -202,15 +294,6 @@ export function consumePendingConnectionTrackData(): Record<string, unknown> | u
     log.error("Failed to consume pending connection track data", error);
     return undefined;
   }
-}
-
-export function getErrorAnalyticsProperties(error: unknown): { error_code?: number | string; error_message: string } {
-  const analyticsError = error as { code?: number | string; message?: string };
-  const message = analyticsError?.message || String(error) || "Unknown error";
-  return {
-    ...(analyticsError?.code !== undefined ? { error_code: analyticsError.code } : {}),
-    error_message: sanitizeErrorMessage(message),
-  };
 }
 
 export function getInputFactorFailureReason(error: unknown): InputFactorFailureReason {

@@ -11,8 +11,8 @@ import {
   getErrorAnalyticsProperties,
   getInputFactorFailureReason,
   persistPendingConnectionTrackData,
-  WEB3AUTH_NETWORK,
-} from "../src";
+} from "../src/analytics";
+import { WEB3AUTH_NETWORK } from "../src";
 import { version as packageVersion } from "../package.json";
 
 test("analytics SDK version matches package.json", () => {
@@ -44,11 +44,11 @@ test("analytics identifies by client id and includes global properties", async (
     analytics.init();
 
     await analytics.identify("client-id", { web3auth_client_id: "client-id" });
-    await analytics.track(ANALYTICS_EVENTS.CONNECTION_COMPLETED, { duration: 10 });
+    await analytics.track(ANALYTICS_EVENTS.LOGIN_COMPLETED, { duration: 10 });
 
     assert.strictEqual(identifyCalls[0][0], "client-id");
     assert.deepStrictEqual(trackCalls[0], [
-      ANALYTICS_EVENTS.CONNECTION_COMPLETED,
+      ANALYTICS_EVENTS.LOGIN_COMPLETED,
       { sdk_name: "MPC Core Kit", duration: 10 },
     ]);
   } finally {
@@ -76,8 +76,8 @@ test("analytics sends events on all networks", async () => {
       });
       analytics.setGlobalProperties({ web3auth_network: network });
       analytics.init();
-      await analytics.track(ANALYTICS_EVENTS.CONNECTION_COMPLETED);
-      assert.strictEqual(trackCalls[0][0], ANALYTICS_EVENTS.CONNECTION_COMPLETED);
+      await analytics.track(ANALYTICS_EVENTS.LOGIN_COMPLETED);
+      assert.strictEqual(trackCalls[0][0], ANALYTICS_EVENTS.LOGIN_COMPLETED);
       assert.deepStrictEqual(trackCalls[0][1], { web3auth_network: network });
     }
   } finally {
@@ -130,8 +130,8 @@ test("analytics uses a thenable Segment client instead of the resolved tuple", a
       clientFactory: async () => client as unknown as AnalyticsClient,
     });
     analytics.init();
-    await analytics.track(ANALYTICS_EVENTS.CONNECTION_COMPLETED);
-    assert.strictEqual(trackCalls[0][0], ANALYTICS_EVENTS.CONNECTION_COMPLETED);
+    await analytics.track(ANALYTICS_EVENTS.LOGIN_COMPLETED);
+    assert.strictEqual(trackCalls[0][0], ANALYTICS_EVENTS.LOGIN_COMPLETED);
   } finally {
     Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
   }
@@ -164,7 +164,7 @@ test("analytics can be disabled and never propagates client errors", async () =>
     },
   });
   disabledAnalytics.init();
-  await disabledAnalytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED);
+  await disabledAnalytics.track(ANALYTICS_EVENTS.LOGIN_STARTED);
 
   const originalWindow = globalThis.window;
   Object.defineProperty(globalThis, "window", {
@@ -185,7 +185,7 @@ test("analytics can be disabled and never propagates client errors", async () =>
     });
     failingAnalytics.init();
     await assert.doesNotReject(() => failingAnalytics.identify("client-id"));
-    await assert.doesNotReject(() => failingAnalytics.track(ANALYTICS_EVENTS.CONNECTION_STARTED));
+    await assert.doesNotReject(() => failingAnalytics.track(ANALYTICS_EVENTS.LOGIN_STARTED));
   } finally {
     Object.defineProperty(globalThis, "window", { configurable: true, value: originalWindow });
   }

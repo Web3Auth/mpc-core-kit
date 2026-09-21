@@ -237,9 +237,9 @@ export interface ICoreKit {
    *
    * @param enableMFAParams - Parameters for recovery factor for MFA.
    * @param recoveryFactor - Default is true. If false, recovery factor will NOT be created.
-   * @returns The backup factor key when recoveryFactor is true; otherwise undefined.
+   * @returns The backup factor key when recoveryFactor is true.
    */
-  enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor?: boolean): Promise<string | undefined>;
+  enableMFA(enableMFAParams: EnableMFAParams, recoveryFactor?: boolean): Promise<string>;
 
   /**
    * Second step for login where the user inputs their factor key.
