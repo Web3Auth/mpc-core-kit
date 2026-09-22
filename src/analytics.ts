@@ -11,9 +11,9 @@ const SEGMENT_WRITE_KEY = "f6LbNqCeVRf512ggdME4b6CyflhF1tsX";
 export const ANALYTICS_EVENTS = {
   SDK_INITIALIZATION_COMPLETED: "SDK Initialization Completed",
   SDK_INITIALIZATION_FAILED: "SDK Initialization Failed",
-  LOGIN_STARTED: "Login Started",
-  LOGIN_COMPLETED: "Login Completed",
-  LOGIN_FAILED: "Login Failed",
+  CONNECTION_STARTED: "Connection Started",
+  CONNECTION_COMPLETED: "Connection Completed",
+  CONNECTION_FAILED: "Connection Failed",
   LOGIN_REQUIRED_SHARE: "Login Required Share",
   INPUT_FACTOR_STARTED: "Input Factor Started",
   INPUT_FACTOR_COMPLETED: "Input Factor Completed",
@@ -175,18 +175,18 @@ export class Analytics {
   }
 
   public trackLoginStarted(trackData: Record<string, unknown>): void {
-    void this.track(ANALYTICS_EVENTS.LOGIN_STARTED, trackData);
+    void this.track(ANALYTICS_EVENTS.CONNECTION_STARTED, trackData);
   }
 
   public trackLoginCompleted(startTime: number, trackData: Record<string, unknown>): void {
-    void this.track(ANALYTICS_EVENTS.LOGIN_COMPLETED, {
+    void this.track(ANALYTICS_EVENTS.CONNECTION_COMPLETED, {
       ...trackData,
       duration: Date.now() - startTime,
     });
   }
 
   public trackLoginFailed(startTime: number, trackData: Record<string, unknown>, error: unknown): void {
-    void this.track(ANALYTICS_EVENTS.LOGIN_FAILED, {
+    void this.track(ANALYTICS_EVENTS.CONNECTION_FAILED, {
       ...trackData,
       ...getErrorAnalyticsProperties(error),
       duration: Date.now() - startTime,

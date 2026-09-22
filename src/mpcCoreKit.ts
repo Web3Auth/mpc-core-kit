@@ -355,7 +355,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       ) {
         // on failed redirect, instance is reseted.
         // skip check feature gating on redirection as it was check before login
-        // Login Started/Completed/Failed are tracked inside handleRedirectResult.
+        // Connection Started/Completed/Failed are tracked inside handleRedirectResult.
         // Login errors from redirect must not also count as SDK initialization failures.
         try {
           await this.handleRedirectResult();
@@ -451,9 +451,9 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
     const startTime = Date.now();
     const trackData = this.analytics.getLoginTrackData(params);
     // Redirect unloads the page before Segment can reliably send. Persist the
-    // connection properties so handleRedirectResult can emit Login Started with
+    // connection properties so handleRedirectResult can emit Connection Started with
     // the same verifier / auth_connection. If triggerLogin throws before unload,
-    // emit start here so Login Failed still has a matching funnel start.
+    // emit start here so Connection Failed still has a matching funnel start.
     if (this.isRedirectMode) {
       persistPendingConnectionTrackData(trackData);
     } else {
