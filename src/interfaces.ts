@@ -200,6 +200,11 @@ export interface ICoreKit {
   status: COREKIT_STATUS;
 
   /**
+   * True only during new user sign up. After reinit or rehydration this is always false.
+   */
+  isNewUser(): boolean;
+
+  /**
    * The current sdk state.
    */
   state: Web3AuthState;
