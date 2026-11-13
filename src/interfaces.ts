@@ -446,7 +446,7 @@ export interface Web3AuthOptions {
   serverTimeOffset?: number;
 
   /**
-   * @deprecated The DKG service is being sunset. Keys are always generated on the client side and this option is ignored.
+   * @deprecated The DKG service is being sunset and this option is ignored. Login keys of new users are always generated on the client side.
    */
   useDKG?: boolean;
 
