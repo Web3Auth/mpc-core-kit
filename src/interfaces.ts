@@ -446,10 +446,7 @@ export interface Web3AuthOptions {
   serverTimeOffset?: number;
 
   /**
-   * Set this flag to false to generate keys on client side
-   * by default keys are generated on using dkg protocol on a distributed network
-   * Note: This option is not supported for ed25519 key type
-   * @defaultValue `true`
+   * @deprecated The DKG service is being sunset and this option is ignored. Login keys of new users are always generated on the client side.
    */
   useDKG?: boolean;
 
