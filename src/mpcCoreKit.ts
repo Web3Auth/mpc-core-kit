@@ -304,7 +304,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
       if (this.options.useDKG) {
-        log.warn("useDKG is deprecated and ignored: the DKG service is being sunset, keys are generated on the client side.");
+        log.warn("useDKG is deprecated and ignored: the DKG service is being sunset.");
       }
 
       this.torusSp = new TSSTorusServiceProvider({
