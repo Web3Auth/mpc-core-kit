@@ -48,6 +48,16 @@ stores the secret verbatim, so stray quotes become part of the PEM and break key
 Rotating the verifier key means updating the 1Password entry, the repository secrets, and every
 local `.env`.
 
+## Reading the output
+
+`npm run test` uses the `spec` reporter plus `reporter.mjs`, which ends every run with a summary:
+counts, duration, and each failure with its full test path, `file:line`, and error. Only the tests
+that actually failed are listed - parent suites fail just because a child did, so they are rolled
+up into a count rather than repeated.
+
+On CI the same summary is written to `$GITHUB_STEP_SUMMARY`, so failures are visible on the
+workflow run page without opening the log.
+
 ## Test identities
 
 Test verifiers only accept identities ending in `@example.com`; anything else is rejected with
