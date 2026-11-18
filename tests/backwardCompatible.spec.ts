@@ -74,14 +74,17 @@ variable.forEach((testVariable) => {
 
       const tssPublicPoint = bufferToElliptic(coreKitInstance.getPubKey());
       const { metadataPubKey, tssPubKey } = coreKitInstance.getKeyDetails();
-      assert.strictEqual(tssPublicPoint.getX().toString("hex"), "d2869f27c3e226d90b275b008f7dc67b8f4b208900a7b98ecc4e5266807d382c");
-      assert.strictEqual(tssPublicPoint.getY().toString("hex"), "15860fd569413eb7f177e655c4bf855f37920b800235de344fdd518196becfe0");
+      // Baseline for backwardcompatible@example.com. Test verifiers only accept @example.com
+      // identities, and the key is derived from the verifier id, so these were re-recorded when
+      // the test identities moved into that domain.
+      assert.strictEqual(tssPublicPoint.getX().toString("hex"), "d8fd3d5136c0e03bf52d13b68bd2e65dd7998a59cee3d26542b86d3cec314ea3");
+      assert.strictEqual(tssPublicPoint.getY().toString("hex"), "23311b9dec5277708314b547a07f201be1f89356e23f3c2686dfe882b0f9ec9f");
 
-      assert.strictEqual(tssPubKey.x.toString("hex"), "d2869f27c3e226d90b275b008f7dc67b8f4b208900a7b98ecc4e5266807d382c");
-      assert.strictEqual(tssPubKey.y.toString("hex"), "15860fd569413eb7f177e655c4bf855f37920b800235de344fdd518196becfe0");
+      assert.strictEqual(tssPubKey.x.toString("hex"), "d8fd3d5136c0e03bf52d13b68bd2e65dd7998a59cee3d26542b86d3cec314ea3");
+      assert.strictEqual(tssPubKey.y.toString("hex"), "23311b9dec5277708314b547a07f201be1f89356e23f3c2686dfe882b0f9ec9f");
 
-      assert.strictEqual(metadataPubKey.x.toString("hex"), "b3951a441f87ecea4672edc82894ac023316723cf164a93adec72b58a27a1f06");
-      assert.strictEqual(metadataPubKey.y.toString("hex"), "3be6c118d94242a650e8aebbefcd37ebeceeb927d0ed51f3d2ba723b8fd2740b");
+      assert.strictEqual(metadataPubKey.x.toString("hex"), "dc82027446589544cbbc030a7beab8236d338f648d7b2038f22805ac36add848");
+      assert.strictEqual(metadataPubKey.y.toString("hex"), "f781eeb058e877f6a610e91c190708f0a0283de4f616274ed8b9eee014e8ddfa");
     });
 
     await t.test("#relogin ", async function () {
