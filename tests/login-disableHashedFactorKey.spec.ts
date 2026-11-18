@@ -9,7 +9,7 @@ import BN from "bn.js";
 import { ec as EC } from "elliptic";
 
 import { AsyncStorage, COREKIT_STATUS, MemoryStorage, sigToRSV, WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
-import { bufferToElliptic, criticalResetAccount, mockLogin, mockLogin2, stringGen } from "./setup";
+import { bufferToElliptic, criticalResetAccount, mockLogin, stringGen } from "./setup";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -147,10 +147,10 @@ variable.forEach((testVariable) => {
     await t.test("#able to sign", async function () {
       const coreKitInstance = newCoreKitInstance();
       await coreKitInstance.init({ handleRedirectResult: false, rehydrate: false });
-      const localToken = await mockLogin2(email);
+      const localToken = await mockLogin(email);
       await coreKitInstance.loginWithJWT({
         verifier: "torus-test-health",
-        verifierId: email,
+        verifierId: localToken.parsedToken.email,
         idToken: localToken.idToken,
       });
 

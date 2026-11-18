@@ -7,7 +7,7 @@ import { tssLib } from "@toruslabs/tss-frost-lib";
 import BN from "bn.js";
 
 import { AsyncStorage, COREKIT_STATUS, ed25519, MemoryStorage,  WEB3AUTH_NETWORK, WEB3AUTH_NETWORK_TYPE, Web3AuthMPCCoreKit } from "../src";
-import { bufferToElliptic, criticalResetAccount, mockLogin, mockLogin2 } from "./setup";
+import { bufferToElliptic, criticalResetAccount, mockLogin } from "./setup";
 
 type TestVariable = {
   web3AuthNetwork: WEB3AUTH_NETWORK_TYPE;
@@ -141,10 +141,10 @@ variable.forEach((testVariable) => {
     await t.test("#able to sign", async function () {
       const coreKitInstance = newCoreKitInstance();
       await coreKitInstance.init({ handleRedirectResult: false, rehydrate: false });
-      const localToken = await mockLogin2(email);
+      const localToken = await mockLogin(email);
       await coreKitInstance.loginWithJWT({
         verifier: "torus-test-health",
-        verifierId: email,
+        verifierId: localToken.parsedToken.email,
         idToken: localToken.idToken,
       });
       const msg = "hello world";
@@ -158,10 +158,10 @@ variable.forEach((testVariable) => {
     await t.test("#able to export import", async function () {
       const coreKitInstance = newCoreKitInstance();
       await coreKitInstance.init({ handleRedirectResult: false, rehydrate: false });
-      const localToken = await mockLogin2(email);
+      const localToken = await mockLogin(email);
       await coreKitInstance.loginWithJWT({
         verifier: "torus-test-health",
-        verifierId: email,
+        verifierId: localToken.parsedToken.email,
         idToken: localToken.idToken,
       });
 
@@ -174,10 +174,10 @@ variable.forEach((testVariable) => {
       // import tss key into mpc corekit
       const coreKitInstance2 = newCoreKitInstance();
       await coreKitInstance2.init({ handleRedirectResult: false, rehydrate: false });
-      const localToken2 = await mockLogin2(importedEmail);
+      const localToken2 = await mockLogin(importedEmail);
       await coreKitInstance2.loginWithJWT({
         verifier: "torus-test-health",
-        verifierId: importedEmail,
+        verifierId: localToken2.parsedToken.email,
         idToken: localToken2.idToken,
         importTssKey: exportedSeed.toString("hex"),
       });
