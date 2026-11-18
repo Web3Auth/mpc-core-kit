@@ -20,7 +20,7 @@
   "scripts": {
     "sync:sdk-version": "node scripts/sync-sdk-version.mjs",
     "pretest": "npm run sync:sdk-version",
-    "test": "node --test -r esbuild-register tests/*.spec.ts",
+    "test": "node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./tests/reporter.mjs --test-reporter-destination=stdout -r esbuild-register tests/*.spec.ts",
     "dev": "torus-scripts start",
     "prebuild": "npm run sync:sdk-version",
     "build": "torus-scripts build",
