@@ -14,13 +14,27 @@ const RESET = "\x1b[0m";
 // Parent tests fail only because a child did; reporting them repeats the same failure.
 const isAggregate = (error) => error?.failureType === "subtestsFailed" || /^\d+ subtests? failed$/.test(error?.message ?? "");
 
-const firstLine = (text) => String(text ?? "").split("\n")[0].trim();
+// CoreKitError stringifies an absent code as a leading "undefined", which buries the real text.
+const firstLine = (text) =>
+  String(text ?? "")
+    .split("\n")[0]
+    .replace(/^undefined\s*/, "")
+    .trim();
+
+// A rejected fetch surfaces as a Response, which has no message at all.
+const responseMessage = (error) =>
+  typeof error?.status === "number" && error?.url ? `HTTP ${error.status} ${error.statusText ?? ""}`.trim() + ` — ${error.url}` : "";
 
 const errorMessage = (error) => {
   if (!error) return "unknown error";
-  // CoreKitError and friends carry the useful text on the cause.
-  const message = firstLine(error.message) || firstLine(error.cause?.message);
-  return message || "unknown error";
+  return (
+    firstLine(error.message) ||
+    responseMessage(error) ||
+    firstLine(error.cause?.message) ||
+    responseMessage(error.cause) ||
+    firstLine(error.code && `error code ${error.code}`) ||
+    "unknown error (see log above)"
+  );
 };
 
 const formatDuration = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`);
