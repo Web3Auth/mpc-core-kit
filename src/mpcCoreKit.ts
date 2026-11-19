@@ -13,7 +13,7 @@ import { CoreError } from "@tkey/core";
 import { ShareSerializationModule } from "@tkey/share-serialization";
 import { TorusStorageLayer } from "@tkey/storage-layer-torus";
 import { factorKeyCurve, getPubKeyPoint, lagrangeInterpolation, TKeyTSS, TSSTorusServiceProvider } from "@tkey/tss";
-import { KEY_TYPE, SIGNER_MAP } from "@toruslabs/constants";
+import { SIGNER_MAP } from "@toruslabs/constants";
 import { AGGREGATE_VERIFIER, TORUS_METHOD, TorusAggregateLoginResponse, TorusLoginResponse, UX_MODE } from "@toruslabs/customauth";
 import type { UX_MODE_TYPE } from "@toruslabs/customauth/dist/types/utils/enums";
 import { Ed25519Curve } from "@toruslabs/elliptic-wrapper";
@@ -303,8 +303,8 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
 
       const nodeDetails = fetchLocalConfig(this.options.web3AuthNetwork, this.keyType);
 
-      if (this.keyType === KEY_TYPE.ED25519 && this.options.useDKG) {
-        throw CoreKitError.invalidConfig("DKG is not supported for ed25519 key type");
+      if (this.options.useDKG) {
+        log.warn("useDKG is deprecated and ignored: the DKG service is being sunset.");
       }
 
       this.torusSp = new TSSTorusServiceProvider({
@@ -317,7 +317,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
           locationReplaceOnRedirect: true,
           serverTimeOffset: this.options.serverTimeOffset,
           keyType: this.keyType,
-          useDkg: this.options.useDKG,
+          useDkg: false,
         },
       });
 
@@ -1673,7 +1673,7 @@ export class Web3AuthMPCCoreKit implements ICoreKit {
       manual_sync: this.options.manualSync,
       hashed_factor_enabled: !this.options.disableHashedFactorKey,
       session_manager_enabled: !this.options.disableSessionManager,
-      use_dkg: this.options.useDKG,
+      use_dkg: false,
     };
   }
 

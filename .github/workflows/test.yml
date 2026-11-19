@@ -34,3 +34,6 @@ jobs:
 
       - name: Run tests
         run: npm run test
+        env:
+          JWT_PRIVATE_KEY: ${{ secrets.JWT_PRIVATE_KEY }}
+          JWT_KEY_ID: ${{ secrets.JWT_KEY_ID }}

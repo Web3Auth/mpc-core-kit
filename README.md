@@ -109,5 +109,9 @@ Checkout the [Web3Auth Demo](https://demo-app.web3auth.io/) to see how Web3Auth 
   #### Run tests:
     npm run test
 
+  The tests sign mock JWTs for the `torus-test-health` verifier, so they need `JWT_PRIVATE_KEY` and
+  `JWT_KEY_ID` in a local `.env`. Both are in 1Password - see [tests/README.md](tests/README.md) for
+  setup and for the CI secrets.
+
   #### Build:
     npm run build
