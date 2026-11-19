@@ -42,6 +42,7 @@ const formatDuration = (ms) => (ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${M
 export default async function* summaryReporter(source) {
   const failures = [];
   const counts = { pass: 0, fail: 0, skipped: 0, todo: 0 };
+  const startedAt = Date.now();
   let duration = 0;
 
   // Files run concurrently, so each needs its own stack of enclosing test names.
@@ -60,11 +61,18 @@ export default async function* summaryReporter(source) {
       stack[data.nesting] = data.name;
       openNames.set(data.file, stack);
     } else if (type === "test:pass") {
+      // describe() suites are not tests; the run summary counts them separately.
+      if (data.details?.type === "suite") continue;
       if (data.skip) counts.skipped += 1;
       else if (data.todo) counts.todo += 1;
+      else counts.pass += 1;
     } else if (type === "test:fail") {
       const error = data.details?.error;
-      if (!isAggregate(error)) {
+      if (data.details?.type !== "suite") {
+        if (data.todo) counts.todo += 1;
+        else counts.fail += 1;
+      }
+      if (!data.todo && !isAggregate(error)) {
         failures.push({
           name: pathFor(data),
           file: data.file ? relative(process.cwd(), data.file) : "",
@@ -73,7 +81,7 @@ export default async function* summaryReporter(source) {
         });
       }
     } else if (type === "test:summary" && data.file === undefined) {
-      // The run-level summary arrives last, without a file.
+      // The run-level summary arrives last, without a file. Node 20 never emits it.
       counts.pass = data.counts?.passed ?? counts.pass;
       counts.fail = data.counts?.failed ?? counts.fail;
       counts.skipped = data.counts?.skipped ?? counts.skipped;
@@ -82,6 +90,7 @@ export default async function* summaryReporter(source) {
     }
   }
 
+  if (!duration) duration = Date.now() - startedAt;
   const total = counts.pass + counts.fail + counts.skipped + counts.todo;
   const bar = "─".repeat(60);
   const out = [];
